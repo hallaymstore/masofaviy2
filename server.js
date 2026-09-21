@@ -298,7 +298,6 @@ app.post('/api/live/:scheduleId/end', auth, async(req,res)=>{
   if(!canManageLiveLesson(req.user,lesson))return res.status(403).json({message:'Darsni yakunlash uchun ruxsat yo‘q'});
   const session=await getLiveSession(lesson);if(!session)return res.json(liveSessionPayload(lesson,null,req.user));
   session.status='ended';session.endedAt=new Date();session.endedBy=mongoose.isValidObjectId(req.user._id)?req.user._id:undefined;await session.save();
-  await Attendance.updateMany({lessonId:String(lesson._id),dateKey:session.dateKey,leftAt:null},{$set:{leftAt:new Date()}}).catch(()=>{});
   if(LIVEKIT_ENABLED)await livekitRooms.deleteRoom(session.roomName).catch(()=>{});
   audit(req,'LIVE_END','Schedule',String(lesson._id),{sessionId:String(session._id)});
   io.to('lesson:'+lesson._id).emit('lesson:state',liveSessionPayload(lesson,session,req.user));
