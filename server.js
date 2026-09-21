@@ -9,6 +9,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import cors from 'cors';
 import { Server } from 'socket.io';
+import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 
@@ -69,7 +70,11 @@ const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
 const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED !== 'false';
-const VIDEO_PROVIDER_HOST = String(process.env.VIDEO_PROVIDER_HOST || 'meet.jit.si').replace(/^https?:\/\//,'').replace(/\/$/,'');
+const VIDEO_PROVIDER_HOST = 'mediasoup';
+const SFU_BRIDGE_URL = String(process.env.SFU_BRIDGE_URL || 'ws://213.230.97.12:40000');
+const TURN_URLS = String(process.env.TURN_URLS || '').split(',').map(x=>x.trim()).filter(Boolean);
+const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
+const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
 
 const LOGIN_WINDOW_MS = Math.max(60000, Number(process.env.LOGIN_WINDOW_MS || 15*60*1000));
 const LOGIN_MAX_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 7));
@@ -480,6 +485,11 @@ app.get('/api/public/timetable/group/:groupId', async(req,res)=>{ if(!PUBLIC_TIM
 app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({teacher:null,schedule:[]});const t=await User.findOne({login:String(req.params.login).toLowerCase(),role:'teacher',active:true}).select('fullName login').lean();if(!t)return res.status(404).json({message:'O‘qituvchi topilmadi'});res.json({teacher:{fullName:t.fullName,login:t.login},schedule:await scheduleQuery({teacherId:t._id}).lean()}); });
 
 const roomNameFor=(scheduleId,dateKey)=>'M2-'+crypto.createHmac('sha256',JWT_SECRET).update(String(scheduleId)+':'+dateKey).digest('hex').slice(0,28);
+const mediaTicketFor=(user,roomName,scheduleId)=>jwt.sign({typ:'media',sub:String(user._id||user.id),fullName:user.fullName,login:user.login,role:user.role,avatarUrl:user.avatarUrl||'',roomName,scheduleId:String(scheduleId)},JWT_SECRET,{expiresIn:'10m',issuer:'masofaviy2',audience:'masofaviy2-sfu'});
+const mediaIceServers=()=>TURN_URLS.length&&TURN_USERNAME&&TURN_CREDENTIAL?[{urls:TURN_URLS,username:TURN_USERNAME,credential:TURN_CREDENTIAL}]:[];
+const mediaJoinPayload=(user,roomName,scheduleId)=>({provider:'mediasoup',roomName,mediaTicket:mediaTicketFor(user,roomName,scheduleId),iceServers:mediaIceServers()});
+app.post('/api/media/verify',(req,res)=>{try{const payload=jwt.verify(String(req.body.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});if(payload.typ!=='media'||!payload.roomName||!payload.sub)throw new Error();res.json({ok:true,payload})}catch{res.status(401).json({ok:false,message:'Media ticket yaroqsiz yoki muddati tugagan'})}});
+
 const scheduleAccess=async(user,lesson,mode='join')=>{
   if(!lesson)return false;
   if(GLOBAL_SCOPE_ROLES.has(user.role)||hasPermission(user,'lessons.support')||hasPermission(user,'lessons.monitor'))return true;
@@ -498,17 +508,17 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   else if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){try{const scope=await resolveScope(req.user,{});filter.groupId={$in:scope.groupIds}}catch{return res.json({dateKey:localDateKey(),rooms:[]})}}
   const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
   const rooms=schedules.map(x=>({schedule:x,session:bySchedule[String(x._id)]?{id:bySchedule[String(x._id)]._id,status:bySchedule[String(x._id)].status,startedAt:bySchedule[String(x._id)].startedAt,endedAt:bySchedule[String(x._id)].endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||bySchedule[String(x._id)].currentParticipants||0,participantPeak:Math.max(bySchedule[String(x._id)].participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage'),canJoin:req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support')}));
-  res.json({dateKey,provider:VIDEO_PROVIDER_HOST,rooms});
+  res.json({dateKey,provider:'mediasoup',sfuBridge:SFU_BRIDGE_URL,turnEnabled:Boolean(mediaIceServers().length),rooms});
 });
 app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
   const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
   const allowed=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');if(!allowed)return res.status(403).json({message:'Bu darsni boshlash huquqi yo‘q'});
   const dateKey=localDateKey(),roomName=roomNameFor(lesson._id,dateKey);
-  const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:VIDEO_PROVIDER_HOST,status:'active',startedAt:new Date(),endedAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
+  const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:new Date(),endedAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
   audit(req,'LIVE_START','LiveSession',session.id,{scheduleId:String(lesson._id),roomName});
   io.emit('live:changed',{scheduleId:String(lesson._id),status:'active'});
-  res.json({...(await roomPayload(lesson,session)),join:{provider:'jitsi',host:VIDEO_PROVIDER_HOST,roomName,displayName:req.user.fullName,role:req.user.role}});
+  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,roomName,lesson._id)});
 });
 app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
@@ -516,9 +526,9 @@ app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
   if(!(await scheduleAccess(req.user,lesson)))return res.status(403).json({message:'Bu guruh darsiga kirish huquqi yo‘q'});
   const dateKey=localDateKey();let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
   const isHost=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
-  if(!session&&isHost){session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName:roomNameFor(lesson._id,dateKey),providerHost:VIDEO_PROVIDER_HOST,status:'active',startedAt:new Date(),startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined})}
+  if(!session&&isHost){session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName:roomNameFor(lesson._id,dateKey),providerHost:'mediasoup',status:'active',startedAt:new Date(),startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined})}
   if(!session||session.status!=='active')return res.status(409).json({message:'O‘qituvchi hali jonli darsni boshlamagan'});
-  res.json({...(await roomPayload(lesson,session)),join:{provider:'jitsi',host:session.providerHost||VIDEO_PROVIDER_HOST,roomName:session.roomName,displayName:req.user.fullName,role:req.user.role}});
+  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,session.roomName,lesson._id)});
 });
 app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   const lesson=mongoose.isValidObjectId(req.params.scheduleId)?await Schedule.findById(req.params.scheduleId).lean():null;if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
