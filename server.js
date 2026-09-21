@@ -258,7 +258,7 @@ const finishAttendanceForSocket = async socket => {
 };
 const liveSessionPayload = (lesson,session,user) => ({
   lesson:{_id:String(lesson._id),title:lesson.title,subject:lesson.subject||lesson.title,start:lesson.start,end:lesson.end,weekday:lesson.weekday,groupId:String(lesson.groupId),teacherId:String(lesson.teacherId)},
-  session:session?{id:String(session._id),status:session.status,dateKey:session.dateKey,startedAt:session.startedAt,endedAt:session.endedAt,peakParticipants:session.peakParticipants||0}: {status:'waiting',dateKey:localDateKey()},
+  session:session?{id:String(session._id),status:session.status,dateKey:session.dateKey,startedAt:session.startedAt,endedAt:session.endedAt,peakParticipants:session.peakParticipants||0,speakerIds:canManageLiveLesson(user,lesson)?session.speakerIds.map(String):[]}: {status:'waiting',dateKey:localDateKey(),speakerIds:[]},
   media:{provider:'livekit',configured:LIVEKIT_ENABLED,url:LIVEKIT_ENABLED?LIVEKIT_URL:null,lowBandwidthDefault:true},
   permissions:{manage:canManageLiveLesson(user,lesson),publishTeacher:String(lesson.teacherId)===String(user._id),monitor:hasPermission(user,'lessons.monitor')}
 });
