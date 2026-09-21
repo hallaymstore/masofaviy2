@@ -107,9 +107,36 @@
       <div class="page-head"><div><h1>Videodarslar</h1><p>Kurs, yo‘nalish, guruh va qiziqishga mos tavsiya etilgan darslar</p></div><div class="head-actions"><button id="addVideoLesson" class="primary"><span data-ico="plus" data-fallback="+"></span>Videodars qo‘shish</button></div></div>
       <div class="video-toolbar"><input id="videoSearch" placeholder="Fan, mavzu yoki teg bo‘yicha qidirish"><select id="videoCourseFilter"><option value="">Barcha kurslar</option><option value="1">1-kurs</option><option value="2">2-kurs</option><option value="3">3-kurs</option><option value="4">4-kurs</option><option value="5">5-kurs</option><option value="6">6-kurs</option></select><input id="videoDirectionFilter" placeholder="Yo‘nalish"><button id="applyVideoFilter" class="secondary">Qidirish</button></div>
       <div class="video-section-head"><div><h2>Siz uchun tavsiya</h2><small>Guruh, kurs va yo‘nalish mosligiga qarab saralanadi</small></div></div>
-      <div id="recommendedVideos" class="video-card-grid"></div>
+      <div id="recommendedVideos" class="video-horizontal-scroll"></div>
       <div class="video-section-head"><div><h2>Barcha videodarslar</h2><small>Mustaqil ta’lim va takrorlash uchun</small></div></div>
       <div id="videoLessons" class="video-card-grid"></div>
+    </section>
+
+    <section id="videoWatch" class="page">
+      <div class="video-watch-head"><button id="backToVideos" class="secondary"><span data-ico="back" data-fallback="←"></span>Videodarslar</button><div><h1 id="watchTitle">Videodars</h1><p id="watchMeta">Fan · kurs · yo‘nalish</p></div></div>
+      <div class="watch-layout">
+        <div class="watch-main">
+          <div id="watchPlayer" class="watch-player"></div>
+          <div class="watch-info">
+            <h2 id="watchVideoTitle"></h2>
+            <div class="watch-actions">
+              <div id="watchStats" class="watch-stats"></div>
+              <button id="watchLikeBtn" class="secondary"><span data-ico="heart" data-fallback="♡"></span><span id="watchLikeText">Yoqdi</span></button>
+            </div>
+            <div id="watchTeacher" class="watch-teacher"></div>
+            <div id="watchDescription" class="watch-description"></div>
+          </div>
+          <section class="comments-panel">
+            <div class="section-title"><h2>Izohlar <span id="commentCount"></span></h2><small>Videodars bo‘yicha savol va fikrlar</small></div>
+            <form id="commentForm" class="comment-form"><input name="text" maxlength="1500" placeholder="Izoh yozing..." required><button class="primary">Yuborish</button></form>
+            <div id="commentsList" class="comments-scroll"></div>
+          </section>
+        </div>
+        <aside class="watch-side">
+          <div class="section-title"><h2>Keyingi tavsiyalar</h2><small>Mos videodarslar</small></div>
+          <div id="watchRelated" class="related-scroll"></div>
+        </aside>
+      </div>
     </section>
 
     <section id="lesson" class="page">
@@ -142,7 +169,6 @@
   </main>
 </div>
 
-<dialog id="videoDialog" class="video-dialog"><div class="video-dialog-head"><div><h2 id="videoDialogTitle">Videodars</h2><small id="videoDialogMeta"></small></div><button id="closeVideoDialog" class="icon-btn" aria-label="Yopish">×</button></div><div id="videoPlayer" class="video-player"></div><div id="videoDialogDescription" class="video-description"></div></dialog>
 <dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog>
 <div id="toast"></div>
 <script src="/socket.io/socket.io.js"></script><script type="module" src="/app.js"></script>
