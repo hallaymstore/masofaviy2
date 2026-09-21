@@ -24,7 +24,7 @@ async function loadDashboard(){
   q.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));hydrateIcons(q);
   const health=$('#dashboardHealth');
   if(['superadmin','admin','tech'].includes(role)){
-    try{const m=await api('/system/metrics');health.classList.remove('hidden');health.innerHTML='<b>Tizim holati:</b><span>DB: '+esc(m.database)+'</span><span>Onlayn: '+esc(m.onlineUsers)+'</span><span>Socket: '+esc(m.socketConnections)+'</span><span>RAM: '+esc(m.memory?.rssMB||0)+' MB</span><span>Uptime: '+esc(Math.floor((m.uptimeSeconds||0)/60))+' daqiqa</span>'}catch{health.classList.add('hidden')}
+    try{const m=await api('/system/metrics');health.classList.remove('hidden');health.innerHTML='<b>Tizim holati:</b><span>DB: '+esc(m.database)+'</span><span>Onlayn: '+esc(m.onlineUsers)+'</span><span>Jonli guruhlar: '+esc(m.activeLiveRooms||0)+'</span><span>Socket: '+esc(m.socketConnections)+'</span><span>RAM: '+esc(m.memory?.rssMB||0)+' MB</span><span>Uptime: '+esc(Math.floor((m.uptimeSeconds||0)/60))+' daqiqa</span>'}catch{health.classList.add('hidden')}
   }else health.classList.add('hidden');
 }
 function scheduleRow(i){
