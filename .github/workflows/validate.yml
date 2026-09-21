@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [upgrade/statistics-control-v2]
+    branches: [upgrade/statistics-control-v2, feature/live-classroom-sfu]
 
 jobs:
   check:

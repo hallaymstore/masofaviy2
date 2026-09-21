@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -11,6 +12,7 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 
 const app = express();
 const server = http.createServer(app);
@@ -23,6 +25,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
 app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
+app.get('/vendor/livekit-client.js', (_req,res)=>res.sendFile(path.join(process.cwd(),'node_modules','livekit-client','dist','livekit-client.umd.min.js')));
 
 const permissionsByRole = {
   superadmin: ['*'],
@@ -50,11 +53,34 @@ structureSchema.index({ type: 1, externalId: 1 }, { unique: true, sparse: true }
 const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam'], default: 'lecture' }, recurring: { type: Boolean, default: true } }, { timestamps: true });
 const auditSchema = new mongoose.Schema({ actorId: mongoose.Schema.Types.ObjectId, actorLogin: String, actorName: String, action: String, entity: String, entityId: String, ip: String, meta: mongoose.Schema.Types.Mixed }, { timestamps: true });
 const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, status: { type: String, enum: ['present','late','absent','excused'] } }, { timestamps: true });
-const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema);
+const liveSessionSchema = new mongoose.Schema({
+  scheduleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Schedule', required: true, index: true },
+  dateKey: { type: String, required: true, index: true },
+  status: { type: String, enum: ['waiting','live','ended'], default: 'waiting', index: true },
+  roomName: { type: String, required: true, trim: true },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  startedAt: Date, endedAt: Date,
+  startedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  endedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  speakerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  peakParticipants: { type: Number, default: 0 },
+  lowBandwidthDefault: { type: Boolean, default: true }
+}, { timestamps: true });
+liveSessionSchema.index({ scheduleId: 1, dateKey: 1 }, { unique: true });
+const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession = mongoose.model('LiveSession', liveSessionSchema);
 const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
 const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED !== 'false';
+const LIVEKIT_URL = String(process.env.LIVEKIT_URL||'').trim();
+const LIVEKIT_API_KEY = String(process.env.LIVEKIT_API_KEY||'').trim();
+const LIVEKIT_API_SECRET = String(process.env.LIVEKIT_API_SECRET||'').trim();
+const LIVEKIT_ENABLED = Boolean(LIVEKIT_URL&&LIVEKIT_API_KEY&&LIVEKIT_API_SECRET);
+const LIVE_CLASS_MAX_PARTICIPANTS = Math.max(10, Math.min(300, Number(process.env.LIVE_CLASS_MAX_PARTICIPANTS||80)));
+const LIVE_CLASS_MAX_MINUTES = Math.max(60, Math.min(480, Number(process.env.LIVE_CLASS_MAX_MINUTES||240)));
+const livekitRooms = LIVEKIT_ENABLED ? new RoomServiceClient(LIVEKIT_URL,LIVEKIT_API_KEY,LIVEKIT_API_SECRET) : null;
+const liveLessonPresence = new Map();
+const liveMediaPresence = new Map();
 
 const LOGIN_WINDOW_MS = Math.max(60000, Number(process.env.LOGIN_WINDOW_MS || 15*60*1000));
 const LOGIN_MAX_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 7));
@@ -172,6 +198,70 @@ const buildGroupPerformance = async (scope,days=7) => {
 
 
 
+
+const liveRoomName = (scheduleId,dateKey=localDateKey()) => 'm2_'+String(scheduleId)+'_'+String(dateKey).replace(/-/g,'');
+const canAccessLiveLesson = async (user,lesson) => {
+  if(!user||!lesson)return false;
+  if(String(lesson.teacherId)===String(user._id))return true;
+  if(hasPermission(user,'lessons.support'))return true;
+  if(hasPermission(user,'lessons.monitor')){
+    if(GLOBAL_SCOPE_ROLES.has(user.role))return true;
+    try{const scope=await resolveScope(user,{});if(scope.groupIds.some(id=>String(id)===String(lesson.groupId)))return true}catch{}
+  }
+  if(user.role==='student'){const gid=await resolveUserGroupId(user);return String(gid||'')===String(lesson.groupId)}
+  return false;
+};
+const canManageLiveLesson = (user,lesson) => Boolean(user&&lesson&&(String(lesson.teacherId)===String(user._id)||hasPermission(user,'lessons.support')||['superadmin','admin'].includes(user.role)));
+const getLiveSession = async (lesson,dateKey=localDateKey()) => {
+  let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
+  if(session?.status==='live'&&session.startedAt&&Date.now()-session.startedAt.getTime()>LIVE_CLASS_MAX_MINUTES*60000){
+    session.status='ended';session.endedAt=new Date();await session.save();
+  }
+  return session;
+};
+const livePresenceSnapshot = lessonId => {
+  const room=liveLessonPresence.get(String(lessonId));
+  if(!room)return [];
+  return [...room.values()].map(p=>({userId:p.userId,fullName:p.fullName,role:p.role,hand:Boolean(p.hand),media:p.media||{mic:false,camera:false,screen:false},connectedAt:p.connectedAt,connections:p.socketIds.size}));
+};
+const publishLivePresence = lessonId => io.to('lesson:'+lessonId).emit('lesson:participants',livePresenceSnapshot(lessonId));
+const addLivePresence = (lessonId,socket) => {
+  const key=String(lessonId),uid=String(socket.user._id);let room=liveLessonPresence.get(key);if(!room){room=new Map();liveLessonPresence.set(key,room)}
+  let p=room.get(uid);if(!p){p={userId:uid,fullName:socket.user.fullName,role:socket.user.role,hand:false,media:{mic:false,camera:false,screen:false},connectedAt:new Date().toISOString(),socketIds:new Set()};room.set(uid,p)}
+  p.socketIds.add(socket.id);socket.data.lessonId=key;
+};
+const removeLivePresence = (lessonId,socket) => {
+  const key=String(lessonId||''),uid=String(socket.user._id),room=liveLessonPresence.get(key);if(!room)return;
+  const p=room.get(uid);if(p){p.socketIds.delete(socket.id);if(!p.socketIds.size)room.delete(uid)}
+  if(!room.size)liveLessonPresence.delete(key);
+};
+const startAttendanceForSocket = async socket => {
+  if(socket.user.role!=='student'||!socket.data.lessonId)return;
+  const lessonId=String(socket.data.lessonId),mediaKey=lessonId+':'+String(socket.user._id);let state=liveMediaPresence.get(mediaKey);
+  if(!state){state={count:0,startedAt:new Date()};liveMediaPresence.set(mediaKey,state)}
+  state.count++;
+  if(state.count>1)return;
+  const now=state.startedAt,dateKey=localDateKey(now),lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+  const late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;
+  let row=await Attendance.findOne({lessonId,userId:socket.user._id,dateKey}).sort({createdAt:1});
+  if(!row)row=await Attendance.create({lessonId,userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});
+  else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}
+  state.attendanceId=String(row._id);
+  io.to('lesson:'+lessonId).emit('lesson:presence',{userId:String(socket.user._id),fullName:socket.user.fullName,state:'joined',status:row.status});
+};
+const finishAttendanceForSocket = async socket => {
+  if(socket.user.role!=='student'||!socket.data.lessonId)return;
+  const mediaKey=String(socket.data.lessonId)+':'+String(socket.user._id),state=liveMediaPresence.get(mediaKey);if(!state)return;
+  state.count=Math.max(0,state.count-1);if(state.count>0)return;
+  liveMediaPresence.delete(mediaKey);if(!state.attendanceId)return;
+  const row=await Attendance.findById(state.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-state.startedAt)/60000));await row.save()}
+};
+const liveSessionPayload = (lesson,session,user) => ({
+  lesson:{_id:String(lesson._id),title:lesson.title,subject:lesson.subject||lesson.title,start:lesson.start,end:lesson.end,weekday:lesson.weekday,groupId:String(lesson.groupId),teacherId:String(lesson.teacherId)},
+  session:session?{id:String(session._id),status:session.status,dateKey:session.dateKey,startedAt:session.startedAt,endedAt:session.endedAt,peakParticipants:session.peakParticipants||0,speakerIds:canManageLiveLesson(user,lesson)?session.speakerIds.map(String):[]}: {status:'waiting',dateKey:localDateKey(),speakerIds:[]},
+  media:{provider:'livekit',configured:LIVEKIT_ENABLED,url:LIVEKIT_ENABLED?LIVEKIT_URL:null,lowBandwidthDefault:true},
+  permissions:{manage:canManageLiveLesson(user,lesson),publishTeacher:String(lesson.teacherId)===String(user._id),monitor:hasPermission(user,'lessons.monitor')}
+});
 const sign = user => jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
 const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),fullName:'Bosh administrator',role:'superadmin',permissions:['*'],deniedPermissions:[],active:true,mustChangePassword:true};
 const auth = async (req, res, next) => { try { const token = req.headers.authorization?.replace('Bearer ', ''); const data = jwt.verify(token, JWT_SECRET); req.user = data.id==='demo' ? demoAdmin : await User.findById(data.id).lean(); if (!req.user?.active) throw new Error(); next(); } catch { res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' }); } };
@@ -184,6 +274,68 @@ app.get('/api/system/metrics', auth, async(req,res)=>{
   const mem=process.memoryUsage();
   res.json({database:mongoose.connection.readyState===1?'connected':'disconnected',uptimeSeconds:Math.round(process.uptime()),memory:{rssMB:Math.round(mem.rss/1024/1024),heapMB:Math.round(mem.heapUsed/1024/1024)},onlineUsers:onlineUsers.size,socketConnections:io.engine.clientsCount,node:process.version,time:new Date().toISOString()});
 });
+
+app.get('/api/live/:scheduleId', auth, async(req,res)=>{
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!await canAccessLiveLesson(req.user,lesson))return res.status(403).json({message:'Bu jonli darsga kirish huquqi yo‘q'});
+  const session=await getLiveSession(lesson);res.json(liveSessionPayload(lesson,session,req.user));
+});
+app.post('/api/live/:scheduleId/start', auth, async(req,res)=>{
+  if(!LIVEKIT_ENABLED)return res.status(503).json({message:'Real video SFU hali sozlanmagan. LIVEKIT_URL, LIVEKIT_API_KEY va LIVEKIT_API_SECRET ni kiriting.'});
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!canManageLiveLesson(req.user,lesson))return res.status(403).json({message:'Darsni boshlash uchun ruxsat yo‘q'});
+  const dateKey=localDateKey(),roomName=liveRoomName(lesson._id,dateKey);
+  let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
+  if(!session)session=new LiveSession({scheduleId:lesson._id,dateKey,roomName,teacherId:lesson.teacherId,status:'waiting'});
+  session.status='live';session.roomName=roomName;session.startedAt=session.startedAt||new Date();session.endedAt=undefined;session.startedBy=mongoose.isValidObjectId(req.user._id)?req.user._id:lesson.teacherId;await session.save();
+  try{await livekitRooms.createRoom({name:roomName,maxParticipants:LIVE_CLASS_MAX_PARTICIPANTS,emptyTimeout:10*60,departureTimeout:5*60,metadata:JSON.stringify({scheduleId:String(lesson._id),dateKey})})}catch(err){if(!/already exists/i.test(String(err?.message||'')))console.warn('LiveKit room create:',err.message)}
+  audit(req,'LIVE_START','Schedule',String(lesson._id),{sessionId:String(session._id),roomName});
+  io.to('lesson:'+lesson._id).emit('lesson:state',liveSessionPayload(lesson,session,req.user));
+  res.json(liveSessionPayload(lesson,session,req.user));
+});
+app.post('/api/live/:scheduleId/end', auth, async(req,res)=>{
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!canManageLiveLesson(req.user,lesson))return res.status(403).json({message:'Darsni yakunlash uchun ruxsat yo‘q'});
+  const session=await getLiveSession(lesson);if(!session)return res.json(liveSessionPayload(lesson,null,req.user));
+  session.status='ended';session.endedAt=new Date();session.endedBy=mongoose.isValidObjectId(req.user._id)?req.user._id:undefined;await session.save();
+  if(LIVEKIT_ENABLED)await livekitRooms.deleteRoom(session.roomName).catch(()=>{});
+  audit(req,'LIVE_END','Schedule',String(lesson._id),{sessionId:String(session._id)});
+  io.to('lesson:'+lesson._id).emit('lesson:state',liveSessionPayload(lesson,session,req.user));
+  res.json(liveSessionPayload(lesson,session,req.user));
+});
+app.post('/api/live/:scheduleId/token', auth, async(req,res)=>{
+  if(!LIVEKIT_ENABLED)return res.status(503).json({message:'Real video SFU sozlanmagan'});
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!await canAccessLiveLesson(req.user,lesson))return res.status(403).json({message:'Bu jonli darsga kirish huquqi yo‘q'});
+  const session=await getLiveSession(lesson);if(!session||session.status!=='live')return res.status(409).json({message:'Dars hali boshlanmagan'});
+  const isTeacher=String(lesson.teacherId)===String(req.user._id),isMonitor=hasPermission(req.user,'lessons.monitor')&&!isTeacher&&req.user.role!=='student';
+  const canSpeak=isTeacher||session.speakerIds.some(id=>String(id)===String(req.user._id));
+  const at=new AccessToken(LIVEKIT_API_KEY,LIVEKIT_API_SECRET,{identity:String(req.user._id),name:req.user.fullName||req.user.login,ttl:'3h',metadata:JSON.stringify({role:req.user.role,scheduleId:String(lesson._id)})});
+  at.addGrant({roomJoin:true,room:session.roomName,roomAdmin:isTeacher||canManageLiveLesson(req.user,lesson),canSubscribe:true,canPublish:!isMonitor&&canSpeak,canPublishData:true});
+  const participantToken=await at.toJwt();
+  res.json({serverUrl:LIVEKIT_URL,participantToken,roomName:session.roomName,canPublish:!isMonitor&&canSpeak,isTeacher,isMonitor,lowBandwidth:true});
+});
+app.patch('/api/live/:scheduleId/speaker/:userId', auth, async(req,res)=>{
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!canManageLiveLesson(req.user,lesson))return res.status(403).json({message:'Mikrofon ruxsatini boshqarish uchun ruxsat yo‘q'});
+  const session=await getLiveSession(lesson);if(!session||session.status!=='live')return res.status(409).json({message:'Dars faol emas'});
+  const target=await User.findById(req.params.userId).lean();if(!target||target.role!=='student')return res.status(404).json({message:'Talaba topilmadi'});
+  const gid=await resolveUserGroupId(target);if(String(gid||'')!==String(lesson.groupId))return res.status(403).json({message:'Talaba bu guruhga tegishli emas'});
+  const allowed=Boolean(req.body.allowed),set=new Set(session.speakerIds.map(String));allowed?set.add(String(target._id)):set.delete(String(target._id));session.speakerIds=[...set].filter(mongoose.isValidObjectId);await session.save();
+  if(LIVEKIT_ENABLED)await livekitRooms.updateParticipant(session.roomName,String(target._id),{permission:{canSubscribe:true,canPublish:allowed,canPublishData:true}}).catch(()=>{});
+  audit(req,allowed?'LIVE_SPEAKER_ALLOW':'LIVE_SPEAKER_REVOKE','User',String(target._id),{scheduleId:String(lesson._id)});
+  io.to('lesson:'+lesson._id).emit('lesson:speaker-permission',{userId:String(target._id),allowed});
+  res.json({ok:true,allowed});
+});
+app.post('/api/live/:scheduleId/kick/:userId', auth, async(req,res)=>{
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!canManageLiveLesson(req.user,lesson))return res.status(403).json({message:'Ishtirokchini chiqarish uchun ruxsat yo‘q'});
+  const session=await getLiveSession(lesson);if(!session)return res.status(409).json({message:'Dars sessiyasi topilmadi'});
+  if(LIVEKIT_ENABLED)await livekitRooms.removeParticipant(session.roomName,String(req.params.userId)).catch(()=>{});
+  io.to('lesson:'+lesson._id).emit('lesson:kicked',{userId:String(req.params.userId)});
+  audit(req,'LIVE_KICK','User',String(req.params.userId),{scheduleId:String(lesson._id)});res.json({ok:true});
+});
+
 app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
@@ -481,7 +633,50 @@ app.get('/api/reports/attendance', auth, can('reports.view'), async(req,res)=>{c
 app.get('/api/audit', auth, can('reports.view'), async(req,res)=>{const filter={};if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){filter.actorId=req.user._id}if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80)),search=[{actorLogin:{$regex:q,$options:'i'}},{actorName:{$regex:q,$options:'i'}},{action:{$regex:q,$options:'i'}},{entity:{$regex:q,$options:'i'}}];if(filter.actorId)filter.$and=[{actorId:filter.actorId},{$or:search}];else filter.$or=search}res.json(await Audit.find(filter).sort({createdAt:-1}).limit(Math.min(1000,Number(req.query.limit)||300)).lean())});
 
 io.use(async(socket,next)=>{ try { const data=jwt.verify(socket.handshake.auth.token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
-io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); }); socket.on('disconnect', async()=>{const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
+io.on('connection', socket => {
+  const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});
+
+  socket.on('lesson:join', async({lessonId},ack=()=>{})=>{
+    try{
+      if(!mongoose.isValidObjectId(lessonId))return ack({ok:false,message:'Dars ID noto‘g‘ri'});
+      const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return ack({ok:false,message:'Dars topilmadi'});
+      if(!await canAccessLiveLesson(socket.user,lesson))return ack({ok:false,message:'Bu darsga kirish huquqi yo‘q'});
+      if(socket.data.lessonId&&socket.data.lessonId!==String(lessonId)){await finishAttendanceForSocket(socket);removeLivePresence(socket.data.lessonId,socket);socket.leave('lesson:'+socket.data.lessonId)}
+      socket.join('lesson:'+lessonId);addLivePresence(lessonId,socket);publishLivePresence(lessonId);
+      const session=await getLiveSession(lesson);
+      ack({ok:true,...liveSessionPayload(lesson,session,socket.user),participants:livePresenceSnapshot(lessonId)});
+    }catch(err){ack({ok:false,message:'Darsga ulanishda xatolik'});socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})}
+  });
+
+  socket.on('lesson:media-connected', async({lessonId})=>{
+    if(String(socket.data.lessonId)!==String(lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean(),session=lesson?await getLiveSession(lesson):null;if(!session||session.status!=='live')return;
+    await startAttendanceForSocket(socket);
+    const room=liveLessonPresence.get(String(lessonId)),count=room?room.size:0;if(count>Number(session.peakParticipants||0)){session.peakParticipants=count;session.save().catch(()=>{})}
+  });
+  socket.on('lesson:media-disconnected', async({lessonId})=>{if(String(socket.data.lessonId)===String(lessonId))await finishAttendanceForSocket(socket)});
+
+  socket.on('lesson:media-state', ({lessonId,mic,camera,screen,quality})=>{
+    if(String(socket.data.lessonId)!==String(lessonId))return;
+    const room=liveLessonPresence.get(String(lessonId)),p=room?.get(String(socket.user._id));if(!p)return;
+    p.media={mic:Boolean(mic),camera:Boolean(camera),screen:Boolean(screen),quality:String(quality||'')};publishLivePresence(lessonId);
+  });
+
+  socket.on('lesson:hand', ({lessonId,raised})=>{
+    if(String(socket.data.lessonId)!==String(lessonId))return;
+    const room=liveLessonPresence.get(String(lessonId)),p=room?.get(String(socket.user._id));if(!p)return;p.hand=Boolean(raised);publishLivePresence(lessonId);
+  });
+
+  socket.on('lesson:chat', ({lessonId,text})=>{const clean=String(text||'').trim().slice(0,1000);if(clean&&socket.rooms.has('lesson:'+lessonId))io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:String(socket.user._id),fullName:socket.user.fullName,text:clean,at:new Date().toISOString()})});
+
+  socket.on('lesson:leave', async({lessonId})=>{if(String(socket.data.lessonId)!==String(lessonId))return;await finishAttendanceForSocket(socket);removeLivePresence(lessonId,socket);socket.leave('lesson:'+lessonId);socket.data.lessonId='';publishLivePresence(lessonId)});
+
+  socket.on('disconnect', async()=>{
+    const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});
+    if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});
+    if(socket.data.lessonId){const lessonId=socket.data.lessonId;await finishAttendanceForSocket(socket);removeLivePresence(lessonId,socket);publishLivePresence(lessonId)}
+  });
+});
 
 async function bootstrap(){ server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`)); if(!process.env.MONGODB_URI){console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return} try{await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});const login=(process.env.ADMIN_LOGIN||'admin').toLowerCase();if(!await User.exists({login}))await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(process.env.ADMIN_PASSWORD||'ChangeMe123!',11),mustChangePassword:true});console.log('MongoDB ulandi')}catch(err){console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)} }
 bootstrap();
