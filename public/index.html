@@ -95,8 +95,60 @@
     </section>
 
     <section id="lesson" class="page">
-      <div class="page-head"><div><h1>Jonli dars xonasi</h1><p>SFU video uchun tayyor xona, chat va avtomatik davomat</p></div></div>
-      <div class="lesson-grid"><div class="stage"><div class="video-placeholder"><span>◉</span><b>Dars boshlanmagan</b><small>Dars jadvalidagi mashg‘ulot tanlanganda ishtirok nazorati ishga tushadi</small></div><div class="controls"><button>🎙 Mikrofon</button><button>▣ Kamera</button><button>□ Ekran</button><button class="danger">Darsni yakunlash</button></div></div><aside class="chat"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button>➤</button></form></aside></div>
+      <div class="page-head live-page-head">
+        <div><h1>Jonli dars</h1><p id="liveLessonSubtitle">Jadvaldan darsni tanlang — tizim kerakli guruh va o‘qituvchini o‘zi tekshiradi</p></div>
+        <div class="live-head-actions"><span id="liveStatus" class="live-status waiting">Kutilmoqda</span><button id="leaveLessonBtn" class="ghost hidden">Xonadan chiqish</button></div>
+      </div>
+
+      <div id="liveNoLesson" class="live-empty">
+        <span>🎥</span><b>Jonli dars tanlanmagan</b>
+        <p>Dars jadvaliga o‘ting va kerakli mashg‘ulotdagi <b>Kirish</b> tugmasini bosing.</p>
+        <button class="primary" data-go="schedule">Dars jadvalini ochish</button>
+      </div>
+
+      <div id="liveClassroom" class="live-classroom hidden">
+        <div class="live-main">
+          <div id="waitingRoom" class="waiting-room">
+            <div class="waiting-icon">◉</div>
+            <h2 id="waitingTitle">Dars boshlanishi kutilmoqda</h2>
+            <p id="waitingText">Siz xonaga kirdingiz. Video trafik o‘qituvchi darsni boshlamaguncha ishlatilmaydi.</p>
+            <div id="liveLessonMeta" class="live-meta"></div>
+            <button id="startLessonBtn" class="primary hidden">▶ Darsni boshlash</button>
+          </div>
+
+          <div id="mediaRoom" class="media-room hidden">
+            <div class="live-topbar">
+              <div><b id="liveLessonTitle">Jonli dars</b><small id="liveLessonInfo"></small></div>
+              <div class="live-indicators"><span id="networkQuality">● Aloqa</span><span id="participantCount">0 ishtirokchi</span><span id="bandwidthMode">Yengil rejim</span></div>
+            </div>
+
+            <div id="videoStage" class="video-stage">
+              <div id="mainVideo" class="main-video">
+                <div class="video-placeholder compact"><span>◉</span><b>Video kutilmoqda</b><small>O‘qituvchi kamerasi yoki ekran ulashishi shu yerda ko‘rinadi</small></div>
+              </div>
+              <div id="participantStrip" class="participant-strip"></div>
+            </div>
+
+            <div class="live-controls">
+              <button id="micBtn" class="media-control">🎙 <span>Mikrofon</span></button>
+              <button id="cameraBtn" class="media-control">▣ <span>Kamera</span></button>
+              <button id="screenBtn" class="media-control">▤ <span>Ekran</span></button>
+              <button id="handBtn" class="media-control">✋ <span>Qo‘l ko‘tarish</span></button>
+              <button id="liteBtn" class="media-control active">⚡ <span>Yengil rejim</span></button>
+              <button id="endLessonBtn" class="media-control danger hidden">■ <span>Darsni yakunlash</span></button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="live-side">
+          <div class="live-side-tabs"><button data-live-tab="participants" class="active">Ishtirokchilar</button><button data-live-tab="chat">Chat</button></div>
+          <div id="participantsPane" class="live-side-pane active"><div id="liveParticipants" class="live-participants"></div></div>
+          <div id="chatPane" class="live-side-pane">
+            <div id="messages" class="live-messages"></div>
+            <form id="chatForm" class="live-chat-form"><input placeholder="Xabar yozing…" maxlength="1000"><button>➤</button></form>
+          </div>
+        </aside>
+      </div>
     </section>
 
     <section id="reports" class="page">
@@ -114,5 +166,5 @@
 
 <dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script type="module" src="/app.js"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/vendor/livekit-client.js"></script><script type="module" src="/app.js"></script>
 </body></html>
