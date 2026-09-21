@@ -25,7 +25,7 @@ const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'po
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, referrerPolicy:{policy:'strict-origin-when-cross-origin'} }));
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
@@ -62,7 +62,9 @@ liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
 const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
 const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},completed:{type:Boolean,default:false},liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
 videoProgressSchema.index({videoId:1,userId:1},{unique:true});
-const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema);
+const videoCommentSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true,index:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},parentId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoComment',default:null,index:true},text:{type:String,required:true,trim:true,maxlength:1500},editedAt:Date},{timestamps:true});
+videoCommentSchema.index({videoId:1,createdAt:-1});
+const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema), VideoComment=mongoose.model('VideoComment',videoCommentSchema);
 const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
@@ -535,7 +537,8 @@ app.get('/api/videos', auth, async(req,res)=>{
   const scored=rows.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
   scored.sort((a,b)=>b.recommendationScore-a.recommendationScore||new Date(b.createdAt)-new Date(a.createdAt));
   const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),x]));
-  res.json(scored.map(x=>({...x,progress:pm[String(x._id)]||null})));
+  const counts=scored.length?await VideoComment.aggregate([{$match:{videoId:{$in:scored.map(x=>x._id)}}},{$group:{_id:'$videoId',count:{$sum:1}}}]):[],cm=Object.fromEntries(counts.map(x=>[String(x._id),x.count]));
+  res.json(scored.map(x=>({...x,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
 });
 app.post('/api/videos', auth, async(req,res)=>{
   if(!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(403).json({message:'Videodars joylash huquqi yo‘q'});
@@ -565,6 +568,31 @@ app.post('/api/videos/:id/like', auth, async(req,res)=>{
   const prev=await VideoProgress.findOne({videoId:req.params.id,userId:req.user._id}),next=!prev?.liked;
   await VideoProgress.findOneAndUpdate({videoId:req.params.id,userId:req.user._id},{$set:{liked:next,lastViewedAt:new Date()}},{upsert:true,setDefaultsOnInsert:true});
   await VideoLesson.findByIdAndUpdate(req.params.id,{$inc:{likes:next?1:-1}});res.json({liked:next});
+});
+app.get('/api/videos/:id/comments', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});
+  const exists=await VideoLesson.exists({_id:req.params.id,published:true});if(!exists&&!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(404).json({message:'Videodars topilmadi'});
+  const rows=await VideoComment.find({videoId:req.params.id}).populate('userId','fullName login avatarUrl role').sort({createdAt:-1}).limit(500).lean();
+  res.json(rows);
+});
+app.post('/api/videos/:id/comments', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.user._id)||!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Izoh yuborilmadi'});
+  const text=String(req.body.text||'').trim();if(!text)return res.status(400).json({message:'Izoh matnini yozing'});if(text.length>1500)return res.status(400).json({message:'Izoh 1500 belgidan oshmasin'});
+  const video=await VideoLesson.findOne({_id:req.params.id,published:true}).lean();if(!video)return res.status(404).json({message:'Videodars topilmadi'});
+  let parentId=null;if(req.body.parentId){if(!mongoose.isValidObjectId(req.body.parentId))return res.status(400).json({message:'Javob ID noto‘g‘ri'});const parent=await VideoComment.findOne({_id:req.body.parentId,videoId:video._id}).lean();if(!parent)return res.status(404).json({message:'Asosiy izoh topilmadi'});parentId=parent._id}
+  const row=await VideoComment.create({videoId:video._id,userId:req.user._id,parentId,text});const populated=await VideoComment.findById(row._id).populate('userId','fullName login avatarUrl role').lean();
+  res.status(201).json(populated);
+});
+app.patch('/api/video-comments/:id', auth, async(req,res)=>{
+  const row=mongoose.isValidObjectId(req.params.id)?await VideoComment.findById(req.params.id):null;if(!row)return res.status(404).json({message:'Izoh topilmadi'});
+  if(String(row.userId)!==String(req.user._id))return res.status(403).json({message:'Faqat o‘z izohingizni tahrirlashingiz mumkin'});
+  const text=String(req.body.text||'').trim();if(!text||text.length>1500)return res.status(400).json({message:'Izoh 1–1500 belgi oralig‘ida bo‘lsin'});
+  row.text=text;row.editedAt=new Date();await row.save();res.json({ok:true});
+});
+app.delete('/api/video-comments/:id', auth, async(req,res)=>{
+  const row=mongoose.isValidObjectId(req.params.id)?await VideoComment.findById(req.params.id):null;if(!row)return res.status(404).json({message:'Izoh topilmadi'});
+  if(String(row.userId)!==String(req.user._id)&&!hasPermission(req.user,'videos.manage'))return res.status(403).json({message:'Bu izohni o‘chirish huquqi yo‘q'});
+  await VideoComment.deleteMany({$or:[{_id:row._id},{parentId:row._id}]});res.json({ok:true});
 });
 
 
