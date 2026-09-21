@@ -484,7 +484,7 @@ const scheduleAccess=async(user,lesson,mode='join')=>{
 };
 const roomPayload=async(lesson,session)=>{
   const populated=await Schedule.findById(lesson._id).populate('groupId','name externalId code').populate('teacherId','fullName login').lean();
-  return {schedule:populated,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:session.currentParticipants||0,participantPeak:session.participantPeak||0}:null};
+  return {schedule:populated,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(lesson._id))?.size||session.currentParticipants||0,participantPeak:Math.max(session.participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(lesson._id))?.size||0)}:null};
 };
 app.get('/api/live/rooms', auth, async(req,res)=>{
   const day=localWeekday(),filter={weekday:day,liveEnabled:{$ne:false}};
@@ -492,7 +492,7 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   else if(req.user.role==='student'){const gid=await resolveUserGroupId(req.user);if(!gid)return res.json({dateKey:localDateKey(),rooms:[]});filter.groupId=gid}
   else if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){try{const scope=await resolveScope(req.user,{});filter.groupId={$in:scope.groupIds}}catch{return res.json({dateKey:localDateKey(),rooms:[]})}}
   const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
-  const rooms=schedules.map(x=>({schedule:x,session:bySchedule[String(x._id)]?{id:bySchedule[String(x._id)]._id,status:bySchedule[String(x._id)].status,startedAt:bySchedule[String(x._id)].startedAt,endedAt:bySchedule[String(x._id)].endedAt,currentParticipants:bySchedule[String(x._id)].currentParticipants||0,participantPeak:bySchedule[String(x._id)].participantPeak||0}:null,canStart:String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage'),canJoin:req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support')}));
+  const rooms=schedules.map(x=>({schedule:x,session:bySchedule[String(x._id)]?{id:bySchedule[String(x._id)]._id,status:bySchedule[String(x._id)].status,startedAt:bySchedule[String(x._id)].startedAt,endedAt:bySchedule[String(x._id)].endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||bySchedule[String(x._id)].currentParticipants||0,participantPeak:Math.max(bySchedule[String(x._id)].participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage'),canJoin:req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support')}));
   res.json({dateKey,provider:VIDEO_PROVIDER_HOST,rooms});
 });
 app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
