@@ -474,6 +474,96 @@ app.post('/api/schedules/bulk-import', auth, can('schedule.manage'), async(req,r
 app.get('/api/public/timetable/group/:groupId', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({group:null,schedule:[]});const g=await resolveStructure(req.params.groupId,'group');if(!g)return res.status(404).json({message:'Guruh ID topilmadi'});res.json({group:{name:g.name,id:g.externalId||g.code||String(g._id)},schedule:await scheduleQuery({groupId:g._id}).lean()}); });
 app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({teacher:null,schedule:[]});const t=await User.findOne({login:String(req.params.login).toLowerCase(),role:'teacher',active:true}).select('fullName login').lean();if(!t)return res.status(404).json({message:'O‘qituvchi topilmadi'});res.json({teacher:{fullName:t.fullName,login:t.login},schedule:await scheduleQuery({teacherId:t._id}).lean()}); });
 
+const roomNameFor=(scheduleId,dateKey)=>'M2-'+crypto.createHmac('sha256',JWT_SECRET).update(String(scheduleId)+':'+dateKey).digest('hex').slice(0,28);
+const scheduleAccess=async(user,lesson,mode='join')=>{
+  if(!lesson)return false;
+  if(GLOBAL_SCOPE_ROLES.has(user.role)||hasPermission(user,'lessons.support')||hasPermission(user,'lessons.monitor'))return true;
+  if(user.role==='teacher')return String(lesson.teacherId)===String(user._id);
+  if(user.role==='student'){const gid=await resolveUserGroupId(user);return String(gid||'')===String(lesson.groupId)}
+  try{const scope=await resolveScope(user,{});return scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{return false}
+};
+const roomPayload=async(lesson,session)=>{
+  const populated=await Schedule.findById(lesson._id).populate('groupId','name externalId code').populate('teacherId','fullName login').lean();
+  return {schedule:populated,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:session.currentParticipants||0,participantPeak:session.participantPeak||0}:null};
+};
+app.get('/api/live/rooms', auth, async(req,res)=>{
+  const day=localWeekday(),filter={weekday:day,liveEnabled:{$ne:false}};
+  if(req.user.role==='teacher')filter.teacherId=req.user._id;
+  else if(req.user.role==='student'){const gid=await resolveUserGroupId(req.user);if(!gid)return res.json({dateKey:localDateKey(),rooms:[]});filter.groupId=gid}
+  else if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){try{const scope=await resolveScope(req.user,{});filter.groupId={$in:scope.groupIds}}catch{return res.json({dateKey:localDateKey(),rooms:[]})}}
+  const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
+  const rooms=schedules.map(x=>({schedule:x,session:bySchedule[String(x._id)]?{id:bySchedule[String(x._id)]._id,status:bySchedule[String(x._id)].status,startedAt:bySchedule[String(x._id)].startedAt,endedAt:bySchedule[String(x._id)].endedAt,currentParticipants:bySchedule[String(x._id)].currentParticipants||0,participantPeak:bySchedule[String(x._id)].participantPeak||0}:null,canStart:String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage'),canJoin:req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support')}));
+  res.json({dateKey,provider:VIDEO_PROVIDER_HOST,rooms});
+});
+app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  const allowed=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');if(!allowed)return res.status(403).json({message:'Bu darsni boshlash huquqi yo‘q'});
+  const dateKey=localDateKey(),roomName=roomNameFor(lesson._id,dateKey);
+  const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:VIDEO_PROVIDER_HOST,status:'active',startedAt:new Date(),endedAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
+  audit(req,'LIVE_START','LiveSession',session.id,{scheduleId:String(lesson._id),roomName});
+  io.emit('live:changed',{scheduleId:String(lesson._id),status:'active'});
+  res.json({...(await roomPayload(lesson,session)),join:{provider:'jitsi',host:VIDEO_PROVIDER_HOST,roomName,displayName:req.user.fullName,role:req.user.role}});
+});
+app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(!(await scheduleAccess(req.user,lesson)))return res.status(403).json({message:'Bu guruh darsiga kirish huquqi yo‘q'});
+  const dateKey=localDateKey();let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
+  const isHost=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
+  if(!session&&isHost){session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName:roomNameFor(lesson._id,dateKey),providerHost:VIDEO_PROVIDER_HOST,status:'active',startedAt:new Date(),startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined})}
+  if(!session||session.status!=='active')return res.status(409).json({message:'O‘qituvchi hali jonli darsni boshlamagan'});
+  res.json({...(await roomPayload(lesson,session)),join:{provider:'jitsi',host:session.providerHost||VIDEO_PROVIDER_HOST,roomName:session.roomName,displayName:req.user.fullName,role:req.user.role}});
+});
+app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
+  const lesson=mongoose.isValidObjectId(req.params.scheduleId)?await Schedule.findById(req.params.scheduleId).lean():null;if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  if(String(lesson.teacherId)!==String(req.user._id)&&!hasPermission(req.user,'live.manage'))return res.status(403).json({message:'Bu darsni yakunlash huquqi yo‘q'});
+  const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey:localDateKey(),status:'active'},{$set:{status:'ended',endedAt:new Date(),currentParticipants:0}},{new:true});
+  if(session){audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'})}
+  res.json({ok:true});
+});
+
+app.get('/api/videos', auth, async(req,res)=>{
+  const filter={published:true};if((hasPermission(req.user,'videos.manage')||hasPermission(req.user,'videos.upload'))&&req.query.all==='1')delete filter.published;
+  if(req.query.subject)filter.subject={$regex:escapeRegex(String(req.query.subject).slice(0,80)),$options:'i'};
+  if(req.query.direction)filter.direction={$regex:escapeRegex(String(req.query.direction).slice(0,80)),$options:'i'};
+  const rows=await VideoLesson.find(filter).populate('teacherId','fullName login').populate('groupIds','name externalId code').sort({featured:-1,createdAt:-1}).limit(300).lean();
+  let gid=null;if(req.user.role==='student')gid=await resolveUserGroupId(req.user);
+  const scored=rows.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
+  scored.sort((a,b)=>b.recommendationScore-a.recommendationScore||new Date(b.createdAt)-new Date(a.createdAt));
+  const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),x]));
+  res.json(scored.map(x=>({...x,progress:pm[String(x._id)]||null})));
+});
+app.post('/api/videos', auth, async(req,res)=>{
+  if(!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(403).json({message:'Videodars joylash huquqi yo‘q'});
+  const title=String(req.body.title||'').trim(),sourceUrl=String(req.body.sourceUrl||'').trim();if(!title||!/^https?:\/\//i.test(sourceUrl))return res.status(400).json({message:'Nomi va to‘g‘ri video havolasi majburiy'});
+  const rawGroups=Array.isArray(req.body.groupIds)?req.body.groupIds:String(req.body.groupIds||'').split(',').map(x=>x.trim()).filter(Boolean),groupIds=[];
+  for(const id of rawGroups){const g=await resolveStructure(id,'group');if(g)groupIds.push(g._id)}
+  let teacherId=req.user.role==='teacher'?req.user._id:req.body.teacherId;if(teacherId&&!mongoose.isValidObjectId(teacherId)){const t=await User.findOne({login:String(teacherId).toLowerCase(),role:'teacher',active:true}).lean();teacherId=t?._id}
+  const courseYears=(Array.isArray(req.body.courseYears)?req.body.courseYears:String(req.body.courseYears||'').split(',')).map(Number).filter(x=>x>=1&&x<=6);
+  const tags=(Array.isArray(req.body.tags)?req.body.tags:String(req.body.tags||'').split(',')).map(x=>String(x).trim()).filter(Boolean).slice(0,20);
+  const sourceType=/youtu(?:be\.com|\.be)/i.test(sourceUrl)?'youtube':/\.mp4(?:\?|$)/i.test(sourceUrl)?'mp4':'url';
+  const item=await VideoLesson.create({title,description:String(req.body.description||'').trim(),subject:String(req.body.subject||'').trim(),teacherId,groupIds,direction:String(req.body.direction||'').trim(),courseYears,tags,sourceType,sourceUrl,thumbnailUrl:String(req.body.thumbnailUrl||'').trim(),durationMinutes:Number(req.body.durationMinutes)||0,published:req.body.published!==false,featured:Boolean(req.body.featured)&&hasPermission(req.user,'videos.manage'),createdBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined});
+  audit(req,'VIDEO_CREATE','VideoLesson',item.id,{title:item.title,groups:groupIds.length});res.status(201).json(item);
+});
+app.delete('/api/videos/:id', auth, async(req,res)=>{
+  const item=mongoose.isValidObjectId(req.params.id)?await VideoLesson.findById(req.params.id):null;if(!item)return res.status(404).json({message:'Videodars topilmadi'});
+  const allowed=hasPermission(req.user,'videos.manage')||(req.user.role==='teacher'&&String(item.teacherId)===String(req.user._id));if(!allowed)return res.status(403).json({message:'Bu videodarsni o‘chirish huquqi yo‘q'});
+  item.published=false;await item.save();audit(req,'VIDEO_ARCHIVE','VideoLesson',item.id);res.json({ok:true});
+});
+app.post('/api/videos/:id/view', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
+  const watchedSeconds=Math.max(0,Math.min(24*3600,Number(req.body.watchedSeconds)||0)),completed=Boolean(req.body.completed);let progress=null;
+  if(mongoose.isValidObjectId(req.user._id))progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},{$max:{watchedSeconds},$set:{completed,lastViewedAt:new Date()}},{new:true,upsert:true,setDefaultsOnInsert:true});
+  await VideoLesson.findByIdAndUpdate(item._id,{$inc:{views:1}});res.json({ok:true,progress});
+});
+app.post('/api/videos/:id/like', auth, async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.user._id)||!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Amal bajarilmadi'});
+  const prev=await VideoProgress.findOne({videoId:req.params.id,userId:req.user._id}),next=!prev?.liked;
+  await VideoProgress.findOneAndUpdate({videoId:req.params.id,userId:req.user._id},{$set:{liked:next,lastViewedAt:new Date()}},{upsert:true,setDefaultsOnInsert:true});
+  await VideoLesson.findByIdAndUpdate(req.params.id,{$inc:{likes:next?1:-1}});res.json({liked:next});
+});
+
 
 app.patch('/api/attendance/:id', auth, can('attendance.manage'), async(req,res)=>{
   const row=await Attendance.findById(req.params.id);if(!row)return res.status(404).json({message:'Davomat yozuvi topilmadi'});
