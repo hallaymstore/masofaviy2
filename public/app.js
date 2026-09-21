@@ -177,6 +177,122 @@ $('#profileForm').onsubmit=async e=>{e.preventDefault();try{await api('/profile'
 $('#passwordForm').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.newPassword!==d.confirmPassword)return toast('Yangi parollar bir xil emas');try{await api('/profile/password',{method:'PATCH',body:JSON.stringify({currentPassword:d.currentPassword,newPassword:d.newPassword})});e.target.reset();toast('Parol yangilandi')}catch(err){toast(err.message)}};
 
 
+function liveStatusLabel(room){
+  const st=room.session?.status||'scheduled';
+  if(st==='active')return '<span class="live-status active">Jonli</span>';
+  if(st==='ended')return '<span class="live-status ended">Yakunlangan</span>';
+  return '<span class="live-status waiting">Kutilmoqda</span>';
+}
+async function loadLiveRooms(){
+  try{
+    const x=await api('/live/rooms'),rooms=x.rooms||[];
+    $('#liveTodayCount').textContent=rooms.length;
+    $('#liveActiveCount').textContent=rooms.filter(r=>r.session?.status==='active').length;
+    $('#livePeopleCount').textContent=rooms.reduce((n,r)=>n+(r.session?.currentParticipants||0),0);
+    $('#liveRooms').innerHTML=rooms.map(function(r){
+      const s=r.schedule,g=s.groupId,t=s.teacherId,active=r.session?.status==='active',ended=r.session?.status==='ended';
+      let actions='';
+      if(r.canStart&&!active&&!ended)actions+='<button class="primary" data-live-start="'+esc(s._id)+'">'+icon('video','▶')+' Boshlash</button>';
+      if(active&&r.canJoin)actions+='<button class="primary" data-live-join="'+esc(s._id)+'">'+icon('external','↗')+' Kirish</button>';
+      if(active&&r.canStart)actions+='<button class="ghost danger-text" data-live-end="'+esc(s._id)+'">'+icon('phoneOff','×')+' Yakunlash</button>';
+      if(!actions)actions='<span class="room-note">'+(ended?'Dars yakunlangan':'O‘qituvchi boshlashini kuting')+'</span>';
+      return '<article class="live-room-card '+(active?'is-live':'')+'"><div class="live-room-top">'+liveStatusLabel(r)+'<span class="room-time">'+esc(s.start)+'–'+esc(s.end)+'</span></div><h2>'+esc(s.title)+'</h2><p class="room-subject">'+esc(s.subject||'')+'</p><div class="room-meta"><span>'+icon('users','♙')+' '+esc(g?.name||'Guruh')+' <b>'+esc(g?.externalId||g?.code||'')+'</b></span><span>'+icon('user','◎')+' '+esc(t?.fullName||'O‘qituvchi')+'</span><span>'+icon('users','•')+' '+esc(r.session?.currentParticipants||0)+' xonada</span></div><div class="room-actions">'+actions+'</div></article>';
+    }).join('')||'<div class="empty"><b>Bugun jonli dars yo‘q</b><p>Jadvaldagi bugungi guruh darslari shu yerda ko‘rinadi.</p></div>';
+    all('[data-live-start]').forEach(b=>b.onclick=()=>startLiveRoom(b.dataset.liveStart));
+    all('[data-live-join]').forEach(b=>b.onclick=()=>enterLiveRoom(b.dataset.liveJoin));
+    all('[data-live-end]').forEach(b=>b.onclick=()=>endLiveRoom(b.dataset.liveEnd,false));
+    hydrateIcons($('#liveRooms'));
+  }catch(e){$('#liveRooms').innerHTML='<div class="empty"><b>Jonli xonalarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
+}
+async function startLiveRoom(id){
+  try{const x=await api('/live/rooms/'+id+'/start',{method:'POST',body:'{}'});await openConference(x)}catch(e){toast(e.message)}
+}
+async function enterLiveRoom(id){
+  try{const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}'});await openConference(x)}catch(e){toast(e.message);go('live')}
+}
+function loadJitsiScript(host){
+  return new Promise((resolve,reject)=>{
+    if(window.JitsiMeetExternalAPI)return resolve();
+    const old=document.querySelector('script[data-jitsi-host="'+host+'"]');if(old){old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return}
+    const sc=document.createElement('script');sc.src='https://'+host+'/external_api.js';sc.async=true;sc.dataset.jitsiHost=host;sc.onload=resolve;sc.onerror=()=>reject(new Error('Video server kutubxonasi yuklanmadi'));document.head.appendChild(sc)
+  })
+}
+async function openConference(payload){
+  const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
+  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};
+  go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
+  $('#endLiveLesson').classList.toggle('hidden',!(String(s.teacherId?._id||s.teacherId)===String(user._id)||can('live.manage')));
+  const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video serverga ulanmoqda…</b><small>Kamera odatda o‘chiq, mikrofon ochiq holda kiriladi.</small></div>';
+  try{
+    await loadJitsiScript(join.host);
+    if(jitsiApi){try{jitsiApi.dispose()}catch{}jitsiApi=null}
+    mount.innerHTML='';
+    jitsiApi=new JitsiMeetExternalAPI(join.host,{roomName:join.roomName,parentNode:mount,width:'100%',height:'100%',userInfo:{displayName:join.displayName||user.fullName},configOverwrite:{prejoinPageEnabled:false,startWithVideoMuted:true,startWithAudioMuted:false,disableDeepLinking:true,enableNoisyMicDetection:true,disableSimulcast:lowEndUI,channelLastN:lowEndUI?6:20,enableLayerSuspension:true},interfaceConfigOverwrite:{MOBILE_APP_PROMO:false,SHOW_JITSI_WATERMARK:false,SHOW_WATERMARK_FOR_GUESTS:false,DISABLE_JOIN_LEAVE_NOTIFICATIONS:false,TOOLBAR_ALWAYS_VISIBLE:false}});
+    jitsiApi.addEventListener('videoConferenceJoined',()=>{if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});toast('Jonli darsga ulandingiz')});
+    jitsiApi.addEventListener('videoConferenceLeft',()=>leaveConference(false));
+    jitsiApi.addEventListener('readyToClose',()=>leaveConference(false));
+  }catch(e){
+    mount.innerHTML='<div class="video-placeholder"><span>'+icon('external','↗')+'</span><b>Ichki video oynasi ochilmadi</b><small>'+esc(e.message)+'</small><a class="primary conference-fallback" target="_blank" rel="noopener" href="https://'+esc(join.host)+'/'+encodeURIComponent(join.roomName)+'">Video xonani yangi oynada ochish</a></div>';
+  }
+  hydrateIcons($('#lesson'));
+}
+function callCommand(command){if(!jitsiApi)return toast('Video xona hali ulanmagan');try{jitsiApi.executeCommand(command)}catch{toast('Bu boshqaruv hozir mavjud emas')}}
+function leaveConference(back=true){
+  if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
+  if(jitsiApi){try{jitsiApi.dispose()}catch{}jitsiApi=null}
+  activeLessonId='';activeLiveSession=null;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+}
+async function endLiveRoom(id,fromCall=true){
+  if(!confirm('Jonli dars yakunlansinmi?'))return;
+  try{await api('/live/rooms/'+id+'/end',{method:'POST',body:'{}'});if(fromCall){if(jitsiApi)try{jitsiApi.executeCommand('hangup')}catch{}leaveConference(true)}else loadLiveRooms();toast('Jonli dars yakunlandi')}catch(e){toast(e.message)}
+}
+$('#refreshLiveRooms').onclick=loadLiveRooms;
+$('#backToLive').onclick=()=>leaveConference(true);
+$('#endLiveLesson').onclick=()=>activeLessonId&&endLiveRoom(activeLessonId,true);
+$('#callMic').onclick=()=>callCommand('toggleAudio');$('#callCamera').onclick=()=>callCommand('toggleVideo');$('#callScreen').onclick=()=>callCommand('toggleShareScreen');$('#callChat').onclick=()=>callCommand('toggleChat');$('#callHangup').onclick=()=>{if(jitsiApi)try{jitsiApi.executeCommand('hangup')}catch{}leaveConference(true)};
+
+function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/);return m?.[1]||''}
+function videoThumb(v){const id=youtubeId(v.sourceUrl);return v.thumbnailUrl||(id?'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg':'')}
+function videoCard(v,recommended=false){
+  const thumb=videoThumb(v),course=(v.courseYears||[]).map(x=>x+'-kurs').join(', '),groups=(v.groupIds||[]).map(g=>g.externalId||g.code||g.name).join(', '),mine=String(v.teacherId?._id||'')===String(user?._id||''),canDelete=can('videos.manage')||mine;
+  return '<article class="video-card" data-video-id="'+esc(v._id)+'"><button class="video-cover" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="video-no-thumb">'+icon('play','▶')+'</div>')+'<span class="play-badge">'+icon('play','▶')+'</span>'+(recommended?'<span class="recommend-badge">Tavsiya</span>':'')+'</button><div class="video-card-body"><div class="video-card-top"><span>'+esc(v.subject||'Videodars')+'</span><small>'+esc(v.durationMinutes?Math.round(v.durationMinutes)+' daq':'')+'</small></div><h2>'+esc(v.title)+'</h2><p>'+esc(v.description||'Mustaqil o‘rganish uchun videodars.')+'</p><div class="video-tags">'+(course?'<span>'+esc(course)+'</span>':'')+(v.direction?'<span>'+esc(v.direction)+'</span>':'')+(groups?'<span>'+esc(groups)+'</span>':'')+'</div><div class="video-footer"><small>'+icon('user','◎')+' '+esc(v.teacherId?.fullName||'Ta’lim platformasi')+' · '+esc(v.views||0)+' ko‘rish · '+esc(v.likes||0)+' yoqdi</small><div><button class="ghost" data-video-like="'+esc(v._id)+'">'+icon('heart','♡')+'</button>'+(canDelete?'<button class="ghost danger-text" data-video-delete="'+esc(v._id)+'">'+icon('trash','×')+'</button>':'')+'</div></div></div></article>';
+}
+async function loadVideoLessons(){
+  try{
+    videoLessonsCache=await api('/videos');
+    const q=String($('#videoSearch')?.value||'').toLowerCase().trim(),course=Number($('#videoCourseFilter')?.value||0),direction=String($('#videoDirectionFilter')?.value||'').toLowerCase().trim();
+    const rows=videoLessonsCache.filter(v=>(!q||[v.title,v.subject,v.description,...(v.tags||[])].join(' ').toLowerCase().includes(q))&&(!course||(v.courseYears||[]).includes(course))&&(!direction||String(v.direction||'').toLowerCase().includes(direction)));
+    const rec=rows.filter(v=>v.recommendationScore>0).slice(0,6);
+    $('#recommendedVideos').innerHTML=(rec.length?rec:rows.slice(0,6)).map(v=>videoCard(v,true)).join('')||'<div class="empty"><b>Tavsiya topilmadi</b><p>Kurs yoki yo‘nalish filtrlari bilan qidiring.</p></div>';
+    $('#videoLessons').innerHTML=rows.map(v=>videoCard(v,false)).join('')||'<div class="empty"><b>Videodars topilmadi</b><p>O‘qituvchi yoki administrator videodars qo‘shishi mumkin.</p></div>';
+    bindVideoActions();hydrateIcons($('#videos'));
+  }catch(e){$('#videoLessons').innerHTML='<div class="empty"><b>Videodarslarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
+}
+function bindVideoActions(){
+  all('[data-video-play]').forEach(b=>b.onclick=()=>openVideoLesson(b.dataset.videoPlay));
+  all('[data-video-like]').forEach(b=>b.onclick=()=>likeVideoLesson(b.dataset.videoLike));
+  all('[data-video-delete]').forEach(b=>b.onclick=()=>deleteVideoLesson(b.dataset.videoDelete));
+}
+async function openVideoLesson(id){
+  const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)return;
+  const player=$('#videoPlayer'),yt=youtubeId(v.sourceUrl);$('#videoDialogTitle').textContent=v.title;$('#videoDialogMeta').textContent=[v.subject,v.direction,(v.courseYears||[]).map(x=>x+'-kurs').join(', ')].filter(Boolean).join(' · ');$('#videoDialogDescription').textContent=v.description||'';
+  if(yt)player.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(yt)+'?autoplay=1" title="'+esc(v.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+  else if(v.sourceType==='mp4')player.innerHTML='<video controls autoplay playsinline src="'+esc(v.sourceUrl)+'"></video>';
+  else player.innerHTML='<div class="video-external"><span>'+icon('external','↗')+'</span><b>Video tashqi manbada</b><a class="primary" href="'+esc(v.sourceUrl)+'" target="_blank" rel="noopener">Videoni ochish</a></div>';
+  $('#videoDialog').showModal();hydrateIcons($('#videoDialog'));api('/videos/'+id+'/view',{method:'POST',body:JSON.stringify({watchedSeconds:0})}).catch(()=>{})
+}
+$('#closeVideoDialog').onclick=()=>{$('#videoDialog').close();$('#videoPlayer').innerHTML=''};
+$('#videoDialog').addEventListener('close',()=>$('#videoPlayer').innerHTML='');
+async function likeVideoLesson(id){try{const x=await api('/videos/'+id+'/like',{method:'POST',body:'{}'});toast(x.liked?'Yoqtirildi':'Yoqtirish bekor qilindi');loadVideoLessons()}catch(e){toast(e.message)}}
+async function deleteVideoLesson(id){if(!confirm('Videodars arxivga olinsinmi?'))return;try{await api('/videos/'+id,{method:'DELETE'});toast('Videodars arxivga olindi');loadVideoLessons()}catch(e){toast(e.message)}}
+$('#applyVideoFilter').onclick=loadVideoLessons;$('#videoSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadVideoLessons()});
+$('#addVideoLesson').onclick=async()=>{
+  const groups=await api('/structure?type=group').catch(()=>[]);
+  modal('Videodars qo‘shish','<label>Nomi<input name="title" required></label><label>Video havolasi<input name="sourceUrl" type="url" required placeholder="YouTube yoki MP4 URL"></label><label>Fan<input name="subject"></label><label>Guruh ID lar<input name="groupIds" placeholder="ATT-101, ATT-102"></label><label>Kurslar<input name="courseYears" placeholder="1,2"></label><label>Yo‘nalish<input name="direction" placeholder="Dasturiy injiniring"></label><label>Teglar<input name="tags" placeholder="algoritm, amaliyot, nazariya"></label><label>Muqova URL<input name="thumbnailUrl" type="url"></label><label>Davomiyligi (daq)<input name="durationMinutes" type="number" min="0"></label><label>Tavsif<textarea name="description" rows="4"></textarea></label>',async d=>{await api('/videos',{method:'POST',body:JSON.stringify(d)});loadVideoLessons()})
+};
+
+
+
 let analyticsCache=null;
 function metricCards(items){return items.map(function(i){return '<div class="stat"><b>'+esc(i[1]??0)+'</b><span>'+esc(i[0])+'</span></div>'}).join('')}
 function barChart(rows,labelFn,valueFn,secondaryFn){rows=rows||[];const max=Math.max(1,...rows.map(function(r){return Number(valueFn(r))||0}));return rows.map(function(r){const v=Number(valueFn(r))||0;return '<div class="bar-row"><div class="bar-label"><span>'+esc(labelFn(r))+'</span><b>'+esc(v)+(secondaryFn?' <small>'+esc(secondaryFn(r))+'</small>':'')+'</b></div><div class="bar-track"><i style="width:'+Math.max(3,Math.round(v/max*100))+'%"></i></div></div>'}).join('')||'<p class="muted">Ma’lumot yo‘q.</p>'}
