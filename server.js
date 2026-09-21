@@ -22,7 +22,7 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false 
 app.use(cors({ origin: true, credentials: true }));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
-app.use(express.static('public', { maxAge: '1h', etag: true }));
+app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
 
 const permissionsByRole = {
   superadmin: ['*'], admin: ['structure.manage','users.manage','schedule.manage','reports.view','lessons.monitor','permissions.manage'],
