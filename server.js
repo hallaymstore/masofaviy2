@@ -55,6 +55,14 @@ const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
 const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED !== 'false';
+
+const LOGIN_WINDOW_MS = Math.max(60000, Number(process.env.LOGIN_WINDOW_MS || 15*60*1000));
+const LOGIN_MAX_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 7));
+const loginAttempts = new Map();
+const loginAttemptKey = (req,login) => (req.ip||'unknown')+':'+String(login||'').toLowerCase();
+const loginBlocked = key => {const x=loginAttempts.get(key);if(!x)return false;if(Date.now()-x.first>LOGIN_WINDOW_MS){loginAttempts.delete(key);return false}return x.count>=LOGIN_MAX_ATTEMPTS};
+const noteLoginFailure = key => {const now=Date.now(),x=loginAttempts.get(key);if(!x||now-x.first>LOGIN_WINDOW_MS)loginAttempts.set(key,{count:1,first:now});else{x.count++;loginAttempts.set(key,x)}if(loginAttempts.size>5000){for(const [k,v] of loginAttempts)if(now-v.first>LOGIN_WINDOW_MS)loginAttempts.delete(k)}};
+
 const offsetMs = APP_UTC_OFFSET_MINUTES * 60000;
 const mongoTimezone = (APP_UTC_OFFSET_MINUTES >= 0 ? '+' : '-') + String(Math.floor(Math.abs(APP_UTC_OFFSET_MINUTES) / 60)).padStart(2,'0') + ':' + String(Math.abs(APP_UTC_OFFSET_MINUTES) % 60).padStart(2,'0');
 const localNow = (date=new Date()) => new Date(date.getTime()+offsetMs);
@@ -170,10 +178,38 @@ const can = permission => (req, res, next) => { const base = permissionsByRole[r
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', time:new Date().toISOString() }));
-app.post('/api/auth/login', async (req,res) => { const login=String(req.body.login||'').toLowerCase().trim(); const password=String(req.body.password||''); if(mongoose.connection.readyState!==1){ if(login===demoAdmin.login && password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')) return res.json({token:sign(demoAdmin),user:demoAdmin,demo:true}); return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'}); } const user=await User.findOne({login}); if(!user || !user.active || !(await bcrypt.compare(password,user.passwordHash))){ await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip}).catch(()=>{}); return res.status(401).json({message:'Login yoki parol noto‘g‘ri'}); } user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save(); await audit({user,ip:req.ip},'LOGIN','User',user.id); res.json({token:sign(user),user:sanitizeUser(user)}); });
+app.post('/api/auth/login', async (req,res) => {
+  const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
+  if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
+  if(mongoose.connection.readyState!==1){
+    if(login===demoAdmin.login&&password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')){loginAttempts.delete(key);return res.json({token:sign(demoAdmin),user:demoAdmin,demo:true})}
+    noteLoginFailure(key);return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'});
+  }
+  const user=await User.findOne({login});
+  if(!user||!user.active||!(await bcrypt.compare(password,user.passwordHash))){
+    noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
+    return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
+  }
+  loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
+  await audit({user,ip:req.ip},'LOGIN','User',user.id);res.json({token:sign(user),user:sanitizeUser(user)});
+});
 app.get('/api/me', auth, async (req,res)=>{ let current=sanitizeUser(req.user); if(req.user._id!=='demo'&&mongoose.connection.readyState===1) current=sanitizeUser(await User.findById(req.user._id).populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean()); res.json({user:current,effectivePermissions:rolePermissions(req.user)}); });
-app.get('/api/dashboard', auth, async (req,res)=> { if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true}); const day=localWeekday(); if(req.user.role==='teacher'){ const rows=await scheduleQuery({teacherId:req.user._id}).lean(); const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } if(req.user.role==='student'){ const gid=await resolveUserGroupId(req.user); const rows=gid?await scheduleQuery({groupId:gid}).lean():[]; const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Haftalik dars',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Fanlar',value:new Set(rows.map(x=>x.subject||x.title)).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } const [users,faculties,departments,groups,lessons,today]=await Promise.all([User.countDocuments({active:true}),Structure.countDocuments({type:'faculty',active:true}),Structure.countDocuments({type:'department',active:true}),Structure.countDocuments({type:'group',active:true}),Schedule.countDocuments(),scheduleQuery({weekday:day}).limit(10).lean()]); res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:users},{label:'Fakultet',value:faculties},{label:'Kafedra',value:departments},{label:'Guruh',value:groups},{label:'Dars',value:lessons}],today,online:io.engine.clientsCount}); });
-
+app.get('/api/dashboard', auth, async (req,res)=> {
+  if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true});
+  const day=localWeekday(),todayBounds=localDayBounds(0);
+  if(req.user.role==='teacher'){
+    const rows=await scheduleQuery({teacherId:req.user._id}).lean(),today=rows.filter(x=>x.weekday===day),ids=today.map(x=>String(x._id));
+    let present=0,late=0;if(ids.length){const a=await Attendance.find({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end},lessonId:{$in:ids}}).populate('userId','role').lean();const students=a.filter(x=>x.userId?.role==='student');present=students.length;late=students.filter(x=>x.status==='late').length}
+    return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Bugun qatnashdi',value:present},{label:'Kechikdi',value:late},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size}],today});
+  }
+  if(req.user.role==='student'){
+    const gid=await resolveUserGroupId(req.user),rows=gid?await scheduleQuery({groupId:gid}).lean():[],today=rows.filter(x=>x.weekday===day),days=30,bounds=rangeBounds(days),lessonIds=rows.map(x=>String(x._id)),expected=rows.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
+    const attendance=lessonIds.length?await Attendance.find({userId:req.user._id,createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).lean():[],seen=new Set(),unique=attendance.filter(x=>{const k=x.lessonId+':'+(x.dateKey||'');if(seen.has(k))return false;seen.add(k);return true}),rate=expected?Math.min(100,Math.round(unique.length/expected*100)):0,late=unique.filter(x=>x.status==='late').length;
+    return res.json({role:req.user.role,stats:[{label:'Haftalik dars',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'30 kun davomat',value:rate+'%'},{label:'Kechikish',value:late},{label:'Fanlar',value:new Set(rows.map(x=>x.subject||x.title)).size}],today});
+  }
+  const scope=await resolveScope(req.user,{}),userActive=scopedUserFilter(scope,{active:true}),schedules=await scheduleQuery(scope.scheduleScope).lean(),today=schedules.filter(x=>x.weekday===day).slice(0,10),usersByRole=await User.aggregate([{$match:userActive},{$group:{_id:'$role',value:{$sum:1}}}]),roleMap=Object.fromEntries(usersByRole.map(x=>[x._id,x.value])),online=await scopedOnlineCount(scope);
+  res.json({role:req.user.role,scope:scope.label,stats:[{label:'Talaba',value:roleMap.student||0},{label:'O‘qituvchi',value:roleMap.teacher||0},{label:'Guruh',value:(scope.group||scope.department||scope.faculty)?scope.groupIds.length:await Structure.countDocuments({type:'group',active:true})},{label:'Dars',value:schedules.length},{label:'Onlayn',value:online}],today,online});
+});
 
 async function analyticsOverview(user,days=7,query={}){
   const safeDays=Math.max(7,Math.min(30,Number(days)||7)),scope=await resolveScope(user,query),bounds=rangeBounds(safeDays),todayBounds=localDayBounds(0),todayWeekday=localWeekday();
