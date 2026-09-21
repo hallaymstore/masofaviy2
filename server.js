@@ -35,12 +35,12 @@ const permissionsByRole = {
   superadmin: ['*'],
   admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage'],
   tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage'],
-  rectorate: ['reports.view','lessons.monitor','analytics.view'],
-  dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view'],
-  department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view'],
+  rectorate: ['reports.view','lessons.monitor','analytics.view','videos.view'],
+  dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view','videos.view'],
+  department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view','lessons.monitor','videos.view'],
   teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self','live.host','videos.upload','videos.view'],
   student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view'],
-  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view']
+  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view']
 };
 
 const userSchema = new mongoose.Schema({
@@ -195,7 +195,7 @@ app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', tim
 app.get('/api/system/metrics', auth, async(req,res)=>{
   if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Tizim metrikasi uchun ruxsat yo‘q'});
   const mem=process.memoryUsage();
-  res.json({database:mongoose.connection.readyState===1?'connected':'disconnected',uptimeSeconds:Math.round(process.uptime()),memory:{rssMB:Math.round(mem.rss/1024/1024),heapMB:Math.round(mem.heapUsed/1024/1024)},onlineUsers:onlineUsers.size,socketConnections:io.engine.clientsCount,node:process.version,time:new Date().toISOString()});
+  const activeLiveRooms=mongoose.connection.readyState===1?await LiveSession.countDocuments({status:'active',dateKey:localDateKey()}):0;res.json({database:mongoose.connection.readyState===1?'connected':'disconnected',uptimeSeconds:Math.round(process.uptime()),memory:{rssMB:Math.round(mem.rss/1024/1024),heapMB:Math.round(mem.heapUsed/1024/1024)},onlineUsers:onlineUsers.size,socketConnections:io.engine.clientsCount,activeLiveRooms,node:process.version,time:new Date().toISOString()});
 });
 app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
