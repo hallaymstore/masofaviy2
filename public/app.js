@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let token=localStorage.token||'', user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], jitsiApi=null, activeLiveSession=null, videoLessonsCache=[];
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let token=localStorage.token||'', user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], jitsiApi=null, activeLiveSession=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null;
 const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
@@ -342,7 +342,7 @@ function setCommentReply(id,author){
 function clearCommentReply(){commentReplyTo=null;$('#commentReplyState').classList.add('hidden');$('#commentReplyState').innerHTML='';$('#commentForm input').placeholder='Izoh yozing...'}
 $('#commentForm').onsubmit=async e=>{
   e.preventDefault();if(!activeVideoId)return;const input=e.currentTarget.elements.text,text=String(input.value||'').trim();if(!text)return;
-  try{await api('/videos/'+activeVideoId+'/comments',{method:'POST',body:JSON.stringify({text,parentId:commentReplyTo||undefined})});input.value='';clearCommentReply();await loadVideoComments(activeVideoId);const v=videoLessonsCache.find(x=>String(x._id)===activeVideoId);if(v)v.commentCount=(v.commentCount||0)+1;toast('Izoh qo‘shildi')}catch(err){toast(err.message)}
+  try{await api('/videos/'+activeVideoId+'/comments',{method:'POST',body:JSON.stringify({text,parentId:commentReplyTo||undefined})});input.value='';clearCommentReply();await loadVideoComments(activeVideoId);toast('Izoh qo‘shildi')}catch(err){toast(err.message)}
 };
 async function deleteVideoComment(id){if(!confirm('Izoh o‘chirilsinmi?'))return;try{await api('/video-comments/'+id,{method:'DELETE'});await loadVideoComments(activeVideoId);toast('Izoh o‘chirildi')}catch(e){toast(e.message)}}
 async function deleteVideoLesson(id){if(!confirm('Videodars arxivga olinsinmi?'))return;try{await api('/videos/'+id,{method:'DELETE'});toast('Videodars arxivga olindi');if(activeVideoId===String(id)){clearWatchPage();go('videos')}loadVideoLessons()}catch(e){toast(e.message)}}
