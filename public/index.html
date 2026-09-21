@@ -36,14 +36,16 @@
 
   <aside id="sidebar">
     <nav>
-      <button data-page="dashboard" class="active">⌂ Bosh sahifa</button>
-      <button data-page="analytics">◫ Statistika</button>
-      <button data-page="structure">▦ Tuzilma</button>
-      <button data-page="schedule">▣ Dars jadvali</button>
-      <button data-page="users">♙ Foydalanuvchilar</button>
-      <button data-page="lesson">◉ Jonli dars</button>
-      <button data-page="reports">▤ Nazorat va hisobot</button>
-      <button data-page="profile">◎ Shaxsiy profil</button>
+      <button data-page="dashboard" class="active"><span data-ico="home" data-fallback="⌂"></span>Bosh sahifa</button>
+      <button data-page="analytics"><span data-ico="chart" data-fallback="◫"></span>Statistika</button>
+      <button data-page="structure"><span data-ico="building" data-fallback="▦"></span>Tuzilma</button>
+      <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
+      <button data-page="users"><span data-ico="users" data-fallback="♙"></span>Foydalanuvchilar</button>
+      <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
+      <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
+      <button data-page="reports"><span data-ico="shield" data-fallback="▤"></span>Nazorat va hisobot</button>
+      <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
+      <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
     </nav>
     <button id="logoutBtn" class="logout">Chiqish</button>
   </aside>
@@ -94,9 +96,37 @@
       <div id="usersList" class="table-wrap"></div>
     </section>
 
+    <section id="live" class="page">
+      <div class="page-head"><div><h1>Guruh jonli darslari</h1><p>Har bir guruh uchun alohida real video xona. Bir vaqtda ko‘p guruh mustaqil ishlaydi.</p></div><div class="head-actions"><button id="refreshLiveRooms" class="secondary"><span data-ico="refresh" data-fallback="↻"></span>Yangilash</button></div></div>
+      <div class="live-summary"><div><b id="liveActiveCount">0</b><span>Faol xonalar</span></div><div><b id="liveTodayCount">0</b><span>Bugungi guruh darslari</span></div><div><b id="livePeopleCount">0</b><span>Hozir xonalarda</span></div><div><b>10+</b><span>Parallel guruhga tayyor</span></div></div>
+      <div class="guide"><b>Qanday ishlaydi:</b> o‘qituvchi o‘z guruh xonasini boshlaydi, talaba faqat o‘z guruhining faol xonasiga kiradi. Kamera, mikrofon, ekran ulashish va chat real WebRTC konferensiya orqali ishlaydi.</div>
+      <div id="liveRooms" class="live-room-grid"></div>
+    </section>
+
+    <section id="videos" class="page">
+      <div class="page-head"><div><h1>Videodarslar</h1><p>Kurs, yo‘nalish, guruh va qiziqishga mos tavsiya etilgan darslar</p></div><div class="head-actions"><button id="addVideoLesson" class="primary"><span data-ico="plus" data-fallback="+"></span>Videodars qo‘shish</button></div></div>
+      <div class="video-toolbar"><input id="videoSearch" placeholder="Fan, mavzu yoki teg bo‘yicha qidirish"><select id="videoCourseFilter"><option value="">Barcha kurslar</option><option value="1">1-kurs</option><option value="2">2-kurs</option><option value="3">3-kurs</option><option value="4">4-kurs</option><option value="5">5-kurs</option><option value="6">6-kurs</option></select><input id="videoDirectionFilter" placeholder="Yo‘nalish"><button id="applyVideoFilter" class="secondary">Qidirish</button></div>
+      <div class="video-section-head"><div><h2>Siz uchun tavsiya</h2><small>Guruh, kurs va yo‘nalish mosligiga qarab saralanadi</small></div></div>
+      <div id="recommendedVideos" class="video-card-grid"></div>
+      <div class="video-section-head"><div><h2>Barcha videodarslar</h2><small>Mustaqil ta’lim va takrorlash uchun</small></div></div>
+      <div id="videoLessons" class="video-card-grid"></div>
+    </section>
+
     <section id="lesson" class="page">
-      <div class="page-head"><div><h1>Jonli dars xonasi</h1><p>SFU video uchun tayyor xona, chat va avtomatik davomat</p></div></div>
-      <div class="lesson-grid"><div class="stage"><div class="video-placeholder"><span>◉</span><b>Dars boshlanmagan</b><small>Dars jadvalidagi mashg‘ulot tanlanganda ishtirok nazorati ishga tushadi</small></div><div class="controls"><button>🎙 Mikrofon</button><button>▣ Kamera</button><button>□ Ekran</button><button class="danger">Darsni yakunlash</button></div></div><aside class="chat"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button>➤</button></form></aside></div>
+      <div class="page-head"><div><h1 id="liveLessonTitle">Jonli dars xonasi</h1><p id="liveLessonMeta">Guruh video konferensiyasi</p></div><div class="head-actions"><button id="backToLive" class="secondary"><span data-ico="back" data-fallback="←"></span>Guruh darslari</button><button id="endLiveLesson" class="danger hidden">Darsni yakunlash</button></div></div>
+      <div class="conference-shell">
+        <div class="conference-main">
+          <div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div>
+          <div class="conference-controls">
+            <button id="callMic"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
+            <button id="callCamera"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
+            <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button>
+            <button id="callChat"><span data-ico="message" data-fallback="✉"></span><span>Chat</span></button>
+            <button id="callHangup" class="danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
+          </div>
+        </div>
+        <aside class="chat"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button aria-label="Yuborish"><span data-ico="send" data-fallback="➤"></span></button></form></aside>
+      </div>
     </section>
 
     <section id="reports" class="page">
