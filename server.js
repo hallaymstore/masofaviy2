@@ -147,7 +147,7 @@ const weekdayOccurrences = (days,weekday) => {
   return n;
 };
 const buildGroupPerformance = async (scope,days=7) => {
-  const safeDays=Math.max(7,Math.min(30,Number(days)||7)),groups=scope.groups?.length?scope.groups:await Structure.find({type:'group',active:true}).lean(),groupIds=groups.map(x=>x._id);
+  const safeDays=Math.max(7,Math.min(30,Number(days)||7)),hasOrgScope=Boolean(scope.group||scope.department||scope.faculty),groups=hasOrgScope?(scope.groups||[]):(scope.groups?.length?scope.groups:await Structure.find({type:'group',active:true}).lean()),groupIds=groups.map(x=>x._id);
   if(!groupIds.length)return [];
   const bounds=rangeBounds(safeDays);
   const [studentCounts,schedules]=await Promise.all([
@@ -178,6 +178,11 @@ const can = permission => (req, res, next) => { const base = permissionsByRole[r
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', time:new Date().toISOString() }));
+app.get('/api/system/metrics', auth, async(req,res)=>{
+  if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Tizim metrikasi uchun ruxsat yo‘q'});
+  const mem=process.memoryUsage();
+  res.json({database:mongoose.connection.readyState===1?'connected':'disconnected',uptimeSeconds:Math.round(process.uptime()),memory:{rssMB:Math.round(mem.rss/1024/1024),heapMB:Math.round(mem.heapUsed/1024/1024)},onlineUsers:onlineUsers.size,socketConnections:io.engine.clientsCount,node:process.version,time:new Date().toISOString()});
+});
 app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
@@ -255,7 +260,7 @@ app.get('/api/analytics/online', auth, can('lessons.monitor'), async(req,res)=>{
 app.get('/api/analytics/groups', auth, can('analytics.view'), async(req,res)=>{try{const scope=await resolveScope(req.user,req.query);res.json({scope:{label:scope.label},rows:await buildGroupPerformance(scope,req.query.days)})}catch(err){res.status(400).json({message:err.message})}});
 app.get('/api/analytics/group/:groupId/students', auth, can('analytics.view'), async(req,res)=>{try{
   const group=await resolveStructure(req.params.groupId,'group');if(!group)return res.status(404).json({message:'Guruh topilmadi'});
-  const scope=await resolveScope(req.user,req.query),allowed=!scope.groupIds.length||scope.groupIds.some(id=>String(id)===String(group._id));if(!allowed)return res.status(403).json({message:'Bu guruh statistikasi uchun ruxsat yo‘q'});
+  const scope=await resolveScope(req.user,req.query),allowed=scope.groupIds.some(id=>String(id)===String(group._id));if(!allowed)return res.status(403).json({message:'Bu guruh statistikasi uchun ruxsat yo‘q'});
   const days=Math.max(7,Math.min(30,Number(req.query.days)||7)),bounds=rangeBounds(days),schedules=await Schedule.find({groupId:group._id}).select('_id weekday').lean(),lessonIds=schedules.map(x=>String(x._id)),expectedPerStudent=schedules.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
   const [students,attendance]=await Promise.all([User.find({active:true,role:'student',groupId:group._id}).select('fullName login phone').sort({fullName:1}).lean(),Attendance.find({createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).select('lessonId userId dateKey status minutes').lean()]);
   const counters={},seen=new Set();for(const row of attendance){const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);const id=String(row.userId);const c=counters[id]||(counters[id]={present:0,late:0,minutes:0});c.present++;if(row.status==='late')c.late++;c.minutes+=Number(row.minutes||0)}
