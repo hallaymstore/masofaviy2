@@ -22,7 +22,7 @@ Oliy ta’lim muassasasi uchun mobil-first, yopiq ro‘yxatdan o‘tishga ega ma
 
 Foydalanuvchi importi (.xlsx yoki .csv) uchun asosiy ustunlar:
 
-    full_name, login, role, password, group_id, email, phone
+    full_name, login, role, password, faculty_id, department_id, group_id, email, phone
 
 Dars jadvali importi uchun:
 
@@ -34,7 +34,7 @@ Import avval **dry-run tekshiruv**dan o‘tadi: noto‘g‘ri login, mavjud bo�
 
 1. .env.example faylidan .env yarating.
 2. MongoDB ulanishi, kuchli JWT_SECRET, admin login/parolini kiriting.
-3. O‘zbekiston uchun APP_UTC_OFFSET_MINUTES=300; kechikish chegarasi uchun LATE_AFTER_MINUTES=5.
+3. O‘zbekiston uchun APP_UTC_OFFSET_MINUTES=300; kechikish chegarasi uchun LATE_AFTER_MINUTES=5. Ochiq jadval linklarini o‘chirish kerak bo‘lsa PUBLIC_TIMETABLE_ENABLED=false qiling.
 4. npm install va npm start buyrug‘ini bajaring.
 5. npm run check bilan server, frontend va service worker sintaksisini tekshiring.
 
