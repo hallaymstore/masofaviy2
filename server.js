@@ -33,13 +33,13 @@ app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,fil
 
 const permissionsByRole = {
   superadmin: ['*'],
-  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage'],
-  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage'],
+  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage'],
+  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage'],
   rectorate: ['reports.view','lessons.monitor','analytics.view'],
   dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view'],
   department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view'],
-  teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self'],
-  student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self'],
+  teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self','live.host','videos.upload','videos.view'],
+  student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view'],
   tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view']
 };
 
@@ -48,20 +48,26 @@ const userSchema = new mongoose.Schema({
   fullName: { type: String, required: true, trim: true }, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
   permissions: [String], deniedPermissions: [String], faculty: String, department: String, group: String,
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' },
-  email: { type: String, trim: true }, phone: { type: String, trim: true }, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 },
+  email: { type: String, trim: true }, phone: { type: String, trim: true }, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
   active: { type: Boolean, default: true }, mustChangePassword: { type: Boolean, default: true },
   lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 }
 }, { timestamps: true });
 const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['faculty','department','group'], required: true }, name: { type: String, required: true }, externalId: { type: String, trim: true, index: true, sparse: true }, code: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, active: { type: Boolean, default: true } }, { timestamps: true });
 structureSchema.index({ type: 1, externalId: 1 }, { unique: true, sparse: true });
-const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam'], default: 'lecture' }, recurring: { type: Boolean, default: true } }, { timestamps: true });
+const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam'], default: 'lecture' }, recurring: { type: Boolean, default: true }, liveEnabled:{type:Boolean,default:true}, maxParticipants:{type:Number,default:100,min:2,max:500} }, { timestamps: true });
 const auditSchema = new mongoose.Schema({ actorId: mongoose.Schema.Types.ObjectId, actorLogin: String, actorName: String, action: String, entity: String, entityId: String, ip: String, meta: mongoose.Schema.Types.Mixed }, { timestamps: true });
 const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, status: { type: String, enum: ['present','late','absent','excused'] } }, { timestamps: true });
-const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema);
+const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0}}, {timestamps:true});
+liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
+const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
+const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},completed:{type:Boolean,default:false},liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
+videoProgressSchema.index({videoId:1,userId:1},{unique:true});
+const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema);
 const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
 const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED !== 'false';
+const VIDEO_PROVIDER_HOST = String(process.env.VIDEO_PROVIDER_HOST || 'meet.jit.si').replace(/^https?:\/\//,'').replace(/\/$/,'');
 
 const LOGIN_WINDOW_MS = Math.max(60000, Number(process.env.LOGIN_WINDOW_MS || 15*60*1000));
 const LOGIN_MAX_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 7));
