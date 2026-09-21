@@ -7,10 +7,11 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "check": "node --check server.js && node --check public/app.js && node --check public/sw.js",
-    "prestart": "npm run check"
+    "prestart": "npm run build:media-client && npm run check",
+    "build:media-client": "esbuild frontend/media-client.js --bundle --format=iife --global-name=MasofaviyMediaClientBundle --outfile=public/media-client.bundle.js --minify --target=es2020"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -23,6 +24,11 @@
     "mongoose": "^8.18.0",
     "socket.io": "^4.8.1",
     "exceljs": "^4.4.0",
-    "csv-parse": "^6.1.0"
+    "csv-parse": "^6.1.0",
+    "ws": "^8.18.3",
+    "mediasoup-client": "^3.18.7"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10"
   }
 }
