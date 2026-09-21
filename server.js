@@ -82,6 +82,58 @@ const normalizeKind = value => ({lecture:'lecture',maruza:'lecture',practice:'pr
 const normalizeTime = value => { const s=String(value||'').trim(); const m=s.match(/(\d{1,2})[:.]?(\d{2})/); return m ? String(m[1]).padStart(2,'0')+':'+m[2] : s; };
 const scheduleQuery = filter => Schedule.find(filter).populate('groupId','name externalId code').populate('teacherId','fullName login').sort({weekday:1,start:1});
 
+const GLOBAL_SCOPE_ROLES = new Set(['superadmin','admin','tech','rectorate']);
+const resolveScope = async (user, query={}) => {
+  let faculty=null,department=null,group=null;
+  const forced = !GLOBAL_SCOPE_ROLES.has(user.role);
+  if(user.role==='dean'){
+    faculty=user.facultyId ? await Structure.findById(user.facultyId).lean() : (user.faculty ? await resolveStructure(user.faculty,'faculty') : null);
+  } else if(user.role==='department'){
+    department=user.departmentId ? await Structure.findById(user.departmentId).lean() : (user.department ? await resolveStructure(user.department,'department') : null);
+  } else if(user.role==='tutor'){
+    group=user.groupId ? await Structure.findById(user.groupId).lean() : (user.group ? await resolveStructure(user.group,'group') : null);
+    if(!group) department=user.departmentId ? await Structure.findById(user.departmentId).lean() : null;
+    if(!group&&!department) faculty=user.facultyId ? await Structure.findById(user.facultyId).lean() : null;
+  } else if(!forced){
+    if(query.groupId)group=await resolveStructure(query.groupId,'group');
+    if(query.departmentId)department=await resolveStructure(query.departmentId,'department');
+    if(query.facultyId)faculty=await resolveStructure(query.facultyId,'faculty');
+  }
+  if(group){
+    if(!department&&group.parentId)department=await Structure.findById(group.parentId).lean();
+    if(!faculty&&department?.parentId)faculty=await Structure.findById(department.parentId).lean();
+  } else if(department){
+    if(!faculty&&department.parentId)faculty=await Structure.findById(department.parentId).lean();
+  }
+  if(!forced){
+    if(group&&query.departmentId&&String(group.parentId)!==String(department?._id||''))throw new Error('Tanlangan guruh kafedraga tegishli emas');
+    if(department&&query.facultyId&&String(department.parentId)!==String(faculty?._id||''))throw new Error('Tanlangan kafedra fakultetga tegishli emas');
+  }
+  let departments=[],groups=[];
+  if(group) groups=[group];
+  else if(department) groups=await Structure.find({type:'group',active:true,parentId:department._id}).lean();
+  else if(faculty){
+    departments=await Structure.find({type:'department',active:true,parentId:faculty._id}).lean();
+    const depIds=departments.map(x=>x._id);
+    groups=depIds.length?await Structure.find({type:'group',active:true,parentId:{$in:depIds}}).lean():[];
+  } else groups=await Structure.find({type:'group',active:true}).lean();
+  if(!departments.length&&faculty)departments=await Structure.find({type:'department',active:true,parentId:faculty._id}).lean();
+  const groupIds=groups.map(x=>x._id),departmentIds=departments.map(x=>x._id);
+  const userScope={};
+  if(group)userScope.groupId=group._id;
+  else if(department)userScope.$or=[{departmentId:department._id},{groupId:{$in:groupIds}}];
+  else if(faculty)userScope.$or=[{facultyId:faculty._id},{departmentId:{$in:departmentIds}},{groupId:{$in:groupIds}}];
+  const scheduleScope=(group||department||faculty)?{groupId:{$in:groupIds}}:{};
+  return {forced,faculty,department,group,groups,groupIds,departmentIds,userScope,scheduleScope,label:group?.name||department?.name||faculty?.name||'Universitet'};
+};
+const scopedUserFilter = (scope,extra={}) => scope.userScope.$or ? {$and:[scope.userScope,extra]} : {...scope.userScope,...extra};
+const scopedOnlineCount = async scope => {
+  const ids=[...onlineUsers.keys()].filter(mongoose.isValidObjectId);
+  if(!ids.length)return 0;
+  return User.countDocuments(scopedUserFilter(scope,{_id:{$in:ids},active:true}));
+};
+
+
 
 const sign = user => jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
 const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),fullName:'Bosh administrator',role:'superadmin',permissions:['*'],deniedPermissions:[],active:true,mustChangePassword:true};
@@ -92,33 +144,49 @@ const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', time:new Date().toISOString() }));
 app.post('/api/auth/login', async (req,res) => { const login=String(req.body.login||'').toLowerCase().trim(); const password=String(req.body.password||''); if(mongoose.connection.readyState!==1){ if(login===demoAdmin.login && password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')) return res.json({token:sign(demoAdmin),user:demoAdmin,demo:true}); return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'}); } const user=await User.findOne({login}); if(!user || !user.active || !(await bcrypt.compare(password,user.passwordHash))){ await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip}).catch(()=>{}); return res.status(401).json({message:'Login yoki parol noto‘g‘ri'}); } user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save(); await audit({user,ip:req.ip},'LOGIN','User',user.id); res.json({token:sign(user),user:sanitizeUser(user)}); });
 app.get('/api/me', auth, async (req,res)=>{ let current=sanitizeUser(req.user); if(req.user._id!=='demo'&&mongoose.connection.readyState===1) current=sanitizeUser(await User.findById(req.user._id).populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean()); res.json({user:current,effectivePermissions:rolePermissions(req.user)}); });
-app.get('/api/dashboard', auth, async (req,res)=> { if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true}); const day=new Date().getDay()||7; if(req.user.role==='teacher'){ const rows=await scheduleQuery({teacherId:req.user._id}).lean(); const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } if(req.user.role==='student'){ const gid=await resolveUserGroupId(req.user); const rows=gid?await scheduleQuery({groupId:gid}).lean():[]; const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Haftalik dars',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Fanlar',value:new Set(rows.map(x=>x.subject||x.title)).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } const [users,faculties,departments,groups,lessons,today]=await Promise.all([User.countDocuments({active:true}),Structure.countDocuments({type:'faculty',active:true}),Structure.countDocuments({type:'department',active:true}),Structure.countDocuments({type:'group',active:true}),Schedule.countDocuments(),scheduleQuery({weekday:day}).limit(10).lean()]); res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:users},{label:'Fakultet',value:faculties},{label:'Kafedra',value:departments},{label:'Guruh',value:groups},{label:'Dars',value:lessons}],today,online:io.engine.clientsCount}); });
+app.get('/api/dashboard', auth, async (req,res)=> { if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true}); const day=localWeekday(); if(req.user.role==='teacher'){ const rows=await scheduleQuery({teacherId:req.user._id}).lean(); const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } if(req.user.role==='student'){ const gid=await resolveUserGroupId(req.user); const rows=gid?await scheduleQuery({groupId:gid}).lean():[]; const today=rows.filter(x=>x.weekday===day); return res.json({role:req.user.role,stats:[{label:'Haftalik dars',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Fanlar',value:new Set(rows.map(x=>x.subject||x.title)).size},{label:'Onlayn',value:io.engine.clientsCount}],today}); } const [users,faculties,departments,groups,lessons,today]=await Promise.all([User.countDocuments({active:true}),Structure.countDocuments({type:'faculty',active:true}),Structure.countDocuments({type:'department',active:true}),Structure.countDocuments({type:'group',active:true}),Schedule.countDocuments(),scheduleQuery({weekday:day}).limit(10).lean()]); res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:users},{label:'Fakultet',value:faculties},{label:'Kafedra',value:departments},{label:'Guruh',value:groups},{label:'Dars',value:lessons}],today,online:io.engine.clientsCount}); });
 
 
-async function analyticsOverview(days=7){
-  const safeDays=Math.max(7,Math.min(30,Number(days)||7)),bounds=rangeBounds(safeDays),todayBounds=localDayBounds(0),todayWeekday=localWeekday();
+async function analyticsOverview(user,days=7,query={}){
+  const safeDays=Math.max(7,Math.min(30,Number(days)||7)),scope=await resolveScope(user,query),bounds=rangeBounds(safeDays),todayBounds=localDayBounds(0),todayWeekday=localWeekday();
+  const userAll=scopedUserFilter(scope,{}),userActive=scopedUserFilter(scope,{active:true}),scheduleFilter={...scope.scheduleScope};
+  const schedules=await Schedule.find(scheduleFilter).select('_id teacherId groupId weekday start end').lean(),scheduleIds=schedules.map(x=>String(x._id)),todaySchedules=schedules.filter(x=>x.weekday===todayWeekday),todayScheduleIds=todaySchedules.map(x=>String(x._id));
+  const attendanceRange={createdAt:{$gte:bounds.start,$lt:bounds.end}},attendanceToday={createdAt:{$gte:todayBounds.start,$lt:todayBounds.end}};
+  if(scheduleIds.length||(scope.group||scope.department||scope.faculty))attendanceRange.lessonId={$in:scheduleIds};
+  if(todayScheduleIds.length||(scope.group||scope.department||scope.faculty))attendanceToday.lessonId={$in:todayScheduleIds};
+  const teacherIds=[...new Set(schedules.map(x=>String(x.teacherId)).filter(Boolean))].filter(mongoose.isValidObjectId);
+  const scheduledGroupIds=[...new Set(schedules.map(x=>String(x.groupId)).filter(Boolean))].filter(mongoose.isValidObjectId);
   const results=await Promise.all([
-    User.aggregate([{$group:{_id:'$role',active:{$sum:{$cond:['$active',1,0]}}}}]),
-    User.countDocuments({active:true}),User.countDocuments({active:false}),Structure.countDocuments({type:'group',active:true}),Schedule.countDocuments(),Schedule.countDocuments({weekday:todayWeekday}),
-    Attendance.countDocuments({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end}}),Attendance.countDocuments({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end},status:'late'}),
-    User.aggregate([{$match:{active:true}},{$group:{_id:'$role',value:{$sum:1}}},{$sort:{value:-1}}]),
-    Schedule.aggregate([{$group:{_id:'$weekday',value:{$sum:1}}},{$sort:{_id:1}}]),
-    Attendance.aggregate([{$match:{createdAt:{$gte:bounds.start,$lt:bounds.end}}},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:mongoTimezone}},total:{$sum:1},late:{$sum:{$cond:[{$eq:['$status','late']},1,0]}},minutes:{$sum:{$ifNull:['$minutes',0]}}}},{$sort:{_id:1}}]),
-    User.countDocuments({active:true,$or:[{phone:{$exists:false}},{phone:''},{email:{$exists:false}},{email:''}]}),
-    User.countDocuments({active:true,role:'student',$or:[{groupId:{$exists:false}},{groupId:null}]}),
-    User.aggregate([{$match:{active:true,role:'teacher'}},{$lookup:{from:'schedules',localField:'_id',foreignField:'teacherId',as:'s'}},{$match:{'s.0':{$exists:false}}},{$count:'value'}]),
-    Structure.aggregate([{$match:{active:true,type:'group'}},{$lookup:{from:'schedules',localField:'_id',foreignField:'groupId',as:'s'}},{$match:{'s.0':{$exists:false}}},{$count:'value'}]),
-    Schedule.aggregate([{$group:{_id:'$teacherId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'users',localField:'_id',foreignField:'_id',as:'u'}},{$unwind:{path:'$u',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$u.fullName','Noma’lum']},login:'$u.login',value:1}}]),
-    Schedule.aggregate([{$group:{_id:'$groupId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'structures',localField:'_id',foreignField:'_id',as:'g'}},{$unwind:{path:'$g',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$g.name','Noma’lum']},externalId:'$g.externalId',value:1}}]),
-    Schedule.aggregate([{$match:{weekday:todayWeekday}},{$lookup:{from:'users',let:{gid:'$groupId'},pipeline:[{$match:{$expr:{$and:[{$eq:['$groupId','$gid']},{$eq:['$role','student']},{$eq:['$active',true]}]}}}],as:'students'}},{$group:{_id:null,value:{$sum:{$size:'$students'}}}}]),
-    Attendance.aggregate([{$match:{createdAt:{$gte:todayBounds.start,$lt:todayBounds.end}}},{$lookup:{from:'users',localField:'userId',foreignField:'_id',as:'u'}},{$unwind:'$u'},{$match:{'u.role':'student'}},{$group:{_id:{lessonId:'$lessonId',userId:'$userId'}}},{$count:'value'}])
+    User.aggregate([{$match:userActive},{$group:{_id:'$role',value:{$sum:1}}},{$sort:{value:-1}}]),
+    User.countDocuments(userActive),User.countDocuments(scopedUserFilter(scope,{active:false})),
+    Attendance.countDocuments(attendanceToday),Attendance.countDocuments({...attendanceToday,status:'late'}),
+    Schedule.aggregate([{$match:scheduleFilter},{$group:{_id:'$weekday',value:{$sum:1}}},{$sort:{_id:1}}]),
+    Attendance.aggregate([{$match:attendanceRange},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:mongoTimezone}},total:{$sum:1},late:{$sum:{$cond:[{$eq:['$status','late']},1,0]}},minutes:{$sum:{$ifNull:['$minutes',0]}}}},{$sort:{_id:1}}]),
+    User.countDocuments(scopedUserFilter(scope,{active:true,$or:[{phone:{$exists:false}},{phone:''},{email:{$exists:false}},{email:''}]})),
+    User.countDocuments(scopedUserFilter(scope,{active:true,role:'student',$or:[{groupId:{$exists:false}},{groupId:null}]})),
+    User.countDocuments(scopedUserFilter(scope,{active:true,role:'teacher',_id:{$nin:teacherIds}})),
+    Structure.countDocuments({type:'group',active:true,...((scope.group||scope.department||scope.faculty)?{_id:{$in:scope.groupIds}}:{}),_id:{$nin:scheduledGroupIds}}).catch(()=>0),
+    Schedule.aggregate([{$match:scheduleFilter},{$group:{_id:'$teacherId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'users',localField:'_id',foreignField:'_id',as:'u'}},{$unwind:{path:'$u',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$u.fullName','Noma’lum']},login:'$u.login',value:1}}]),
+    Schedule.aggregate([{$match:scheduleFilter},{$group:{_id:'$groupId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'structures',localField:'_id',foreignField:'_id',as:'g'}},{$unwind:{path:'$g',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$g.name','Noma’lum']},externalId:'$g.externalId',value:1}}]),
+    scopedOnlineCount(scope)
   ]);
-  const roleMap=Object.fromEntries(results[0].map(x=>[x._id,x.active]));
-  const attendanceExpected=results[17][0]?.value||0,attendanceStudents=results[18][0]?.value||0,attendanceRate=attendanceExpected?Math.min(100,Math.round(attendanceStudents/attendanceExpected*100)):0;
-  return {generatedAt:new Date().toISOString(),days:safeDays,summary:{activeUsers:results[1],blockedUsers:results[2],teachers:roleMap.teacher||0,students:roleMap.student||0,groups:results[3],totalSchedules:results[4],todaySchedules:results[5],onlineUsers:onlineUsers.size,attendanceToday:results[6],lateToday:results[7],attendanceExpected,attendanceStudents,attendanceRate},usersByRole:results[8],lessonsByWeekday:results[9],attendanceTrend:results[10].map(x=>({date:x._id,total:x.total,late:x.late,minutes:x.minutes})),topTeachers:results[15],topGroups:results[16],dataQuality:{missingContact:results[11],studentsMissingGroup:results[12],teachersWithoutSchedule:results[13][0]?.value||0,groupsWithoutSchedule:results[14][0]?.value||0}};
+  const usersByRole=results[0],roleMap=Object.fromEntries(usersByRole.map(x=>[x._id,x.value]));
+  const todayGroups=[...new Set(todaySchedules.map(x=>String(x.groupId)).filter(Boolean))].filter(mongoose.isValidObjectId);
+  const studentsByGroup=todayGroups.length?await User.aggregate([{$match:{active:true,role:'student',groupId:{$in:todayGroups.map(x=>new mongoose.Types.ObjectId(x))}}},{$group:{_id:'$groupId',value:{$sum:1}}}]):[];
+  const groupCount=Object.fromEntries(studentsByGroup.map(x=>[String(x._id),x.value]));
+  const attendanceExpected=todaySchedules.reduce((sum,x)=>sum+(groupCount[String(x.groupId)]||0),0);
+  let attendanceStudents=0;
+  if(todayScheduleIds.length){
+    const distinct=await Attendance.aggregate([{$match:attendanceToday},{$lookup:{from:'users',localField:'userId',foreignField:'_id',as:'u'}},{$unwind:'$u'},{$match:{'u.role':'student'}},{$group:{_id:{lessonId:'$lessonId',userId:'$userId'}}},{$count:'value'}]);
+    attendanceStudents=distinct[0]?.value||0;
+  }
+  const attendanceRate=attendanceExpected?Math.min(100,Math.round(attendanceStudents/attendanceExpected*100)):0;
+  const scopedGroupCount=(scope.group||scope.department||scope.faculty)?scope.groupIds.length:await Structure.countDocuments({type:'group',active:true});
+  return {generatedAt:new Date().toISOString(),days:safeDays,scope:{label:scope.label,forced:scope.forced,facultyId:scope.faculty?.externalId||scope.faculty?.code||'',departmentId:scope.department?.externalId||scope.department?.code||'',groupId:scope.group?.externalId||scope.group?.code||''},summary:{activeUsers:results[1],blockedUsers:results[2],teachers:roleMap.teacher||0,students:roleMap.student||0,groups:scopedGroupCount,totalSchedules:schedules.length,todaySchedules:todaySchedules.length,onlineUsers:results[13],attendanceToday:results[3],lateToday:results[4],attendanceExpected,attendanceStudents,attendanceRate},usersByRole,lessonsByWeekday:results[5],attendanceTrend:results[6].map(x=>({date:x._id,total:x.total,late:x.late,minutes:x.minutes})),topTeachers:results[11],topGroups:results[12],dataQuality:{missingContact:results[7],studentsMissingGroup:results[8],teachersWithoutSchedule:results[9],groupsWithoutSchedule:results[10]}};
 }
-app.get('/api/analytics/overview', auth, can('analytics.view'), async(req,res)=>{try{res.json(await analyticsOverview(req.query.days))}catch(err){res.status(500).json({message:'Statistikani hisoblab bo‘lmadi: '+err.message})}});
-app.get('/api/analytics/online', auth, can('lessons.monitor'), async(_req,res)=>{const ids=[...onlineUsers.keys()].filter(mongoose.isValidObjectId);const users=ids.length?await User.find({_id:{$in:ids}}).select('fullName login role lastSeenAt').lean():[];const byId=Object.fromEntries(users.map(x=>[String(x._id),x]));res.json([...onlineUsers.entries()].map(([id,count])=>Object.assign({},byId[id]||{_id:id,fullName:'Noma’lum',login:'-',role:'-'},{connections:count})))});
+app.get('/api/analytics/overview', auth, can('analytics.view'), async(req,res)=>{try{res.json(await analyticsOverview(req.user,req.query.days,req.query))}catch(err){res.status(400).json({message:'Statistikani hisoblab bo‘lmadi: '+err.message})}});
+
+app.get('/api/analytics/online', auth, can('lessons.monitor'), async(req,res)=>{const scope=await resolveScope(req.user,req.query);const ids=[...onlineUsers.keys()].filter(mongoose.isValidObjectId);if(!ids.length)return res.json([]);const users=await User.find(scopedUserFilter(scope,{_id:{$in:ids},active:true})).select('fullName login role lastSeenAt').lean();res.json(users.map(x=>({...x,connections:onlineUsers.get(String(x._id))||1})))});
 
 app.get('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.json({user:sanitizeUser(req.user)}); const current=await User.findById(req.user._id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); res.json({user:current}); });
 app.patch('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'}); const allowed=['fullName','email','phone','avatarUrl','bio']; const patch=Object.fromEntries(allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,String(req.body[k]??'').trim()])); const u=await User.findByIdAndUpdate(req.user._id,{$set:patch},{new:true}).select('-passwordHash'); audit(req,'PROFILE_UPDATE','User',req.user._id,patch); res.json({user:u}); });
@@ -272,9 +340,9 @@ app.get('/api/public/timetable/group/:groupId', async(req,res)=>{ if(!PUBLIC_TIM
 app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({teacher:null,schedule:[]});const t=await User.findOne({login:String(req.params.login).toLowerCase(),role:'teacher',active:true}).select('fullName login').lean();if(!t)return res.status(404).json({message:'O‘qituvchi topilmadi'});res.json({teacher:{fullName:t.fullName,login:t.login},schedule:await scheduleQuery({teacherId:t._id}).lean()}); });
 
 
-app.get('/api/reports/attendance', auth, can('reports.view'), async(req,res)=>{const days=Math.max(1,Math.min(90,Number(req.query.days)||14)),bounds=rangeBounds(days);const rows=await Attendance.find({createdAt:{$gte:bounds.start,$lt:bounds.end}}).populate('userId','fullName login role groupId').sort({createdAt:-1}).limit(1500).lean();const scheduleIds=[...new Set(rows.map(x=>x.lessonId).filter(mongoose.isValidObjectId))];const schedules=scheduleIds.length?await scheduleQuery({_id:{$in:scheduleIds}}).lean():[];const byId=Object.fromEntries(schedules.map(x=>[String(x._id),x]));res.json(rows.map(x=>Object.assign({},x,{schedule:byId[x.lessonId]||null})))});
+app.get('/api/reports/attendance', auth, can('reports.view'), async(req,res)=>{const days=Math.max(1,Math.min(90,Number(req.query.days)||14)),bounds=rangeBounds(days),scope=await resolveScope(req.user,req.query);const schedules=await Schedule.find(scope.scheduleScope).select('_id').lean(),scheduleIds=schedules.map(x=>String(x._id));const filter={createdAt:{$gte:bounds.start,$lt:bounds.end}};if(scheduleIds.length||(scope.group||scope.department||scope.faculty))filter.lessonId={$in:scheduleIds};const rows=await Attendance.find(filter).populate('userId','fullName login role groupId').sort({createdAt:-1}).limit(1500).lean();const used=[...new Set(rows.map(x=>x.lessonId).filter(mongoose.isValidObjectId))],fullSchedules=used.length?await scheduleQuery({_id:{$in:used}}).lean():[],byId=Object.fromEntries(fullSchedules.map(x=>[String(x._id),x]));res.json(rows.map(x=>({...x,schedule:byId[x.lessonId]||null})))});
 
-app.get('/api/audit', auth, can('reports.view'), async(req,res)=>{const filter={};if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80));filter.$or=[{actorLogin:{$regex:q,$options:'i'}},{actorName:{$regex:q,$options:'i'}},{action:{$regex:q,$options:'i'}},{entity:{$regex:q,$options:'i'}}]}res.json(await Audit.find(filter).sort({createdAt:-1}).limit(Math.min(1000,Number(req.query.limit)||300)).lean())});
+app.get('/api/audit', auth, can('reports.view'), async(req,res)=>{const filter={};if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){filter.actorId=req.user._id}if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80)),search=[{actorLogin:{$regex:q,$options:'i'}},{actorName:{$regex:q,$options:'i'}},{action:{$regex:q,$options:'i'}},{entity:{$regex:q,$options:'i'}}];if(filter.actorId)filter.$and=[{actorId:filter.actorId},{$or:search}];else filter.$or=search}res.json(await Audit.find(filter).sort({createdAt:-1}).limit(Math.min(1000,Number(req.query.limit)||300)).lean())});
 
 io.use(async(socket,next)=>{ try { const data=jwt.verify(socket.handshake.auth.token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
 io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});let allowed=hasPermission(socket.user,'lessons.monitor')||String(lesson.teacherId)===String(socket.user._id);if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); }); socket.on('disconnect', async()=>{const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
