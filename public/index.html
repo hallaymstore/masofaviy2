@@ -14,7 +14,7 @@
 <div id="login" class="login">
   <form id="loginForm" class="login-card">
     <div class="brand"><span class="brand-mark">M2</span><div><b>Masofaviy2</b><small>Universitetning raqamli ta’lim muhiti</small></div></div>
-    <div class="welcome-icon">🎓</div><h1>Xush kelibsiz</h1>
+    <div class="welcome-icon"><span data-ico="cap" data-fallback="🎓"></span></div><h1>Xush kelibsiz</h1>
     <p class="login-lead">Dars jadvali, jonli mashg‘ulot, davomat, nazorat va statistika — barchasi bitta tizimda.</p>
     <label>Login<input name="login" autocomplete="username" placeholder="Sizga berilgan login" required></label>
     <label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parolingizni kiriting" required></label>
@@ -53,7 +53,7 @@
   <main>
     <section id="dashboard" class="page active">
       <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugungi ta’lim jarayonini bir joydan kuzating</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
-      <div class="edu-banner"><span>📘</span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.</p></div></div>
+      <div class="edu-banner"><span data-ico="book" data-fallback="📘"></span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.</p></div></div>
       <div id="stats" class="stats"></div>
       <div id="dashboardHealth" class="health-strip hidden"></div>
       <div class="grid"><article><h2>Bugungi darslar</h2><div id="todayLessons" class="list"></div></article><article><h2>Tezkor bo‘limlar</h2><div id="quickManagement" class="quick"></div></article></div>
@@ -91,7 +91,7 @@
 
     <section id="users" class="page">
       <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Har bir foydalanuvchining shaxsiy profili, holati va alohida akkaunti mavjud</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
-      <div class="guide warning"><b>🔐 Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi. Bloklash va parolni tiklash harakati audit tarixiga yoziladi.</div>
+      <div class="guide warning"><b><span data-ico="lock" data-fallback="🔐"></span> Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi. Bloklash va parolni tiklash harakati audit tarixiga yoziladi.</div>
       <div class="toolbar"><input id="userSearch" placeholder="F.I.Sh., login yoki telefon"><select id="userRoleFilter"><option value="">Barcha rollar</option><option value="student">Talaba</option><option value="teacher">O‘qituvchi</option><option value="tutor">Tyutor</option><option value="department">Kafedra</option><option value="dean">Dekan</option><option value="rectorate">Rektorat</option><option value="tech">Texnik</option><option value="admin">Admin</option></select><select id="userStatusFilter"><option value="">Barcha holat</option><option value="true">Faol</option><option value="false">Bloklangan</option></select><button id="applyUserFilter" class="secondary">Qidirish</button></div>
       <div id="usersList" class="table-wrap"></div>
     </section>
