@@ -165,7 +165,7 @@ async function analyticsOverview(user,days=7,query={}){
     User.countDocuments(scopedUserFilter(scope,{active:true,$or:[{phone:{$exists:false}},{phone:''},{email:{$exists:false}},{email:''}]})),
     User.countDocuments(scopedUserFilter(scope,{active:true,role:'student',$or:[{groupId:{$exists:false}},{groupId:null}]})),
     User.countDocuments(scopedUserFilter(scope,{active:true,role:'teacher',_id:{$nin:teacherIds}})),
-    Structure.countDocuments({type:'group',active:true,...((scope.group||scope.department||scope.faculty)?{_id:{$in:scope.groupIds}}:{}),_id:{$nin:scheduledGroupIds}}).catch(()=>0),
+    Structure.countDocuments((scope.group||scope.department||scope.faculty)?{type:'group',active:true,$and:[{_id:{$in:scope.groupIds}},{_id:{$nin:scheduledGroupIds}}]}:{type:'group',active:true,_id:{$nin:scheduledGroupIds}}).catch(()=>0),
     Schedule.aggregate([{$match:scheduleFilter},{$group:{_id:'$teacherId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'users',localField:'_id',foreignField:'_id',as:'u'}},{$unwind:{path:'$u',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$u.fullName','Noma’lum']},login:'$u.login',value:1}}]),
     Schedule.aggregate([{$match:scheduleFilter},{$group:{_id:'$groupId',value:{$sum:1}}},{$sort:{value:-1}},{$limit:8},{$lookup:{from:'structures',localField:'_id',foreignField:'_id',as:'g'}},{$unwind:{path:'$g',preserveNullAndEmptyArrays:true}},{$project:{_id:0,label:{$ifNull:['$g.name','Noma’lum']},externalId:'$g.externalId',value:1}}]),
     scopedOnlineCount(scope)
