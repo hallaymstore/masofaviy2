@@ -129,6 +129,35 @@ app.get('/api/users', auth, can('users.manage'), async(req,res)=>{if(mongoose.co
 app.post('/api/users', auth, can('users.manage'), async(req,res)=>{ const password=req.body.password || crypto.randomBytes(5).toString('hex'); const body={...req.body,login:String(req.body.login||'').toLowerCase().trim()}; if(body.groupId&&!mongoose.isValidObjectId(body.groupId)){const g=await resolveStructure(body.groupId,'group');if(!g)return res.status(400).json({message:'Guruh ID topilmadi'});body.groupId=g._id;body.group=g.externalId||g.code||g.name;} const user=await User.create({...body,passwordHash:await bcrypt.hash(password,11)}); audit(req,'CREATE','User',user.id,{role:user.role}); res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password}); });
 
 app.get('/api/users/:id', auth, async(req,res)=>{ if(String(req.user._id)!==String(req.params.id)&&!hasPermission(req.user,'users.manage'))return res.status(403).json({message:'Bu profilni ko‘rish uchun ruxsat yo‘q'}); const u=await User.findById(req.params.id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); if(!u)return res.status(404).json({message:'Foydalanuvchi topilmadi'});res.json({user:u}); });
+app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
+  const target=await User.findById(req.params.id);
+  if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});
+  if(target.role==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin ma’lumotini faqat superadmin o‘zgartiradi'});
+  const nextRole=req.body.role?String(req.body.role):target.role;
+  if(!permissionsByRole[nextRole])return res.status(400).json({message:'Rol noto‘g‘ri'});
+  if(nextRole==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin rolini faqat superadmin beradi'});
+  const facultyRaw=String(req.body.facultyId||'').trim(),departmentRaw=String(req.body.departmentId||'').trim(),groupRaw=String(req.body.groupId||'').trim();
+  let [faculty,department,group]=await Promise.all([facultyRaw?resolveStructure(facultyRaw,'faculty'):null,departmentRaw?resolveStructure(departmentRaw,'department'):null,groupRaw?resolveStructure(groupRaw,'group'):null]);
+  if(facultyRaw&&!faculty)return res.status(400).json({message:'faculty_id topilmadi'});
+  if(departmentRaw&&!department)return res.status(400).json({message:'department_id topilmadi'});
+  if(groupRaw&&!group)return res.status(400).json({message:'group_id topilmadi'});
+  if(group&&!department&&group.parentId)department=await Structure.findById(group.parentId).lean();
+  if(department&&!faculty&&department.parentId)faculty=await Structure.findById(department.parentId).lean();
+  if(group&&department&&String(group.parentId||'')!==String(department._id))return res.status(400).json({message:'Guruh tanlangan kafedraga tegishli emas'});
+  if(department&&faculty&&String(department.parentId||'')!==String(faculty._id))return res.status(400).json({message:'Kafedra tanlangan fakultetga tegishli emas'});
+  if(nextRole==='student'&&!group)return res.status(400).json({message:'Talabaga group_id majburiy'});
+  target.fullName=String(req.body.fullName??target.fullName).trim();
+  target.email=String(req.body.email??target.email??'').trim();
+  target.phone=String(req.body.phone??target.phone??'').trim();
+  target.role=nextRole;
+  target.facultyId=faculty?._id||undefined;target.faculty=faculty?(faculty.externalId||faculty.code||faculty.name):'';
+  target.departmentId=department?._id||undefined;target.department=department?(department.externalId||department.code||department.name):'';
+  target.groupId=group?._id||undefined;target.group=group?(group.externalId||group.code||group.name):'';
+  await target.save();
+  audit(req,'USER_UPDATE','User',target.id,{role:target.role,facultyId:target.faculty,departmentId:target.department,groupId:target.group});
+  res.json({user:sanitizeUser(target)});
+});
+
 app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ try{
   const rows=await parseFileRows(req.body),dryRun=req.body.dryRun!==false,prepared=[],errors=[],seen=new Set();
   for(let i=0;i<rows.length;i++){
