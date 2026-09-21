@@ -69,6 +69,8 @@ const escapeRegex = value => String(value||'').replace(/[.*+?^$()|[\]\\]/g, matc
 const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash; return x; };
 const hasPermission = (user, permission) => { const base = permissionsByRole[user?.role] || []; return (base.includes('*') || base.includes(permission) || user?.permissions?.includes(permission)) && !user?.deniedPermissions?.includes(permission); };
 const rolePermissions = user => [...new Set([...(permissionsByRole[user?.role]||[]), ...(user?.permissions||[])])].filter(p=>!user?.deniedPermissions?.includes(p));
+const canAssignRole = (actorRole,targetRole) => actorRole==='superadmin' ? Boolean(permissionsByRole[targetRole]) : actorRole==='admin' ? Boolean(permissionsByRole[targetRole])&&targetRole!=='superadmin' : actorRole==='tech' ? Boolean(permissionsByRole[targetRole])&&!['superadmin','admin'].includes(targetRole) : false;
+const knownPermissions = new Set(Object.values(permissionsByRole).flat().filter(p=>p!=='*'));
 const normKey = key => String(key||'').trim().toLowerCase().replace(/[ʻ’'`]/g,'').replace(/[^a-z0-9а-яёқғҳў]+/gi,'_').replace(/^_+|_+$/g,'');
 const normalizeRow = row => Object.fromEntries(Object.entries(row).map(([k,v])=>[normKey(k), typeof v === 'string' ? v.trim() : v]));
 const pick = (row,names) => { for (const n of names) { const v=row[normKey(n)]; if(v!==undefined && v!==null && String(v).trim()!=='') return v; } return ''; };
@@ -126,7 +128,27 @@ app.get('/api/structure', auth, async (req,res)=>res.json(mongoose.connection.re
 app.post('/api/structure', auth, can('structure.manage'), async(req,res)=>{ const body={...req.body,externalId:String(req.body.externalId||req.body.code||'').trim()||undefined}; if(body.type==='group'&&!body.externalId)return res.status(400).json({message:'Guruh uchun ID kiriting'}); if(body.externalId&&await Structure.exists({type:body.type,externalId:body.externalId}))return res.status(409).json({message:'Bu ID allaqachon mavjud'}); const item=await Structure.create(body); audit(req,'CREATE','Structure',item.id,{type:item.type,externalId:item.externalId}); res.status(201).json(item); });
 app.delete('/api/structure/:id', auth, can('structure.manage'), async(req,res)=>{ const children=await Structure.countDocuments({parentId:req.params.id,active:true}); if(children) return res.status(409).json({message:'Avval ichki bo‘lim yoki guruhlarni o‘chiring'}); await Structure.findByIdAndUpdate(req.params.id,{active:false}); audit(req,'ARCHIVE','Structure',req.params.id); res.json({ok:true}); });
 app.get('/api/users', auth, can('users.manage'), async(req,res)=>{if(mongoose.connection.readyState!==1)return res.json([demoAdmin]);const filter={};if(req.query.role)filter.role=req.query.role;if(req.query.active==='true')filter.active=true;if(req.query.active==='false')filter.active=false;if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80));filter.$or=[{fullName:{$regex:q,$options:'i'}},{login:{$regex:q,$options:'i'}},{phone:{$regex:q,$options:'i'}}]}res.json(await User.find(filter).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').sort({active:-1,fullName:1}).limit(3000).lean())});
-app.post('/api/users', auth, can('users.manage'), async(req,res)=>{ const password=req.body.password || crypto.randomBytes(5).toString('hex'); const body={...req.body,login:String(req.body.login||'').toLowerCase().trim()}; if(body.groupId&&!mongoose.isValidObjectId(body.groupId)){const g=await resolveStructure(body.groupId,'group');if(!g)return res.status(400).json({message:'Guruh ID topilmadi'});body.groupId=g._id;body.group=g.externalId||g.code||g.name;} const user=await User.create({...body,passwordHash:await bcrypt.hash(password,11)}); audit(req,'CREATE','User',user.id,{role:user.role}); res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password}); });
+app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
+  const login=String(req.body.login||'').toLowerCase().trim(),fullName=String(req.body.fullName||'').trim(),role=String(req.body.role||'').trim();
+  if(!login||!fullName)return res.status(400).json({message:'F.I.Sh. va login majburiy'});
+  if(!canAssignRole(req.user.role,role))return res.status(403).json({message:'Bu rolni yaratish uchun ruxsat yo‘q'});
+  if(await User.exists({login}))return res.status(409).json({message:'Bu login allaqachon mavjud'});
+  const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');
+  if(password.length<8)return res.status(400).json({message:'Parol kamida 8 ta belgidan iborat bo‘lsin'});
+  const facultyRaw=String(req.body.facultyId||'').trim(),departmentRaw=String(req.body.departmentId||'').trim(),groupRaw=String(req.body.groupId||'').trim();
+  let [faculty,department,group]=await Promise.all([facultyRaw?resolveStructure(facultyRaw,'faculty'):null,departmentRaw?resolveStructure(departmentRaw,'department'):null,groupRaw?resolveStructure(groupRaw,'group'):null]);
+  if(facultyRaw&&!faculty)return res.status(400).json({message:'Fakultet ID topilmadi'});
+  if(departmentRaw&&!department)return res.status(400).json({message:'Kafedra ID topilmadi'});
+  if(groupRaw&&!group)return res.status(400).json({message:'Guruh ID topilmadi'});
+  if(group&&!department&&group.parentId)department=await Structure.findById(group.parentId).lean();
+  if(department&&!faculty&&department.parentId)faculty=await Structure.findById(department.parentId).lean();
+  if(group&&department&&String(group.parentId||'')!==String(department._id))return res.status(400).json({message:'Guruh tanlangan kafedraga tegishli emas'});
+  if(department&&faculty&&String(department.parentId||'')!==String(faculty._id))return res.status(400).json({message:'Kafedra tanlangan fakultetga tegishli emas'});
+  if(role==='student'&&!group)return res.status(400).json({message:'Talaba uchun guruh majburiy'});
+  const user=await User.create({login,fullName,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
+  audit(req,'CREATE','User',user.id,{role:user.role});
+  res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password});
+});
 
 app.get('/api/users/:id', auth, async(req,res)=>{ if(String(req.user._id)!==String(req.params.id)&&!hasPermission(req.user,'users.manage'))return res.status(403).json({message:'Bu profilni ko‘rish uchun ruxsat yo‘q'}); const u=await User.findById(req.params.id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); if(!u)return res.status(404).json({message:'Foydalanuvchi topilmadi'});res.json({user:u}); });
 app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
@@ -135,7 +157,7 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   if(target.role==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin ma’lumotini faqat superadmin o‘zgartiradi'});
   const nextRole=req.body.role?String(req.body.role):target.role;
   if(!permissionsByRole[nextRole])return res.status(400).json({message:'Rol noto‘g‘ri'});
-  if(nextRole==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin rolini faqat superadmin beradi'});
+  if(!canAssignRole(req.user.role,nextRole))return res.status(403).json({message:'Bu rolni tayinlash uchun ruxsat yo‘q'});
   const facultyRaw=String(req.body.facultyId||'').trim(),departmentRaw=String(req.body.departmentId||'').trim(),groupRaw=String(req.body.groupId||'').trim();
   let [faculty,department,group]=await Promise.all([facultyRaw?resolveStructure(facultyRaw,'faculty'):null,departmentRaw?resolveStructure(departmentRaw,'department'):null,groupRaw?resolveStructure(groupRaw,'group'):null]);
   if(facultyRaw&&!faculty)return res.status(400).json({message:'faculty_id topilmadi'});
@@ -172,7 +194,8 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     const groupRaw=String(pick(row,['group_id','guruh_id','groupid'])||'').trim();
     if(!fullName){errors.push({row:n,message:'F.I.Sh. bo‘sh'});continue}
     if(!login){errors.push({row:n,message:'login bo‘sh'});continue}
-    if(!permissionsByRole[role]){errors.push({row:n,message:'rol noto‘g‘ri: '+(role||'-')});continue}
+    if(!permissionsByRole[role]){errors.push({row:n,message:'rol noto‘g‘ri: '+(role||'-')});continue} 
+    if(!canAssignRole(req.user.role,role)){errors.push({row:n,message:'Bu rolni yaratish uchun ruxsat yo‘q: '+role});continue}
     if(seen.has(login)||await User.exists({login})){errors.push({row:n,message:'login takrorlangan yoki tizimda mavjud: '+login});continue}
     seen.add(login);
     let [faculty,department,group]=await Promise.all([
@@ -204,7 +227,17 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
 app.patch('/api/users/:id/status', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(String(target._id)===String(req.user._id)&&req.body.active===false)return res.status(400).json({message:'O‘zingizni bloklay olmaysiz'});if(target.role==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin holatini faqat superadmin o‘zgartiradi'});target.active=Boolean(req.body.active);target.statusNote=String(req.body.statusNote||'').trim();await target.save();audit(req,target.active?'UNBLOCK':'BLOCK','User',target.id,{note:target.statusNote});res.json({ok:true,active:target.active})});
 app.post('/api/users/:id/reset-password', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(target.role==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin parolini faqat superadmin tiklaydi'});const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');if(password.length<8)return res.status(400).json({message:'Parol kamida 8 belgi bo‘lsin'});target.passwordHash=await bcrypt.hash(password,11);target.mustChangePassword=true;await target.save();audit(req,'PASSWORD_RESET','User',target.id);res.json({temporaryPassword:password})});
 
-app.patch('/api/users/:id/permissions', auth, can('permissions.manage'), async(req,res)=>{ const user=await User.findByIdAndUpdate(req.params.id,{$set:{permissions:req.body.permissions||[],deniedPermissions:req.body.deniedPermissions||[]}},{new:true}).select('-passwordHash'); audit(req,'PERMISSIONS','User',req.params.id,req.body); res.json(user); });
+app.patch('/api/users/:id/permissions', auth, can('permissions.manage'), async(req,res)=>{
+  const target=await User.findById(req.params.id);
+  if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});
+  if(target.role==='superadmin'&&req.user.role!=='superadmin')return res.status(403).json({message:'Superadmin huquqlarini faqat superadmin o‘zgartiradi'});
+  const normalize=list=>[...new Set((Array.isArray(list)?list:[]).filter(p=>knownPermissions.has(p)))];
+  const permissions=normalize(req.body.permissions),deniedPermissions=normalize(req.body.deniedPermissions);
+  if(req.user.role!=='superadmin'&&permissions.includes('permissions.manage'))return res.status(403).json({message:'Huquqlarni boshqarish vakolatini faqat superadmin bera oladi'});
+  target.permissions=permissions;target.deniedPermissions=deniedPermissions;await target.save();
+  audit(req,'PERMISSIONS','User',target.id,{permissions,deniedPermissions});
+  res.json(sanitizeUser(target));
+});
 app.get('/api/schedules', auth, async(req,res)=>{if(mongoose.connection.readyState!==1)return res.json([]);const filter={};if(req.user.role==='teacher')filter.teacherId=req.user._id;else if(req.user.role==='student'){const gid=await resolveUserGroupId(req.user);if(!gid)return res.json([]);filter.groupId=gid}else{if(req.query.groupId){const g=await resolveStructure(req.query.groupId,'group');if(!g)return res.json([]);filter.groupId=g._id}if(req.query.teacherLogin){const t=await User.findOne({login:String(req.query.teacherLogin).toLowerCase(),role:'teacher'}).lean();if(!t)return res.json([]);filter.teacherId=t._id}if(req.query.weekday)filter.weekday=Number(req.query.weekday)}res.json(await scheduleQuery(filter).lean())});
 app.post('/api/schedules', auth, can('schedule.manage'), async(req,res)=>{const group=await resolveStructure(req.body.groupId,'group');const teacher=mongoose.isValidObjectId(req.body.teacherId)?await User.findById(req.body.teacherId).lean():await User.findOne({login:String(req.body.teacherId||'').toLowerCase(),role:'teacher',active:true}).lean();const start=normalizeTime(req.body.start),end=normalizeTime(req.body.end),weekday=normalizeWeekday(req.body.weekday),room=String(req.body.room||'').trim();if(!group)return res.status(400).json({message:'Guruh ID topilmadi'});if(!teacher)return res.status(400).json({message:'O‘qituvchi topilmadi'});if(!weekday||!start||!end||start>=end)return res.status(400).json({message:'Vaqt oralig‘i noto‘g‘ri'});const overlap={weekday,start:{$lt:end},end:{$gt:start}};const clashes=await Promise.all([Schedule.findOne(Object.assign({},overlap,{teacherId:teacher._id})),Schedule.findOne(Object.assign({},overlap,{groupId:group._id})),room?Schedule.findOne(Object.assign({},overlap,{room})):null]);if(clashes[0])return res.status(409).json({message:'O‘qituvchining bu vaqtda boshqa darsi bor'});if(clashes[1])return res.status(409).json({message:'Guruhning bu vaqtda boshqa darsi bor'});if(clashes[2])return res.status(409).json({message:'Bu xona shu vaqtda band'});const item=await Schedule.create(Object.assign({},req.body,{start,end,weekday,room,groupId:group._id,teacherId:teacher._id}));audit(req,'CREATE','Schedule',item.id,{groupId:group.externalId||group.code,teacherLogin:teacher.login});res.status(201).json(item)});
 app.delete('/api/schedules/:id', auth, can('schedule.manage'), async(req,res)=>{ await Schedule.findByIdAndDelete(req.params.id); audit(req,'DELETE','Schedule',req.params.id); res.json({ok:true}); });
