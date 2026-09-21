@@ -13,13 +13,20 @@ import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true, credentials: true }, transports: ['websocket', 'polling'] });
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);
+const originCheck = (origin,callback) => {
+  if(!origin || !allowedOrigins.length || allowedOrigins.includes(origin))return callback(null,true);
+  callback(new Error('Origin ruxsat etilmagan'));
+};
+const corsOptions = { origin: originCheck, credentials: true };
+const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'polling'] });
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
 app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
@@ -483,5 +490,16 @@ app.get('/api/audit', auth, can('reports.view'), async(req,res)=>{const filter={
 io.use(async(socket,next)=>{ try { const data=jwt.verify(socket.handshake.auth.token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
 io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); }); socket.on('disconnect', async()=>{const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
 
-async function bootstrap(){ server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`)); if(!process.env.MONGODB_URI){console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return} try{await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});const login=(process.env.ADMIN_LOGIN||'admin').toLowerCase();if(!await User.exists({login}))await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(process.env.ADMIN_PASSWORD||'ChangeMe123!',11),mustChangePassword:true});console.log('MongoDB ulandi')}catch(err){console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)} }
-bootstrap();
+async function bootstrap(){
+  if(process.env.NODE_ENV==='production'&&!process.env.JWT_SECRET)throw new Error('Production uchun JWT_SECRET majburiy');
+  if(process.env.NODE_ENV==='production'&&!process.env.ADMIN_PASSWORD)throw new Error('Production uchun ADMIN_PASSWORD majburiy');
+  server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`));
+  if(!process.env.MONGODB_URI){console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return}
+  try{
+    await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});
+    const login=(process.env.ADMIN_LOGIN||'admin').toLowerCase();
+    if(!await User.exists({login}))await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(process.env.ADMIN_PASSWORD||'ChangeMe123!',11),mustChangePassword:true});
+    console.log('MongoDB ulandi');
+  }catch(err){console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
+}
+bootstrap().catch(err=>{console.error('Ishga tushirish to‘xtatildi:',err.message);process.exit(1)});
