@@ -63,7 +63,7 @@ const localMinuteOfDay = (date=new Date()) => localNow(date).getUTCHours()*60 + 
 const localDayBounds = (daysAgo=0) => { const d=localNow(); const startShifted=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-daysAgo); const start=new Date(startShifted-offsetMs); return {start,end:new Date(start.getTime()+86400000)}; };
 const rangeBounds = days => ({start:localDayBounds(Math.max(1,days)-1).start,end:localDayBounds(0).end});
 const timeToMinutes = value => { const m=String(value||'').match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : 0; };
-const escapeRegex = value => String(value||'').replace(/[.*+?^$()|[\]\\]/g,'\\const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema);');
+const escapeRegex = value => String(value||'').replace(/[.*+?^$()|[\]\\]/g, match => '\\' + match);
 
 const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash; return x; };
 const hasPermission = (user, permission) => { const base = permissionsByRole[user?.role] || []; return (base.includes('*') || base.includes(permission) || user?.permissions?.includes(permission)) && !user?.deniedPermissions?.includes(permission); };
