@@ -27,7 +27,7 @@ function joinLesson(id){
 }
 all('.tabs button').forEach(b=>b.onclick=()=>{all('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');structureType=b.dataset.type;loadStructure()});
 async function loadStructure(){if(!can('structure.manage')&&!['dean','department'].includes(user.role))return;cache.structure=await api('/structure');const rows=cache.structure.filter(x=>x.type===structureType&&x.active);$('#structureList').innerHTML=rows.map(x=>`<div><small>ID: ${esc(x.externalId||x.code||x._id)}</small><h2>${esc(x.name)}</h2>${can('structure.manage')?`<button data-del-structure="${x._id}">O‘chirish</button>`:''}</div>`).join('')||'<div class="empty"><b>Hozircha ma’lumot kiritilmagan</b><p>“+ Yangi” tugmasi orqali birinchi bo‘limni yarating.</p></div>';all('[data-del-structure]').forEach(b=>b.onclick=async()=>{if(confirm('Arxivga o‘tkazilsinmi?')){try{await api('/structure/'+b.dataset.delStructure,{method:'DELETE'});loadStructure()}catch(e){toast(e.message)}}})}
-function modal(title,fields,onSave){$('#modalTitle').textContent=title;$('#modalFields').innerHTML=fields;$('#modalSave').classList.remove('hidden');$('#modal').showModal();$('#modalForm').onsubmit=async e=>{e.preventDefault();if(e.submitter?.value==='cancel')return $('#modal').close();try{await onSave(Object.fromEntries(new FormData(e.currentTarget)));$('#modal').close();toast('Saqlandi')}catch(err){toast(err.message)}}}
+function modal(title,fields,onSave){$('#modalTitle').textContent=title;$('#modalFields').innerHTML=fields;$('#modalSave').classList.remove('hidden');$('#modal').showModal();$('#modalForm').onsubmit=async e=>{e.preventDefault();if(e.submitter?.value==='cancel')return $('#modal').close();try{const fd=new FormData(e.currentTarget),data={};for(const key of new Set(fd.keys())){const values=fd.getAll(key);data[key]=values.length>1?values:values[0]}await onSave(data);$('#modal').close();toast('Saqlandi')}catch(err){toast(err.message)}}}
 $('#addStructure').onclick=async()=>{if(!cache.structure.length)cache.structure=await api('/structure');const parents=cache.structure.filter(x=>x.active&&(structureType==='department'?x.type==='faculty':structureType==='group'?x.type==='department':false));modal('Yangi '+({faculty:'fakultet',department:'kafedra',group:'guruh'}[structureType]),`<label>Nomi<input name="name" required></label><label>ID<input name="externalId" ${structureType==='group'?'required':''} placeholder="Masalan: ATT-101"></label>${structureType==='faculty'?'':`<label>Yuqori bo‘lim<select name="parentId" required><option value="">Tanlang</option>${parents.map(x=>`<option value="${x._id}">${esc(x.name)}</option>`)}</select></label>`}`,async d=>{await api('/structure',{method:'POST',body:JSON.stringify({...d,type:structureType})});loadStructure()})};
 async function loadSchedules(){
   try{
@@ -44,7 +44,17 @@ async function loadSchedules(){
 $('#applyScheduleFilter').onclick=loadSchedules;
 $('#clearScheduleFilter').onclick=function(){if($('#scheduleTeacherFilter'))$('#scheduleTeacherFilter').value='';if($('#scheduleGroupFilter'))$('#scheduleGroupFilter').value='';if($('#scheduleDayFilter'))$('#scheduleDayFilter').value='';loadSchedules()};
 function linkBox(label,url){return `<div class="public-link"><b>${esc(label)}</b><div><input value="${esc(url)}" readonly><button data-copy="${esc(url)}">Nusxa</button><a href="${esc(url)}" target="_blank" rel="noopener">Ochish ↗</a></div></div>`}
-async function buildTimetableLinks(){const box=$('#timetableLinks'),base=location.origin+'/timetable.html?';if(user.role==='teacher'){box.innerHTML=linkBox('Mening to‘liq jadval havolam',base+'teacher='+encodeURIComponent(user.login));return}if(user.role==='student'){const gid=user.groupId?.externalId||user.groupId?.code||user.group||'';box.innerHTML=gid?linkBox('Guruh jadvali havolasi',base+'group='+encodeURIComponent(gid)):'<p class="muted">Profilingizga guruh ID biriktirilmagan.</p>';return}if(can('schedule.manage')){const groups=await api('/structure?type=group');box.innerHTML=`<div class="link-builder"><label>Guruh bo‘yicha alohida jadval<select id="publicGroupSelect"><option value="">Guruhni tanlang</option>${groups.filter(x=>x.active).map(g=>`<option value="${esc(g.externalId||g.code||g._id)}">${esc(g.name)} — ${esc(g.externalId||g.code||g._id)}</option>`)}</select></label><button id="makePublicLink">Havolani tayyorlash</button><div id="publicLinkResult"></div></div>`;$('#makePublicLink').onclick=()=>{const gid=$('#publicGroupSelect').value;if(!gid)return toast('Guruhni tanlang');$('#publicLinkResult').innerHTML=linkBox('To‘liq jadval havolasi',base+'group='+encodeURIComponent(gid))}}else box.innerHTML=''}
+async function buildTimetableLinks(){
+  const box=$('#timetableLinks'),base=location.origin+'/timetable.html?';
+  if(user.role==='teacher'){box.innerHTML=linkBox('Mening to‘liq jadval havolam',base+'teacher='+encodeURIComponent(user.login));return}
+  if(user.role==='student'){const gid=user.groupId?.externalId||user.groupId?.code||user.group||'';box.innerHTML=gid?linkBox('Guruh jadvali havolasi',base+'group='+encodeURIComponent(gid)):'<p class="muted">Profilingizga guruh ID biriktirilmagan.</p>';return}
+  if(can('schedule.manage')){
+    const [groups,teachers]=await Promise.all([api('/structure?type=group'),api('/users?role=teacher').catch(()=>[])]);
+    box.innerHTML='<div class="link-builder link-builder-grid"><label>Guruh jadvali<select id="publicGroupSelect"><option value="">Guruhni tanlang</option>'+groups.filter(x=>x.active).map(g=>'<option value="'+esc(g.externalId||g.code||g._id)+'">'+esc(g.name)+' — '+esc(g.externalId||g.code||g._id)+'</option>').join('')+'</select></label><button id="makePublicLink">Guruh linki</button><label>O‘qituvchi jadvali<select id="publicTeacherSelect"><option value="">O‘qituvchini tanlang</option>'+teachers.filter(x=>x.active!==false).map(t=>'<option value="'+esc(t.login)+'">'+esc(t.fullName)+' (@'+esc(t.login)+')</option>').join('')+'</select></label><button id="makeTeacherPublicLink">O‘qituvchi linki</button><div id="publicLinkResult" class="wide-result"></div></div>';
+    $('#makePublicLink').onclick=()=>{const gid=$('#publicGroupSelect').value;if(!gid)return toast('Guruhni tanlang');$('#publicLinkResult').innerHTML=linkBox('Guruhning to‘liq jadval havolasi',base+'group='+encodeURIComponent(gid))};
+    $('#makeTeacherPublicLink').onclick=()=>{const login=$('#publicTeacherSelect').value;if(!login)return toast('O‘qituvchini tanlang');$('#publicLinkResult').innerHTML=linkBox('O‘qituvchining to‘liq jadval havolasi',base+'teacher='+encodeURIComponent(login))};
+  }else box.innerHTML='';
+}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(b)navigator.clipboard.writeText(b.dataset.copy).then(()=>toast('Havola nusxalandi'))});
 $('#addSchedule').onclick=async()=>{const [groups,users]=await Promise.all([api('/structure?type=group'),api('/users?role=teacher').catch(()=>[])]);modal('Dars qo‘shish',`<label>Dars nomi<input name="title" required></label><label>Fan<input name="subject"></label><label>Guruh ID<select name="groupId" required>${groups.filter(x=>x.active).map(x=>`<option value="${esc(x.externalId||x.code||x._id)}">${esc(x.name)} — ${esc(x.externalId||x.code||x._id)}</option>`)}</select></label><label>O‘qituvchi<select name="teacherId" required>${users.map(x=>`<option value="${x._id}">${esc(x.fullName)} (@${esc(x.login)})</option>`)}</select></label><label>Hafta kuni<select name="weekday">${['Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'].map((x,i)=>`<option value="${i+1}">${x}</option>`)}</select></label><label>Boshlanish<input name="start" type="time" required></label><label>Tugash<input name="end" type="time" required></label><label>Xona<input name="room" placeholder="Masalan: 201"></label><label>Turi<select name="kind"><option value="lecture">Ma’ruza</option><option value="practice">Amaliyot</option><option value="seminar">Seminar</option><option value="exam">Imtihon</option></select></label>`,async d=>{d.weekday=Number(d.weekday);await api('/schedules',{method:'POST',body:JSON.stringify(d)});loadSchedules()})};
 function buildUserQuery(){
@@ -56,11 +66,14 @@ async function loadUsers(){
   try{
     const qs=buildUserQuery(),rows=await api('/users'+(qs?'?'+qs:''));
     $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
-      let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button>';
+      let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button><button class="ghost" data-user-edit="'+esc(x._id)+'">Tahrir</button>';
+      if(can('permissions.manage'))actions+='<button class="ghost" data-user-permissions="'+esc(x._id)+'">Huquqlar</button>';
       if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button>';
       return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
     }).join('')+'</tbody></table>';
     all('[data-user-profile]').forEach(function(b){b.onclick=function(){openUserProfile(b.dataset.userProfile)}});
+    all('[data-user-edit]').forEach(function(b){b.onclick=function(){editUser(b.dataset.userEdit)}});
+    all('[data-user-permissions]').forEach(function(b){b.onclick=function(){editUserPermissions(b.dataset.userPermissions)}});
     all('[data-user-toggle]').forEach(function(b){b.onclick=function(){toggleUserStatus(b)}});
     all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});
   }catch(e){$('#usersList').innerHTML='<p style="padding:15px">'+esc(e.message)+'</p>'}
@@ -77,8 +90,54 @@ async function resetUserPassword(id){
 }
 $('#applyUserFilter').onclick=loadUsers;
 $('#userSearch').addEventListener('keydown',function(e){if(e.key==='Enter')loadUsers()});
+async function editUser(id){
+  try{
+    const [x,structures]=await Promise.all([api('/users/'+id),api('/structure')]),u=x.user;
+    const faculties=structures.filter(v=>v.type==='faculty'&&v.active),departments=structures.filter(v=>v.type==='department'&&v.active),groups=structures.filter(v=>v.type==='group'&&v.active);
+    const ext=v=>v?.externalId||v?.code||v?._id||'';
+    const currentFaculty=ext(u.facultyId)||u.faculty||'',currentDepartment=ext(u.departmentId)||u.department||'',currentGroup=ext(u.groupId)||u.group||'';
+    const roles=['student','teacher','tutor','department','dean','rectorate','tech','admin'].concat(user.role==='superadmin'?['superadmin']:[]);
+    modal('Akkauntni tahrirlash',
+      '<label>F.I.Sh.<input name="fullName" value="'+esc(u.fullName||'')+'" required></label>'+
+      '<label>Rol<select name="role">'+roles.map(r=>'<option value="'+r+'" '+(u.role===r?'selected':'')+'>'+esc(roleName[r]||r)+'</option>').join('')+'</select></label>'+
+      '<label>Email<input name="email" type="email" value="'+esc(u.email||'')+'"></label>'+
+      '<label>Telefon<input name="phone" value="'+esc(u.phone||'')+'"></label>'+
+      '<label>Fakultet ID<select name="facultyId"><option value="">—</option>'+faculties.map(v=>'<option value="'+esc(ext(v))+'" '+(currentFaculty===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>'+
+      '<label>Kafedra ID<select name="departmentId"><option value="">—</option>'+departments.map(v=>'<option value="'+esc(ext(v))+'" '+(currentDepartment===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>'+
+      '<label>Guruh ID<select name="groupId"><option value="">—</option>'+groups.map(v=>'<option value="'+esc(ext(v))+'" '+(currentGroup===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>',
+      async d=>{await api('/users/'+id,{method:'PATCH',body:JSON.stringify(d)});loadUsers()}
+    );
+  }catch(e){toast(e.message)}
+}
+async function editUserPermissions(id){
+  try{
+    const x=await api('/users/'+id),u=x.user;
+    const perms=[
+      ['structure.manage','Tuzilmani boshqarish'],['users.manage','Userlarni boshqarish'],['users.control','Blok/parol nazorati'],
+      ['schedule.manage','Jadvalni boshqarish'],['reports.view','Hisobotlarni ko‘rish'],['analytics.view','Umumiy statistika'],
+      ['lessons.monitor','Jonli darslarni kuzatish'],['lessons.manage','Darsni boshqarish'],['attendance.manage','Davomatni boshqarish'],
+      ['chat.use','Chatdan foydalanish'],['permissions.manage','Boshqalarning huquqlarini boshqarish']
+    ];
+    const allow=new Set(u.permissions||[]),deny=new Set(u.deniedPermissions||[]);
+    const boxes=(name,set)=>perms.map(p=>'<label class="permission-row"><input type="checkbox" name="'+name+'" value="'+p[0]+'" '+(set.has(p[0])?'checked':'')+'><span><b>'+esc(p[1])+'</b><small>'+esc(p[0])+'</small></span></label>').join('');
+    modal('Maxsus huquqlar · @'+u.login,'<div class="permission-grid"><div><h3>Qo‘shimcha ruxsat</h3>'+boxes('permissions',allow)+'</div><div><h3>Taqiqlash</h3>'+boxes('deniedPermissions',deny)+'</div></div><p class="muted">Taqiqlash rolning standart huquqidan ustun turadi.</p>',async d=>{
+      const arr=v=>v===undefined?[]:Array.isArray(v)?v:[v];
+      await api('/users/'+id+'/permissions',{method:'PATCH',body:JSON.stringify({permissions:arr(d.permissions),deniedPermissions:arr(d.deniedPermissions)})});loadUsers()
+    });
+  }catch(e){toast(e.message)}
+}
 async function openUserProfile(id){try{const x=await api('/users/'+id),u=x.user;modal('Foydalanuvchi profili',`<div class="profile-mini"><div class="avatar">${esc((u.fullName||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase())}</div><h2>${esc(u.fullName)}</h2><p>@${esc(u.login)} · ${esc(roleName[u.role]||u.role)}</p></div><div class="profile-data"><p><b>Telefon:</b> ${esc(u.phone||'—')}</p><p><b>Email:</b> ${esc(u.email||'—')}</p><p><b>Guruh:</b> ${esc(u.groupId?.name||u.group||'—')}</p><p><b>Bio:</b> ${esc(u.bio||'—')}</p></div>`,async()=>{});$('#modalSave').classList.add('hidden')}catch(e){toast(e.message)}}
-$('#addUser').onclick=async()=>{const groups=await api('/structure?type=group').catch(()=>[]);modal('Akkaunt yaratish',`<label>F.I.Sh.<input name="fullName" required></label><label>Login<input name="login" required></label><label>Vaqtinchalik parol<input name="password" placeholder="Bo‘sh qoldirilsa avtomatik"></label><label>Rol<select name="role">${['student','teacher','tutor','department','dean','rectorate','tech','admin'].map(x=>`<option value="${x}">${roleName[x]||x}</option>`)}</select></label><label>Guruh ID<select name="groupId"><option value="">Biriktirilmagan</option>${groups.filter(x=>x.active).map(g=>`<option value="${esc(g.externalId||g.code||g._id)}">${esc(g.name)} — ${esc(g.externalId||g.code||g._id)}</option>`)}</select></label>`,async d=>{const x=await api('/users',{method:'POST',body:JSON.stringify(d)});toast('Parol: '+x.temporaryPassword);loadUsers()})};
+$('#addUser').onclick=async()=>{
+  const structures=await api('/structure').catch(()=>[]),faculties=structures.filter(x=>x.type==='faculty'&&x.active),departments=structures.filter(x=>x.type==='department'&&x.active),groups=structures.filter(x=>x.type==='group'&&x.active),ext=x=>x.externalId||x.code||x._id;
+  modal('Akkaunt yaratish',
+    '<label>F.I.Sh.<input name="fullName" required></label><label>Login<input name="login" required></label><label>Vaqtinchalik parol<input name="password" placeholder="Bo‘sh qoldirilsa avtomatik"></label>'+
+    '<label>Rol<select name="role">'+['student','teacher','tutor','department','dean','rectorate','tech','admin'].map(x=>'<option value="'+x+'">'+esc(roleName[x]||x)+'</option>').join('')+'</select></label>'+
+    '<label>Fakultet ID<select name="facultyId"><option value="">—</option>'+faculties.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label>'+
+    '<label>Kafedra ID<select name="departmentId"><option value="">—</option>'+departments.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label>'+
+    '<label>Guruh ID<select name="groupId"><option value="">Biriktirilmagan</option>'+groups.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label>',
+    async d=>{const x=await api('/users',{method:'POST',body:JSON.stringify(d)});alert('Yangi akkaunt yaratildi.\nVaqtinchalik parol: '+x.temporaryPassword);loadUsers()}
+  )
+};
 
 function chooseFile(){return new Promise(resolve=>{const input=document.createElement('input');input.type='file';input.accept='.xlsx,.csv';input.onchange=()=>resolve(input.files?.[0]||null);input.click()})}
 function fileToBase64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');r.onerror=reject;r.readAsDataURL(file)})}
