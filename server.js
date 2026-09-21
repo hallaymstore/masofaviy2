@@ -272,7 +272,20 @@ app.get('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return 
 app.patch('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'}); const allowed=['fullName','email','phone','avatarUrl','bio']; const patch=Object.fromEntries(allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,String(req.body[k]??'').trim()])); const u=await User.findByIdAndUpdate(req.user._id,{$set:patch},{new:true}).select('-passwordHash'); audit(req,'PROFILE_UPDATE','User',req.user._id,patch); res.json({user:u}); });
 app.patch('/api/profile/password', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator paroli Render sozlamalaridan boshqariladi'}); const currentPassword=String(req.body.currentPassword||''),newPassword=String(req.body.newPassword||''); if(newPassword.length<8)return res.status(400).json({message:'Yangi parol kamida 8 ta belgidan iborat bo‘lsin'}); const u=await User.findById(req.user._id); if(!u||!(await bcrypt.compare(currentPassword,u.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'}); u.passwordHash=await bcrypt.hash(newPassword,11);u.mustChangePassword=false;await u.save();audit(req,'PASSWORD_CHANGE','User',u.id);res.json({ok:true}); });
 
-app.get('/api/structure', auth, async (req,res)=>res.json(mongoose.connection.readyState===1?await Structure.find(req.query.type?{type:req.query.type}:{}).sort({type:1,name:1}).lean():[]));
+app.get('/api/structure', auth, async(req,res)=>{
+  if(mongoose.connection.readyState!==1)return res.json([]);
+  const type=req.query.type;
+  if(GLOBAL_SCOPE_ROLES.has(req.user.role)||['teacher','student'].includes(req.user.role)){
+    return res.json(await Structure.find(type?{type}:{ }).sort({type:1,name:1}).lean());
+  }
+  if(['dean','department','tutor'].includes(req.user.role)){
+    const scope=await resolveScope(req.user,{});
+    let ids=[...scope.groupIds,...scope.departmentIds];if(scope.department?._id)ids.push(scope.department._id);if(scope.faculty?._id)ids.push(scope.faculty._id);ids=[...new Set(ids.map(String))].filter(mongoose.isValidObjectId).map(x=>new mongoose.Types.ObjectId(x));
+    const filter={_id:{$in:ids}};if(type)filter.type=type;
+    return res.json(await Structure.find(filter).sort({type:1,name:1}).lean());
+  }
+  res.json([]);
+});
 app.post('/api/structure', auth, can('structure.manage'), async(req,res)=>{ const body={...req.body,externalId:String(req.body.externalId||req.body.code||'').trim()||undefined}; if(body.type==='group'&&!body.externalId)return res.status(400).json({message:'Guruh uchun ID kiriting'}); if(body.externalId&&await Structure.exists({type:body.type,externalId:body.externalId}))return res.status(409).json({message:'Bu ID allaqachon mavjud'}); const item=await Structure.create(body); audit(req,'CREATE','Structure',item.id,{type:item.type,externalId:item.externalId}); res.status(201).json(item); });
 app.delete('/api/structure/:id', auth, can('structure.manage'), async(req,res)=>{ const children=await Structure.countDocuments({parentId:req.params.id,active:true}); if(children) return res.status(409).json({message:'Avval ichki bo‘lim yoki guruhlarni o‘chiring'}); await Structure.findByIdAndUpdate(req.params.id,{active:false}); audit(req,'ARCHIVE','Structure',req.params.id); res.json({ok:true}); });
 app.get('/api/users', auth, can('users.manage'), async(req,res)=>{if(mongoose.connection.readyState!==1)return res.json([demoAdmin]);const filter={};if(req.query.role)filter.role=req.query.role;if(req.query.active==='true')filter.active=true;if(req.query.active==='false')filter.active=false;if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80));filter.$or=[{fullName:{$regex:q,$options:'i'}},{login:{$regex:q,$options:'i'}},{phone:{$regex:q,$options:'i'}}]}res.json(await User.find(filter).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').sort({active:-1,fullName:1}).limit(3000).lean())});
@@ -386,6 +399,13 @@ app.patch('/api/users/:id/permissions', auth, can('permissions.manage'), async(r
   audit(req,'PERMISSIONS','User',target.id,{permissions,deniedPermissions});
   res.json(sanitizeUser(target));
 });
+app.get('/api/teachers', auth, async(req,res)=>{
+  if(!hasPermission(req.user,'schedule.manage')&&!hasPermission(req.user,'lessons.monitor'))return res.status(403).json({message:'O‘qituvchilar ro‘yxati uchun ruxsat yo‘q'});
+  const scope=GLOBAL_SCOPE_ROLES.has(req.user.role)?null:await resolveScope(req.user,{});
+  const filter=scope?scopedUserFilter(scope,{active:true,role:'teacher'}):{active:true,role:'teacher'};
+  res.json(await User.find(filter).select('fullName login facultyId departmentId').sort({fullName:1}).lean());
+});
+
 app.get('/api/schedules', auth, async(req,res)=>{
   if(mongoose.connection.readyState!==1)return res.json([]);
   const filter={};
