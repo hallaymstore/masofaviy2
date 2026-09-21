@@ -172,10 +172,36 @@ async function bulkImport(kind){const file=await chooseFile();if(!file)return;if
 $('#importUsers').onclick=()=>bulkImport('users');$('#importSchedules').onclick=()=>bulkImport('schedules');
 $('#userTemplate').onclick=()=>downloadText('foydalanuvchilar-template.csv','\ufefffull_name,login,role,password,faculty_id,department_id,group_id,course_year,direction,email,phone\nAli Valiyev,ali.valiyev,student,Temp12345,FAC-01,DEP-01,ATT-101,1,Dasturiy injiniring,,+998901234567\nOlim Karimov,olim.karimov,teacher,Temp12345,FAC-01,DEP-01,,,,,');
 $('#scheduleTemplate').onclick=()=>downloadText('dars-jadvali-template.csv','\ufefftitle,subject,group_id,teacher_login,weekday,start,end,room,kind\nMatematika,Matematika,ATT-101,olim.karimov,1,08:30,09:50,201,lecture');
-async function loadProfile(){try{const x=await api('/profile'),u=x.user,initials=(u.fullName||u.login||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();$('#profileCard').innerHTML='<div class="avatar big">'+esc(initials)+'</div><div><h2>'+esc(u.fullName)+'</h2><p>@'+esc(u.login)+' · '+esc(roleName[u.role]||u.role)+'</p><span class="role-chip">'+esc(roleName[u.role]||u.role)+'</span></div>';const form=$('#profileForm');form.fullName.value=u.fullName||'';form.email.value=u.email||'';form.phone.value=u.phone||'';form.avatarUrl.value=u.avatarUrl||'';form.direction.value=u.direction||'';form.courseYear.value=u.courseYear||'';form.bio.value=u.bio||'';$('#profileOrg').innerHTML='<p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Kurs / yo‘nalish:</b> '+esc(u.courseYear?u.courseYear+'-kurs':'—')+' · '+esc(u.direction||'—')+'</p>';const base=location.origin+'/timetable.html?';let link='';if(u.role==='teacher')link=base+'teacher='+encodeURIComponent(u.login);if(u.role==='student'){const gid=u.groupId?.externalId||u.groupId?.code||u.group;if(gid)link=base+'group='+encodeURIComponent(gid)}$('#profileTimetable').innerHTML=link?linkBox('Shaxsiy jadval havolasi',link):''}catch(e){toast(e.message)}}
+async function loadProfile(){try{const x=await api('/profile'),u=x.user,initials=(u.fullName||u.login||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();$('#profileCard').innerHTML='<div class="avatar big">'+esc(initials)+'</div><div><h2>'+esc(u.fullName)+'</h2><p>@'+esc(u.login)+' · '+esc(roleName[u.role]||u.role)+'</p><span class="role-chip">'+esc(roleName[u.role]||u.role)+'</span></div>';const form=$('#profileForm');form.fullName.value=u.fullName||'';form.email.value=u.email||'';form.phone.value=u.phone||'';form.avatarUrl.value=u.avatarUrl||'';form.direction.value=u.direction||'';form.courseYear.value=u.courseYear||'';form.bio.value=u.bio||'';$('#profileOrg').innerHTML='<p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Kurs / yo‘nalish:</b> '+esc(u.courseYear?u.courseYear+'-kurs':'—')+' · '+esc(u.direction||'—')+'</p>';const base=location.origin+'/timetable.html?';let link='';if(u.role==='teacher')link=base+'teacher='+encodeURIComponent(u.login);if(u.role==='student'){const gid=u.groupId?.externalId||u.groupId?.code||u.group;if(gid)link=base+'group='+encodeURIComponent(gid)}$('#profileTimetable').innerHTML=link?linkBox('Shaxsiy jadval havolasi',link):'';await loadDevicePrefs()}catch(e){toast(e.message)}}
 $('#profileForm').onsubmit=async e=>{e.preventDefault();try{await api('/profile',{method:'PATCH',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});toast('Profil yangilandi');const me=await api('/me');user=me.user;configureRoleUI();loadProfile()}catch(err){toast(err.message)}};
 $('#passwordForm').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.newPassword!==d.confirmPassword)return toast('Yangi parollar bir xil emas');try{await api('/profile/password',{method:'PATCH',body:JSON.stringify({currentPassword:d.currentPassword,newPassword:d.newPassword})});e.target.reset();toast('Parol yangilandi')}catch(err){toast(err.message)}};
 
+
+let devicePreviewStream=null;
+async function loadDevicePrefs(requestPermission=false){
+  try{
+    if(requestPermission){
+      const temp=await navigator.mediaDevices.getUserMedia({audio:true,video:true}).catch(async()=>navigator.mediaDevices.getUserMedia({audio:true,video:false}));
+      temp?.getTracks().forEach(t=>t.stop());
+    }
+    const devices=await navigator.mediaDevices.enumerateDevices(),mics=devices.filter(d=>d.kind==='audioinput'),cams=devices.filter(d=>d.kind==='videoinput');
+    const mic=$('#preferredMic'),cam=$('#preferredCamera');if(!mic||!cam)return;
+    const currentMic=localStorage.getItem('m2-preferred-mic')||'',currentCam=localStorage.getItem('m2-preferred-camera')||'';
+    mic.innerHTML='<option value="">Avtomatik</option>'+mics.map((d,i)=>'<option value="'+esc(d.deviceId)+'">'+esc(d.label||('Mikrofon '+(i+1)))+'</option>').join('');
+    cam.innerHTML='<option value="">Avtomatik</option>'+cams.map((d,i)=>'<option value="'+esc(d.deviceId)+'">'+esc(d.label||('Kamera '+(i+1)))+'</option>').join('');
+    mic.value=mics.some(d=>d.deviceId===currentMic)?currentMic:'';cam.value=cams.some(d=>d.deviceId===currentCam)?currentCam:'';
+    $('#deviceStatus').textContent=(mics.length?mics.length+' ta mikrofon':'Mikrofon topilmadi')+' · '+(cams.length?cams.length+' ta kamera':'Kamera topilmadi');
+  }catch(e){$('#deviceStatus').textContent='Qurilmalarni o‘qib bo‘lmadi: '+e.message}
+}
+$('#saveDevicePrefs').onclick=()=>{localStorage.setItem('m2-preferred-mic',$('#preferredMic').value||'');localStorage.setItem('m2-preferred-camera',$('#preferredCamera').value||'');toast('Video dars qurilmalari saqlandi')};
+$('#testDevices').onclick=async()=>{
+  try{
+    devicePreviewStream?.getTracks().forEach(t=>t.stop());
+    const micId=$('#preferredMic').value,camId=$('#preferredCamera').value;
+    const stream=await navigator.mediaDevices.getUserMedia({audio:micId?{deviceId:{exact:micId},echoCancellation:true,noiseSuppression:true}:true,video:camId?{deviceId:{exact:camId},width:{ideal:1280},height:{ideal:720}}:{width:{ideal:1280},height:{ideal:720}}});
+    devicePreviewStream=stream;const v=$('#devicePreview');v.srcObject=stream;v.classList.remove('hidden');$('#deviceStatus').textContent='Kamera va mikrofon tayyor. Darsga kirishda shu qurilmalar ishlatiladi.';await loadDevicePrefs(false)
+  }catch(e){$('#deviceStatus').textContent='Tekshiruv xatosi: '+e.message;toast('Kamera/mikrofon ruxsatini tekshiring')}
+};
 
 function liveStatusLabel(room){
   const st=room.session?.status||'scheduled';
