@@ -59,6 +59,8 @@
 
     <section id="analytics" class="page">
       <div class="page-head"><div><h1>Ta’lim statistikasi</h1><p>Rahbariyat uchun real vaqtga yaqin ko‘rsatkichlar, trendlar va xavf indikatorlari</p></div><div class="head-actions"><select id="analyticsRange" class="control"><option value="7">7 kun</option><option value="14">14 kun</option><option value="30">30 kun</option></select><button class="secondary" id="refreshAnalytics">Yangilash</button><button class="secondary" id="exportAnalytics">CSV eksport</button></div></div>
+      <div id="analyticsScopeFilters" class="toolbar analytics-filterbar hidden"><select id="analyticsFaculty"><option value="">Barcha fakultetlar</option></select><select id="analyticsDepartment"><option value="">Barcha kafedralar</option></select><select id="analyticsGroup"><option value="">Barcha guruhlar</option></select><button id="applyAnalyticsScope" class="secondary">Qo‘llash</button><button id="clearAnalyticsScope" class="ghost">Tozalash</button></div>
+      <div id="analyticsScopeLabel" class="scope-label">Statistika doirasi: universitet</div>
       <div id="analyticsSummary" class="stats analytics-stats"></div>
       <div class="analytics-grid">
         <article><div class="section-title"><h2>Davomat dinamikasi</h2><small id="analyticsGenerated"></small></div><div id="attendanceChart" class="bar-chart"></div></article>
