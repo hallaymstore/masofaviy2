@@ -133,6 +133,34 @@ const scopedOnlineCount = async scope => {
   return User.countDocuments(scopedUserFilter(scope,{_id:{$in:ids},active:true}));
 };
 
+const weekdayOccurrences = (days,weekday) => {
+  let n=0;
+  for(let ago=0;ago<days;ago++){const mid=new Date(localDayBounds(ago).start.getTime()+12*60*60*1000);if(localWeekday(mid)===Number(weekday))n++}
+  return n;
+};
+const buildGroupPerformance = async (scope,days=7) => {
+  const safeDays=Math.max(7,Math.min(30,Number(days)||7)),groups=scope.groups?.length?scope.groups:await Structure.find({type:'group',active:true}).lean(),groupIds=groups.map(x=>x._id);
+  if(!groupIds.length)return [];
+  const bounds=rangeBounds(safeDays);
+  const [studentCounts,schedules]=await Promise.all([
+    User.aggregate([{$match:{active:true,role:'student',groupId:{$in:groupIds}}},{$group:{_id:'$groupId',value:{$sum:1}}}]),
+    Schedule.find({groupId:{$in:groupIds}}).select('_id groupId weekday').lean()
+  ]);
+  const studentMap=Object.fromEntries(studentCounts.map(x=>[String(x._id),x.value])),scheduleById=Object.fromEntries(schedules.map(x=>[String(x._id),x]));
+  const attendance=await Attendance.find({createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:schedules.map(x=>String(x._id))}}).select('lessonId userId dateKey status').lean();
+  const attended={},late={},seen=new Set();
+  for(const row of attendance){
+    const schedule=scheduleById[row.lessonId];if(!schedule)continue;
+    const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);
+    const gid=String(schedule.groupId);attended[gid]=(attended[gid]||0)+1;if(row.status==='late')late[gid]=(late[gid]||0)+1;
+  }
+  const scheduleGroups={};for(const x of schedules)(scheduleGroups[String(x.groupId)]??=[]).push(x);
+  return groups.map(g=>{
+    const gid=String(g._id),students=studentMap[gid]||0,list=scheduleGroups[gid]||[],occurrences=list.reduce((sum,x)=>sum+weekdayOccurrences(safeDays,x.weekday),0),expected=students*occurrences,present=attended[gid]||0;
+    return {groupId:g.externalId||g.code||gid,name:g.name,students,weeklyLessons:list.length,expected,present,late:late[gid]||0,rate:expected?Math.min(100,Math.round(present/expected*100)):0};
+  }).sort((a,b)=>a.rate-b.rate||b.students-a.students||a.name.localeCompare(b.name));
+};
+
 
 
 const sign = user => jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
@@ -187,6 +215,16 @@ async function analyticsOverview(user,days=7,query={}){
 app.get('/api/analytics/overview', auth, can('analytics.view'), async(req,res)=>{try{res.json(await analyticsOverview(req.user,req.query.days,req.query))}catch(err){res.status(400).json({message:'Statistikani hisoblab bo‘lmadi: '+err.message})}});
 
 app.get('/api/analytics/online', auth, can('lessons.monitor'), async(req,res)=>{const scope=await resolveScope(req.user,req.query);const ids=[...onlineUsers.keys()].filter(mongoose.isValidObjectId);if(!ids.length)return res.json([]);const users=await User.find(scopedUserFilter(scope,{_id:{$in:ids},active:true})).select('fullName login role lastSeenAt').lean();res.json(users.map(x=>({...x,connections:onlineUsers.get(String(x._id))||1})))});
+
+app.get('/api/analytics/groups', auth, can('analytics.view'), async(req,res)=>{try{const scope=await resolveScope(req.user,req.query);res.json({scope:{label:scope.label},rows:await buildGroupPerformance(scope,req.query.days)})}catch(err){res.status(400).json({message:err.message})}});
+app.get('/api/analytics/group/:groupId/students', auth, can('analytics.view'), async(req,res)=>{try{
+  const group=await resolveStructure(req.params.groupId,'group');if(!group)return res.status(404).json({message:'Guruh topilmadi'});
+  const scope=await resolveScope(req.user,req.query),allowed=!scope.groupIds.length||scope.groupIds.some(id=>String(id)===String(group._id));if(!allowed)return res.status(403).json({message:'Bu guruh statistikasi uchun ruxsat yo‘q'});
+  const days=Math.max(7,Math.min(30,Number(req.query.days)||7)),bounds=rangeBounds(days),schedules=await Schedule.find({groupId:group._id}).select('_id weekday').lean(),lessonIds=schedules.map(x=>String(x._id)),expectedPerStudent=schedules.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
+  const [students,attendance]=await Promise.all([User.find({active:true,role:'student',groupId:group._id}).select('fullName login phone').sort({fullName:1}).lean(),Attendance.find({createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).select('lessonId userId dateKey status minutes').lean()]);
+  const counters={},seen=new Set();for(const row of attendance){const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);const id=String(row.userId);const c=counters[id]||(counters[id]={present:0,late:0,minutes:0});c.present++;if(row.status==='late')c.late++;c.minutes+=Number(row.minutes||0)}
+  res.json({group:{id:group.externalId||group.code||String(group._id),name:group.name},days,expectedPerStudent,students:students.map(st=>{const c=counters[String(st._id)]||{present:0,late:0,minutes:0};return {_id:st._id,fullName:st.fullName,login:st.login,phone:st.phone,present:c.present,late:c.late,minutes:c.minutes,expected:expectedPerStudent,rate:expectedPerStudent?Math.min(100,Math.round(c.present/expectedPerStudent*100)):0}})});
+}catch(err){res.status(400).json({message:err.message})}});
 
 app.get('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.json({user:sanitizeUser(req.user)}); const current=await User.findById(req.user._id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); res.json({user:current}); });
 app.patch('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'}); const allowed=['fullName','email','phone','avatarUrl','bio']; const patch=Object.fromEntries(allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,String(req.body[k]??'').trim()])); const u=await User.findByIdAndUpdate(req.user._id,{$set:patch},{new:true}).select('-passwordHash'); audit(req,'PROFILE_UPDATE','User',req.user._id,patch); res.json({user:u}); });
