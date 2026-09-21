@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: masofaviy2-hallaym
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.5
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_LOGIN
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: MONGODB_URI
+        sync: false
