@@ -1,11 +1,118 @@
-<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#081a38"><meta name="description" content="Oliy ta’lim uchun yengil masofaviy ta’lim boshqaruv platformasi"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/styles.css"><title>Masofaviy2</title></head><body>
-<div id="login" class="login"><form id="loginForm" class="login-card"><div class="brand"><span class="brand-mark">M2</span><div><b>Masofaviy2</b><small>Universitetning raqamli ta’lim muhiti</small></div></div><div class="welcome-icon">🎓</div><h1>Xush kelibsiz</h1><p class="login-lead">Dars jadvali, jonli mashg‘ulot va o‘quv natijalaringiz — barchasi bitta xavfsiz tizimda.</p><label>Login<input name="login" autocomplete="username" placeholder="Sizga berilgan login" required></label><label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parolingizni kiriting" required></label><button class="primary">Tizimga kirish</button><p id="loginError" class="error"></p><div class="info-note"><b>ℹ Akkauntingiz yo‘qmi?</b><span>Login va parolni fakultetingiz mas’uli yoki texnik xodim beradi.</span></div></form></div>
-<div id="shell" class="shell hidden"><header><button id="menuBtn" class="icon-btn" aria-label="Menyu">☰</button><div class="brand"><span class="brand-mark">M2</span><div><b>Masofaviy2</b><small id="roleLabel"></small></div></div><div class="header-actions"><button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot">●</span><span id="headerName"></span></button><span id="onlineBadge" class="badge">● Onlayn</span><button id="themeBtn" class="icon-btn" aria-label="Rang rejimi">◐</button></div></header>
-<aside id="sidebar"><nav><button data-page="dashboard" class="active">⌂ Bosh sahifa</button><button data-page="structure">▦ Tuzilma</button><button data-page="schedule">▣ Dars jadvali</button><button data-page="users">♙ Foydalanuvchilar</button><button data-page="lesson">◉ Jonli dars</button><button data-page="reports">▤ Hisobotlar</button><button data-page="profile">◎ Shaxsiy profil</button></nav><button id="logoutBtn" class="logout">Chiqish</button></aside>
-<main><section id="dashboard" class="page active"><div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugungi ta’lim jarayonini bir joydan kuzating</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div><div class="edu-banner"><span>📘</span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.</p></div></div><div id="stats" class="stats"></div><div class="grid"><article><h2>Bugungi darslar</h2><div id="todayLessons" class="list"></div></article><article><h2>Tezkor bo‘limlar</h2><div id="quickManagement" class="quick"></div></article></div></section>
-<section id="structure" class="page"><div class="page-head"><div><h1>Universitet tuzilmasi</h1><p>Fakultet, kafedra va guruhlarni ID asosida tartibli boshqaring</p></div><button class="primary" id="addStructure">+ Yangi</button></div><div class="guide"><b>To‘g‘ri ketma-ketlik:</b> fakultet → kafedra → guruh. Guruhga ID bering; jadval va import aynan shu ID orqali guruhni topadi.</div><div class="tabs"><button data-type="faculty" class="active">Fakultetlar</button><button data-type="department">Kafedralar</button><button data-type="group">Guruhlar</button></div><div id="structureList" class="cards"></div></section>
-<section id="schedule" class="page"><div class="page-head"><div><h1>Dars jadvali</h1><p>O‘qituvchi va talaba faqat o‘ziga tegishli jadvalni ko‘radi</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV namuna</button><button class="secondary" id="importSchedules">Excel/CSV import</button><button class="primary" id="addSchedule">+ Dars qo‘shish</button></div></div><div class="guide"><b>Import qoidasi:</b> o‘qituvchi F.I.Sh. bilan emas, <b>teacher_login</b> orqali; guruh esa <b>group_id</b> orqali aniqlanadi. Tizim ularni avtomatik topib biriktiradi.</div><div id="timetableLinks" class="timetable-links"></div><div id="scheduleList" class="schedule"></div></section>
-<section id="users" class="page"><div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Har bir foydalanuvchining shaxsiy profili va alohida akkaunti mavjud</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="primary" id="addUser">+ Akkaunt</button></div></div><div class="guide warning"><b>🔐 Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi.</div><div id="usersList" class="table-wrap"></div></section>
-<section id="lesson" class="page"><div class="page-head"><div><h1>Jonli dars xonasi</h1><p>SFU video, chat va avtomatik davomat</p></div></div><div class="lesson-grid"><div class="stage"><div class="video-placeholder"><span>◉</span><b>Dars boshlanmagan</b><small>O‘qituvchi kirgach video avtomatik ulanadi</small></div><div class="controls"><button>🎙 Mikrofon</button><button>▣ Kamera</button><button>□ Ekran</button><button class="danger">Darsni yakunlash</button></div></div><aside class="chat"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button>➤</button></form></aside></div></section>
-<section id="reports" class="page"><div class="page-head"><div><h1>Nazorat va hisobotlar</h1><p>O‘zgarmas harakatlar tarixi</p></div></div><div id="auditList" class="timeline"></div></section><section id="profile" class="page"><div class="page-head"><div><h1>Shaxsiy profil</h1><p>Akkaunt, aloqa va ta’limga bog‘langan ma’lumotlaringiz</p></div></div><div class="profile-grid"><article><div id="profileCard" class="profile-card"></div><div id="profileOrg" class="profile-org"></div><div id="profileTimetable"></div></article><article><h2>Profil ma’lumotlari</h2><form id="profileForm" class="form-grid"><label>F.I.Sh.<input name="fullName" required></label><label>Email<input name="email" type="email"></label><label>Telefon<input name="phone"></label><label>Avatar URL<input name="avatarUrl" placeholder="https://..."></label><label class="wide">O‘zingiz haqingizda<textarea name="bio" rows="4" maxlength="500"></textarea></label><button class="primary wide">Profilni saqlash</button></form><hr><h2>Parolni almashtirish</h2><form id="passwordForm" class="form-grid"><label>Joriy parol<input name="currentPassword" type="password" required></label><label>Yangi parol<input name="newPassword" type="password" minlength="8" required></label><label>Takrorlang<input name="confirmPassword" type="password" minlength="8" required></label><button class="secondary">Parolni yangilash</button></form></article></div></section></main></div>
-<dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog><div id="toast"></div><script src="/socket.io/socket.io.js"></script><script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#081a38">
+  <meta name="description" content="Oliy ta’lim uchun yengil, nazorat va statistika markazli masofaviy ta’lim platformasi">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <title>Masofaviy2</title>
+</head>
+<body>
+<div id="login" class="login">
+  <form id="loginForm" class="login-card">
+    <div class="brand"><span class="brand-mark">M2</span><div><b>Masofaviy2</b><small>Universitetning raqamli ta’lim muhiti</small></div></div>
+    <div class="welcome-icon">🎓</div><h1>Xush kelibsiz</h1>
+    <p class="login-lead">Dars jadvali, jonli mashg‘ulot, davomat, nazorat va statistika — barchasi bitta tizimda.</p>
+    <label>Login<input name="login" autocomplete="username" placeholder="Sizga berilgan login" required></label>
+    <label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parolingizni kiriting" required></label>
+    <button class="primary">Tizimga kirish</button><p id="loginError" class="error"></p>
+    <div class="info-note"><b>ℹ Akkauntingiz yo‘qmi?</b><span>Login va parolni fakultetingiz mas’uli yoki texnik xodim beradi.</span></div>
+  </form>
+</div>
+
+<div id="shell" class="shell hidden">
+  <header>
+    <button id="menuBtn" class="icon-btn" aria-label="Menyu">☰</button>
+    <div class="brand"><span class="brand-mark">M2</span><div><b>Masofaviy2</b><small id="roleLabel"></small></div></div>
+    <div class="header-actions">
+      <button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot">●</span><span id="headerName"></span></button>
+      <span id="onlineBadge" class="badge">● Onlayn</span>
+      <button id="themeBtn" class="icon-btn" aria-label="Rang rejimi">◐</button>
+    </div>
+  </header>
+
+  <aside id="sidebar">
+    <nav>
+      <button data-page="dashboard" class="active">⌂ Bosh sahifa</button>
+      <button data-page="analytics">◫ Statistika</button>
+      <button data-page="structure">▦ Tuzilma</button>
+      <button data-page="schedule">▣ Dars jadvali</button>
+      <button data-page="users">♙ Foydalanuvchilar</button>
+      <button data-page="lesson">◉ Jonli dars</button>
+      <button data-page="reports">▤ Nazorat va hisobot</button>
+      <button data-page="profile">◎ Shaxsiy profil</button>
+    </nav>
+    <button id="logoutBtn" class="logout">Chiqish</button>
+  </aside>
+
+  <main>
+    <section id="dashboard" class="page active">
+      <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugungi ta’lim jarayonini bir joydan kuzating</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
+      <div class="edu-banner"><span>📘</span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.</p></div></div>
+      <div id="stats" class="stats"></div>
+      <div id="dashboardHealth" class="health-strip hidden"></div>
+      <div class="grid"><article><h2>Bugungi darslar</h2><div id="todayLessons" class="list"></div></article><article><h2>Tezkor bo‘limlar</h2><div id="quickManagement" class="quick"></div></article></div>
+    </section>
+
+    <section id="analytics" class="page">
+      <div class="page-head"><div><h1>Ta’lim statistikasi</h1><p>Rahbariyat uchun real vaqtga yaqin ko‘rsatkichlar, trendlar va xavf indikatorlari</p></div><div class="head-actions"><select id="analyticsRange" class="control"><option value="7">7 kun</option><option value="14">14 kun</option><option value="30">30 kun</option></select><button class="secondary" id="refreshAnalytics">Yangilash</button><button class="secondary" id="exportAnalytics">CSV eksport</button></div></div>
+      <div id="analyticsScopeFilters" class="toolbar analytics-filterbar hidden"><select id="analyticsFaculty"><option value="">Barcha fakultetlar</option></select><select id="analyticsDepartment"><option value="">Barcha kafedralar</option></select><select id="analyticsGroup"><option value="">Barcha guruhlar</option></select><button id="applyAnalyticsScope" class="secondary">Qo‘llash</button><button id="clearAnalyticsScope" class="ghost">Tozalash</button></div>
+      <div id="analyticsScopeLabel" class="scope-label">Statistika doirasi: universitet</div>
+      <div id="analyticsSummary" class="stats analytics-stats"></div>
+      <div class="analytics-grid">
+        <article><div class="section-title"><h2>Davomat dinamikasi</h2><small id="analyticsGenerated"></small></div><div id="attendanceChart" class="bar-chart"></div></article>
+        <article><h2>Hafta kunlari bo‘yicha darslar</h2><div id="weekdayChart" class="bar-chart compact"></div></article>
+        <article><h2>Foydalanuvchilar rollari</h2><div id="roleChart" class="bar-chart compact"></div></article>
+        <article><h2>Ma’lumot sifati va nazorat</h2><div id="qualityCards" class="quality-grid"></div></article>
+        <article><h2>Eng ko‘p dars yuklamasi — o‘qituvchilar</h2><div id="topTeachers" class="rank-list"></div></article>
+        <article><h2>Eng faol guruhlar</h2><div id="topGroups" class="rank-list"></div></article>
+        <article class="analytics-wide"><div class="section-title"><div><h2>Guruhlar kesimida davomat</h2><small>Tanlangan davr bo‘yicha kutilgan qatnashuvga nisbatan</small></div></div><div id="groupPerformance" class="table-wrap inner-table"></div></article>
+      </div>
+    </section>
+
+    <section id="structure" class="page">
+      <div class="page-head"><div><h1>Universitet tuzilmasi</h1><p>Fakultet, kafedra va guruhlarni ID asosida tartibli boshqaring</p></div><button class="primary" id="addStructure">+ Yangi</button></div>
+      <div class="guide"><b>To‘g‘ri ketma-ketlik:</b> fakultet → kafedra → guruh. Guruhga ID bering; jadval va import aynan shu ID orqali guruhni topadi.</div>
+      <div class="tabs"><button data-type="faculty" class="active">Fakultetlar</button><button data-type="department">Kafedralar</button><button data-type="group">Guruhlar</button></div>
+      <div id="structureList" class="cards"></div>
+    </section>
+
+    <section id="schedule" class="page">
+      <div class="page-head"><div><h1>Dars jadvali</h1><p>O‘qituvchi va talaba faqat o‘ziga tegishli jadvalni ko‘radi</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV namuna</button><button class="secondary" id="importSchedules">Excel/CSV import</button><button class="primary" id="addSchedule">+ Dars qo‘shish</button></div></div>
+      <div class="guide"><b>Import qoidasi:</b> o‘qituvchi F.I.Sh. bilan emas, <b>teacher_login</b> orqali; guruh <b>group_id</b> orqali aniqlanadi. O‘qituvchi, guruh va xona vaqt to‘qnashuvi avtomatik bloklanadi.</div>
+      <div id="scheduleFilters" class="toolbar hidden"><input id="scheduleTeacherFilter" placeholder="O‘qituvchi login"><input id="scheduleGroupFilter" placeholder="Guruh ID"><select id="scheduleDayFilter"><option value="">Barcha kunlar</option><option value="1">Dushanba</option><option value="2">Seshanba</option><option value="3">Chorshanba</option><option value="4">Payshanba</option><option value="5">Juma</option><option value="6">Shanba</option><option value="7">Yakshanba</option></select><button id="applyScheduleFilter" class="secondary">Filtrlash</button><button id="clearScheduleFilter" class="ghost">Tozalash</button></div>
+      <div id="timetableLinks" class="timetable-links"></div><div id="scheduleList" class="schedule"></div>
+    </section>
+
+    <section id="users" class="page">
+      <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Har bir foydalanuvchining shaxsiy profili, holati va alohida akkaunti mavjud</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
+      <div class="guide warning"><b>🔐 Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi. Bloklash va parolni tiklash harakati audit tarixiga yoziladi.</div>
+      <div class="toolbar"><input id="userSearch" placeholder="F.I.Sh., login yoki telefon"><select id="userRoleFilter"><option value="">Barcha rollar</option><option value="student">Talaba</option><option value="teacher">O‘qituvchi</option><option value="tutor">Tyutor</option><option value="department">Kafedra</option><option value="dean">Dekan</option><option value="rectorate">Rektorat</option><option value="tech">Texnik</option><option value="admin">Admin</option></select><select id="userStatusFilter"><option value="">Barcha holat</option><option value="true">Faol</option><option value="false">Bloklangan</option></select><button id="applyUserFilter" class="secondary">Qidirish</button></div>
+      <div id="usersList" class="table-wrap"></div>
+    </section>
+
+    <section id="lesson" class="page">
+      <div class="page-head"><div><h1>Jonli dars xonasi</h1><p>SFU video uchun tayyor xona, chat va avtomatik davomat</p></div></div>
+      <div class="lesson-grid"><div class="stage"><div class="video-placeholder"><span>◉</span><b>Dars boshlanmagan</b><small>Dars jadvalidagi mashg‘ulot tanlanganda ishtirok nazorati ishga tushadi</small></div><div class="controls"><button>🎙 Mikrofon</button><button>▣ Kamera</button><button>□ Ekran</button><button class="danger">Darsni yakunlash</button></div></div><aside class="chat"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button>➤</button></form></aside></div>
+    </section>
+
+    <section id="reports" class="page">
+      <div class="page-head"><div><h1>Nazorat va hisobotlar</h1><p>Davomat, tizim harakatlari va onlayn foydalanuvchilar</p></div><div class="head-actions"><select id="reportDays" class="control"><option value="7">7 kun</option><option value="14" selected>14 kun</option><option value="30">30 kun</option><option value="90">90 kun</option></select><button id="refreshReports" class="secondary">Yangilash</button><button id="exportAttendance" class="secondary">Davomat CSV</button></div></div>
+      <div class="report-grid"><article><h2>Davomat jurnali</h2><div id="attendanceList" class="table-wrap inner-table"></div></article><article id="onlinePanel"><h2>Hozir onlayn</h2><div id="onlineUsers" class="online-list"></div></article></div>
+      <article class="audit-card"><div class="section-title"><h2>Audit tarixi</h2><input id="auditSearch" class="control" placeholder="Login, amal yoki obyekt"></div><div id="auditList" class="timeline"></div></article>
+    </section>
+
+    <section id="profile" class="page">
+      <div class="page-head"><div><h1>Shaxsiy profil</h1><p>Akkaunt, aloqa va ta’limga bog‘langan ma’lumotlaringiz</p></div></div>
+      <div class="profile-grid"><article><div id="profileCard" class="profile-card"></div><div id="profileOrg" class="profile-org"></div><div id="profileTimetable"></div></article><article><h2>Profil ma’lumotlari</h2><form id="profileForm" class="form-grid"><label>F.I.Sh.<input name="fullName" required></label><label>Email<input name="email" type="email"></label><label>Telefon<input name="phone"></label><label>Avatar URL<input name="avatarUrl" placeholder="https://..."></label><label class="wide">O‘zingiz haqingizda<textarea name="bio" rows="4" maxlength="500"></textarea></label><button class="primary wide">Profilni saqlash</button></form><hr><h2>Parolni almashtirish</h2><form id="passwordForm" class="form-grid"><label>Joriy parol<input name="currentPassword" type="password" required></label><label>Yangi parol<input name="newPassword" type="password" minlength="8" required></label><label>Takrorlang<input name="confirmPassword" type="password" minlength="8" required></label><button class="secondary">Parolni yangilash</button></form></article></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog>
+<div id="toast"></div>
+<script src="/socket.io/socket.io.js"></script><script type="module" src="/app.js"></script>
+</body></html>

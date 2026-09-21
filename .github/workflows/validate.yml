@@ -1,0 +1,37 @@
+name: Validate Masofaviy2
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [upgrade/statistics-control-v2]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Syntax check
+        run: npm run check
+      - name: Smoke boot
+        run: |
+          PORT=3999 JWT_SECRET=ci-secret-at-least-32-characters-long ADMIN_LOGIN=admin ADMIN_PASSWORD=TestAdmin123! npm start > /tmp/masofaviy2.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in {1..15}; do
+            if curl -fsS http://127.0.0.1:3999/api/health >/dev/null; then
+              curl -fsS -X POST http://127.0.0.1:3999/api/auth/login -H 'Content-Type: application/json' -d '{"login":"admin","password":"TestAdmin123!"}' | grep -q '"token"'
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/masofaviy2.log
+          exit 1
