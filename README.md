@@ -82,3 +82,25 @@ GitHub Actions har push/PR da syntax check va smoke boot bajaradi.
 Platformaning boshqaruv, import, jadval, profil, audit, statistika va davomat qatlami productionga yaqinlashtirildi. Real ko‘p ishtirokchili video uchun Mediasoup transport/producer/consumer signaling, TURN credential rotatsiyasi va media server monitoringini keyingi media bosqichida ulash kerak.
 
 > Texnik funksiyalar muvofiqlik uchun asos yaratadi. Ishga tushirishdan oldin universitetning maxfiylik siyosati, ma’lumotlarni saqlash muddati va axborot xavfsizligi reglamenti mas’ul shaxslar tomonidan tasdiqlanishi kerak.
+
+
+## Jonli dars arxitekturasi
+
+Jonli darslar **SFU** tamoyili bilan ishlaydi: brauzer har bir ishtirokchiga alohida video yubormaydi. Media LiveKit SFU orqali tarqatiladi, shu sabab 40–60 kishilik guruhlarda oddiy WebRTC meshga qaraganda ancha yengil.
+
+Jarayon:
+- talaba avval Socket.IO asosidagi kutish xonasiga kiradi; bu bosqichda video trafik ishlatilmaydi;
+- o‘qituvchi “Darsni boshlash” tugmasini bosganda LiveKit xonasi ishga tushadi;
+- o‘qituvchi mikrofoni avtomatik yoqiladi, kamera ixtiyoriy;
+- talabalar kamera va mikrofonni avtomatik yoqmaydi; qo‘l ko‘taradi va o‘qituvchi kerak bo‘lsa gapirish ruxsatini beradi;
+- ekran ulashish o‘qituvchi uchun mavjud;
+- “Yengil rejim”da asosan o‘qituvchi video/ekrani ko‘rsatiladi, keraksiz talaba videolariga obuna bo‘linmaydi;
+- media ulanish muvaffaqiyatli bo‘lgandan keyingina davomat boshlanadi;
+- dars yakunlanganda media xonasi yopiladi, qatnashish vaqti saqlanadi.
+
+Render’da asosiy Node.js ilova qolishi mumkin. Media SFU uchun esa LiveKit Cloud yoki UDP/TURN ishlaydigan alohida VPS tavsiya etiladi. Kerakli env:
+- LIVEKIT_URL
+- LIVEKIT_API_KEY
+- LIVEKIT_API_SECRET
+- LIVE_CLASS_MAX_PARTICIPANTS
+- LIVE_CLASS_MAX_MINUTES
