@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let token=localStorage.token||'', user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], jitsiApi=null, activeLiveSession=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null;
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let token=localStorage.token||'', user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null;
 const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
@@ -210,46 +210,51 @@ async function startLiveRoom(id){
 async function enterLiveRoom(id){
   try{const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}'});await openConference(x)}catch(e){toast(e.message);go('live')}
 }
-function loadJitsiScript(host){
-  return new Promise((resolve,reject)=>{
-    if(window.JitsiMeetExternalAPI)return resolve();
-    const old=document.querySelector('script[data-jitsi-host="'+host+'"]');if(old){old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return}
-    const sc=document.createElement('script');sc.src='https://'+host+'/external_api.js';sc.async=true;sc.dataset.jitsiHost=host;sc.onload=resolve;sc.onerror=()=>reject(new Error('Video server kutubxonasi yuklanmadi'));document.head.appendChild(sc)
-  })
-}
 async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
+  if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
+  if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
   $('#endLiveLesson').classList.toggle('hidden',!(String(s.teacherId?._id||s.teacherId)===String(user._id)||can('live.manage')));
-  const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video serverga ulanmoqda…</b><small>Kamera odatda o‘chiq, mikrofon ochiq holda kiriladi.</small></div>';
+  const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>Mediasoup · kamera o‘chiq · mikrofon ochiq</small></div>';
   try{
-    await loadJitsiScript(join.host);
-    if(jitsiApi){try{jitsiApi.dispose()}catch{}jitsiApi=null}
-    mount.innerHTML='';
-    jitsiApi=new JitsiMeetExternalAPI(join.host,{roomName:join.roomName,parentNode:mount,width:'100%',height:'100%',userInfo:{displayName:join.displayName||user.fullName},configOverwrite:{prejoinPageEnabled:false,startWithVideoMuted:true,startWithAudioMuted:false,disableDeepLinking:true,enableNoisyMicDetection:true,disableSimulcast:lowEndUI,channelLastN:lowEndUI?6:20,enableLayerSuspension:true},interfaceConfigOverwrite:{MOBILE_APP_PROMO:false,SHOW_JITSI_WATERMARK:false,SHOW_WATERMARK_FOR_GUESTS:false,DISABLE_JOIN_LEAVE_NOTIFICATIONS:false,TOOLBAR_ALWAYS_VISIBLE:false}});
-    jitsiApi.addEventListener('videoConferenceJoined',()=>{if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});toast('Jonli darsga ulandingiz')});
-    jitsiApi.addEventListener('videoConferenceLeft',()=>leaveConference(false));
-    jitsiApi.addEventListener('readyToClose',()=>leaveConference(false));
+    if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
+    mediaRoomClient=new window.MasofaviyMediaClientBundle.MediaRoomClient({
+      socket,joinPayload:join,mount,user,lowEnd:lowEndUI,
+      onState:state=>{
+        if(state.mic!==undefined)$('#callMic').classList.toggle('active-control',state.mic);
+        if(state.camera!==undefined)$('#callCamera').classList.toggle('active-control',state.camera);
+        if(state.screen!==undefined)$('#callScreen').classList.toggle('active-control',state.screen);
+      },
+      onError:e=>toast(e.message||String(e))
+    });
+    await mediaRoomClient.connect();
+    if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
+    toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
-    mount.innerHTML='<div class="video-placeholder"><span>'+icon('external','↗')+'</span><b>Ichki video oynasi ochilmadi</b><small>'+esc(e.message)+'</small><a class="primary conference-fallback" target="_blank" rel="noopener" href="https://'+esc(join.host)+'/'+encodeURIComponent(join.roomName)+'">Video xonani yangi oynada ochish</a></div>';
+    mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Media serverga ulanib bo‘lmadi</b><small>'+esc(e.message)+'</small><button id="retryMediaRoom" class="primary">Qayta ulanish</button></div>';
+    $('#retryMediaRoom')?.addEventListener('click',()=>openConference(payload));
   }
   hydrateIcons($('#lesson'));
 }
-function callCommand(command){if(!jitsiApi)return toast('Video xona hali ulanmagan');try{jitsiApi.executeCommand(command)}catch{toast('Bu boshqaruv hozir mavjud emas')}}
-function leaveConference(back=true){
+async function leaveConference(back=true){
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
-  if(jitsiApi){try{jitsiApi.dispose()}catch{}jitsiApi=null}
+  if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
   activeLessonId='';activeLiveSession=null;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
-  try{await api('/live/rooms/'+id+'/end',{method:'POST',body:'{}'});if(fromCall){if(jitsiApi)try{jitsiApi.executeCommand('hangup')}catch{}leaveConference(true)}else loadLiveRooms();toast('Jonli dars yakunlandi')}catch(e){toast(e.message)}
+  try{await api('/live/rooms/'+id+'/end',{method:'POST',body:'{}'});if(fromCall)await leaveConference(true);else loadLiveRooms();toast('Jonli dars yakunlandi')}catch(e){toast(e.message)}
 }
 $('#refreshLiveRooms').onclick=loadLiveRooms;
 $('#backToLive').onclick=()=>leaveConference(true);
 $('#endLiveLesson').onclick=()=>activeLessonId&&endLiveRoom(activeLessonId,true);
-$('#callMic').onclick=()=>callCommand('toggleAudio');$('#callCamera').onclick=()=>callCommand('toggleVideo');$('#callScreen').onclick=()=>callCommand('toggleShareScreen');$('#callChat').onclick=()=>callCommand('toggleChat');$('#callHangup').onclick=()=>{if(jitsiApi)try{jitsiApi.executeCommand('hangup')}catch{}leaveConference(true)};
+$('#callMic').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleMic()}catch(e){toast(e.message)}};
+$('#callCamera').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleCamera()}catch(e){toast(e.message)}};
+$('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
+$('#callChat').onclick=()=>{$('.conference-shell .chat')?.classList.toggle('chat-collapsed')};
+$('#callHangup').onclick=()=>leaveConference(true);
 
 function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{6,})/);return m?.[1]||''}
 function videoThumb(v){const id=youtubeId(v.sourceUrl);return v.thumbnailUrl||(id?'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg':'')}
