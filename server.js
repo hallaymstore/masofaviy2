@@ -26,8 +26,8 @@ app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,fil
 
 const permissionsByRole = {
   superadmin: ['*'],
-  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view'],
-  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view'],
+  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage'],
+  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage'],
   rectorate: ['reports.view','lessons.monitor','analytics.view'],
   dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view'],
   department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view'],
@@ -161,7 +161,7 @@ const buildGroupPerformance = async (scope,days=7) => {
   for(const row of attendance){
     const schedule=scheduleById[row.lessonId];if(!schedule)continue;
     const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);
-    const gid=String(schedule.groupId);attended[gid]=(attended[gid]||0)+1;if(row.status==='late')late[gid]=(late[gid]||0)+1;
+    const gid=String(schedule.groupId);if(['present','late'].includes(row.status))attended[gid]=(attended[gid]||0)+1;if(row.status==='late')late[gid]=(late[gid]||0)+1;
   }
   const scheduleGroups={};for(const x of schedules)(scheduleGroups[String(x.groupId)]??=[]).push(x);
   return groups.map(g=>{
@@ -205,12 +205,12 @@ app.get('/api/dashboard', auth, async (req,res)=> {
   const day=localWeekday(),todayBounds=localDayBounds(0);
   if(req.user.role==='teacher'){
     const rows=await scheduleQuery({teacherId:req.user._id}).lean(),today=rows.filter(x=>x.weekday===day),ids=today.map(x=>String(x._id));
-    let present=0,late=0;if(ids.length){const a=await Attendance.find({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end},lessonId:{$in:ids}}).populate('userId','role').lean();const students=a.filter(x=>x.userId?.role==='student');present=students.length;late=students.filter(x=>x.status==='late').length}
+    let present=0,late=0;if(ids.length){const a=await Attendance.find({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end},lessonId:{$in:ids}}).populate('userId','role').lean();const students=a.filter(x=>x.userId?.role==='student');present=students.filter(x=>['present','late'].includes(x.status)).length;late=students.filter(x=>x.status==='late').length}
     return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Bugun qatnashdi',value:present},{label:'Kechikdi',value:late},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size}],today});
   }
   if(req.user.role==='student'){
     const gid=await resolveUserGroupId(req.user),rows=gid?await scheduleQuery({groupId:gid}).lean():[],today=rows.filter(x=>x.weekday===day),days=30,bounds=rangeBounds(days),lessonIds=rows.map(x=>String(x._id)),expected=rows.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
-    const attendance=lessonIds.length?await Attendance.find({userId:req.user._id,createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).lean():[],seen=new Set(),unique=attendance.filter(x=>{const k=x.lessonId+':'+(x.dateKey||'');if(seen.has(k))return false;seen.add(k);return true}),rate=expected?Math.min(100,Math.round(unique.length/expected*100)):0,late=unique.filter(x=>x.status==='late').length;
+    const attendance=lessonIds.length?await Attendance.find({userId:req.user._id,createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).lean():[],seen=new Set(),unique=attendance.filter(x=>{const k=x.lessonId+':'+(x.dateKey||'');if(seen.has(k))return false;seen.add(k);return true}),present=unique.filter(x=>['present','late'].includes(x.status)).length,rate=expected?Math.min(100,Math.round(present/expected*100)):0,late=unique.filter(x=>x.status==='late').length;
     return res.json({role:req.user.role,stats:[{label:'Haftalik dars',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'30 kun davomat',value:rate+'%'},{label:'Kechikish',value:late},{label:'Fanlar',value:new Set(rows.map(x=>x.subject||x.title)).size}],today});
   }
   const scope=await resolveScope(req.user,{}),userActive=scopedUserFilter(scope,{active:true}),schedules=await scheduleQuery(scope.scheduleScope).lean(),today=schedules.filter(x=>x.weekday===day).slice(0,10),usersByRole=await User.aggregate([{$match:userActive},{$group:{_id:'$role',value:{$sum:1}}}]),roleMap=Object.fromEntries(usersByRole.map(x=>[x._id,x.value])),online=await scopedOnlineCount(scope);
@@ -264,7 +264,7 @@ app.get('/api/analytics/group/:groupId/students', auth, can('analytics.view'), a
   const scope=await resolveScope(req.user,req.query),allowed=scope.groupIds.some(id=>String(id)===String(group._id));if(!allowed)return res.status(403).json({message:'Bu guruh statistikasi uchun ruxsat yo‘q'});
   const days=Math.max(7,Math.min(30,Number(req.query.days)||7)),bounds=rangeBounds(days),schedules=await Schedule.find({groupId:group._id}).select('_id weekday').lean(),lessonIds=schedules.map(x=>String(x._id)),expectedPerStudent=schedules.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
   const [students,attendance]=await Promise.all([User.find({active:true,role:'student',groupId:group._id}).select('fullName login phone').sort({fullName:1}).lean(),Attendance.find({createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).select('lessonId userId dateKey status minutes').lean()]);
-  const counters={},seen=new Set();for(const row of attendance){const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);const id=String(row.userId);const c=counters[id]||(counters[id]={present:0,late:0,minutes:0});c.present++;if(row.status==='late')c.late++;c.minutes+=Number(row.minutes||0)}
+  const counters={},seen=new Set();for(const row of attendance){const key=row.lessonId+':'+String(row.userId)+':'+(row.dateKey||'');if(seen.has(key))continue;seen.add(key);const id=String(row.userId);const c=counters[id]||(counters[id]={present:0,late:0,minutes:0});if(['present','late'].includes(row.status))c.present++;if(row.status==='late')c.late++;c.minutes+=Number(row.minutes||0)}
   res.json({group:{id:group.externalId||group.code||String(group._id),name:group.name},days,expectedPerStudent,students:students.map(st=>{const c=counters[String(st._id)]||{present:0,late:0,minutes:0};return {_id:st._id,fullName:st.fullName,login:st.login,phone:st.phone,present:c.present,late:c.late,minutes:c.minutes,expected:expectedPerStudent,rate:expectedPerStudent?Math.min(100,Math.round(c.present/expectedPerStudent*100)):0}})});
 }catch(err){res.status(400).json({message:err.message})}});
 
@@ -461,6 +461,20 @@ app.post('/api/schedules/bulk-import', auth, can('schedule.manage'), async(req,r
 app.get('/api/public/timetable/group/:groupId', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({group:null,schedule:[]});const g=await resolveStructure(req.params.groupId,'group');if(!g)return res.status(404).json({message:'Guruh ID topilmadi'});res.json({group:{name:g.name,id:g.externalId||g.code||String(g._id)},schedule:await scheduleQuery({groupId:g._id}).lean()}); });
 app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({teacher:null,schedule:[]});const t=await User.findOne({login:String(req.params.login).toLowerCase(),role:'teacher',active:true}).select('fullName login').lean();if(!t)return res.status(404).json({message:'O‘qituvchi topilmadi'});res.json({teacher:{fullName:t.fullName,login:t.login},schedule:await scheduleQuery({teacherId:t._id}).lean()}); });
 
+
+app.patch('/api/attendance/:id', auth, can('attendance.manage'), async(req,res)=>{
+  const row=await Attendance.findById(req.params.id);if(!row)return res.status(404).json({message:'Davomat yozuvi topilmadi'});
+  const lesson=mongoose.isValidObjectId(row.lessonId)?await Schedule.findById(row.lessonId).lean():null;if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  let allowed=GLOBAL_SCOPE_ROLES.has(req.user.role);
+  if(req.user.role==='teacher')allowed=String(lesson.teacherId)===String(req.user._id);
+  else if(!allowed){try{const scope=await resolveScope(req.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}
+  if(!allowed)return res.status(403).json({message:'Bu davomat yozuvini o‘zgartirish uchun ruxsat yo‘q'});
+  const status=String(req.body.status||row.status);if(!['present','late','absent','excused'].includes(status))return res.status(400).json({message:'Davomat holati noto‘g‘ri'});
+  const minutes=req.body.minutes===undefined?row.minutes:Number(req.body.minutes);if(!Number.isFinite(minutes)||minutes<0||minutes>600)return res.status(400).json({message:'Daqiqa 0–600 oralig‘ida bo‘lsin'});
+  const before={status:row.status,minutes:row.minutes};row.status=status;row.minutes=Math.round(minutes);await row.save();
+  audit(req,'ATTENDANCE_CORRECTION','Attendance',row.id,{lessonId:row.lessonId,userId:String(row.userId),before,after:{status:row.status,minutes:row.minutes},reason:String(req.body.reason||'').slice(0,300)});
+  res.json(row);
+});
 
 app.get('/api/reports/attendance', auth, can('reports.view'), async(req,res)=>{const days=Math.max(1,Math.min(90,Number(req.query.days)||14)),bounds=rangeBounds(days),scope=await resolveScope(req.user,req.query);const schedules=await Schedule.find(scope.scheduleScope).select('_id').lean(),scheduleIds=schedules.map(x=>String(x._id));const filter={createdAt:{$gte:bounds.start,$lt:bounds.end}};if(scheduleIds.length||(scope.group||scope.department||scope.faculty))filter.lessonId={$in:scheduleIds};const rows=await Attendance.find(filter).populate('userId','fullName login role groupId').sort({createdAt:-1}).limit(1500).lean();const used=[...new Set(rows.map(x=>x.lessonId).filter(mongoose.isValidObjectId))],fullSchedules=used.length?await scheduleQuery({_id:{$in:used}}).lean():[],byId=Object.fromEntries(fullSchedules.map(x=>[String(x._id),x]));res.json(rows.map(x=>({...x,schedule:byId[x.lessonId]||null})))});
 
