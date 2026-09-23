@@ -67,6 +67,15 @@ Jadvaldagi `final_exam` (yakuniy nazorat) jonli xonada boshlanmaydi; interfeys u
 - qabul, ko‘chirish, chetlashtirish, qayta tiklash, kursdan kursga o‘tkazish, guruh almashtirish va bitirish tarixini audit bilan yuritish;
 - topshiriqlarni oddiy topshiriq, mustaqil ish yoki amaliyot sifatida ajratish.
 
+## Aloqa va akkaunt xavfsizligi
+
+- kursga bog‘langan doimiy forum, ichki inbox/sent xabarlar va o‘qilganlik qaydi;
+- talaba faqat o‘z guruhidagi fan o‘qituvchilariga, o‘qituvchi esa o‘z guruhlaridagi talabalarga yozadi;
+- ixtiyoriy `EMAIL_WEBHOOK_URL` orqali xabarni tashqi e-pochtaga yetkazish bridge’i;
+- TOTP authenticator 2FA, AES-256-GCM bilan shifrlangan secret va 8 ta bir martalik recovery kod;
+- foydalanuvchi boshqa qurilmalardagi sessiyalarni bekor qila oladi; admin akkaunt sessiyalari va yo‘qolgan 2FA’ni audit bilan reset qiladi;
+- parol almashtirish/reset yoki bloklash eski HTTP, Socket.IO va yangi media ticket sessiyalarini yaroqsiz qiladi.
+
 ## Import formatlari
 
 Foydalanuvchi importi (.xlsx yoki .csv):
@@ -84,11 +93,14 @@ Import avval tekshiriladi. Mavjud bo‘lmagan ID/login, takroriy login, noto‘g
     PORT=3000
     MONGODB_URI=...
     JWT_SECRET=...
+    TOTP_ENCRYPTION_KEY=...
     ADMIN_LOGIN=admin
     ADMIN_PASSWORD=...
     APP_UTC_OFFSET_MINUTES=300
     LATE_AFTER_MINUTES=5
     PUBLIC_TIMETABLE_ENABLED=true
+    TURN_URLS=turn:turn.example.uz:3478
+    EMAIL_WEBHOOK_URL=
     LOGIN_MAX_ATTEMPTS=7
     LOGIN_WINDOW_MS=900000
 
