@@ -46,13 +46,26 @@ Statistika platformaning asosiy boshqaruv qismi sifatida kengaytirildi:
 
 Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi bilan birga PDF, Office/ODF, matn, subtitr, rasm, audio, video, elektron kitob va arxivlarni joylay oladi. Fayllar MongoDB GridFS ga oqim bilan yoziladi; tur haqiqiy mazmuniga qarab tekshiriladi, kirish kurs ruxsatiga bog‘langan. `MAX_RESOURCE_MB` standart 1024 MB; katta yuklashda reverse proxy chegarasini ham sozlash kerak. HTML va bajariladigan dasturlar rad etiladi. Talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Baho tuzatish boshqa administrator tasdig‘i va audit bilan yuritiladi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi.
 
-SCORM 1.2 uchun paket importi va runtime qo‘shildi: ZIP manifesti tekshiriladi, talaba darsi `sandbox` iframe’da ochiladi; status, ball, joylashuv, `suspend_data`, objective va interaction ma’lumotlari saqlanadi. Paket chegarasi 8 MB. SCORM 2004 paketlari qo‘llanmagani sababli rad etiladi. Ko‘p SCO, sequencing, tashqi moslik sertifikati va paketning `parent.API` qidirishi hali qo‘llanmaydi.
+SCORM 1.2 uchun paket importi va runtime qo‘shildi: ZIP manifesti va xavfli yo‘llar tekshiriladi, nested organization ichidagi bir nechta SCO aniqlanadi, har bir SCO alohida ishga tushiriladi va resume holati runtime boshlanishidan oldin yuklanadi. Status, ball, joylashuv, `suspend_data`, objective va interaction ma’lumotlari saqlanadi. Paket chegarasi 8 MB. SCORM 2004 va sequencing/adaptive navigation hali qo‘llanmaydi; real mualliflik vositalari bilan conformance sinovi talab etiladi.
 
 Testda talaba xabardor bo‘lib rozilik bersa, sahifadan chiqish, kamera va mikrofon ruxsatlari, yuz mavjudligi/ko‘pligi va baland fon ovozi signallari vaqt belgisi bilan qayd etiladi. Yuz tahlili brauzerning `FaceDetector` vositasida yoki lokal MediaPipe kutubxonasida, ovoz amplitudasi brauzerning Web Audio vositasida hisoblanadi. Tasvir va tovush serverga yuborilmaydi va saqlanmaydi. O‘qituvchi signalni ko‘rib chiqadi; signal avtomatik intizomiy qaror emas. Shaxsni biometrik tasdiqlash, nigoh, ovoz egasini aniqlash, aldovni ishonchli aniqlash va mustaqil sinovdan o‘tgan to‘liq avtoproktoring hali mavjud emas.
 
 Admin uchun **Tayyorlik** hisobotida fansiz guruhlar, fanda dastur/material/topshiriq/test borligi va o‘qituvchiga biriktirilgan noyob talabalar soni ko‘rinadi. 50 dan yuqori son tekshiruv signalidir; tasdiqlangan akademik yuklama bilan alohida solishtiriladi.
 
 Jadvaldagi `final_exam` (yakuniy nazorat) jonli xonada boshlanmaydi; interfeys uni OTMda shaxsan deb ko‘rsatadi. Kurs ichidagi onlayn testlar joriy/oraliq o‘zlashtirish uchun mo‘ljallangan; semestr yakuniy nazorati, davlat attestatsiyasi va himoya tartibini almashtirmaydi.
+
+
+## Elektron kutubxona va akademik yozuvlar
+
+- alohida qidiriladigan elektron kutubxona: kitob, darslik, qo‘llanma, monografiya, ilmiy maqola, tadqiqot, dissertatsiya va standartlar;
+- resurslarni butun universitet yoki muayyan fanlarga cheklash;
+- kursga yuklangan faylni kutubxona katalogiga biriktirish;
+- resurs ochilishini foydalanuvchi kesimida qayd etish va o‘qituvchiga noyob foydalanuvchi/sessiya statistikasini ko‘rsatish;
+- talaba uchun individual o‘quv reja, semestr va kreditlar;
+- fan bo‘yicha joriy/yakuniy/umumiy natija, OTM mezoniga mos baho belgisi va administrator yakuniy tasdig‘i;
+- transkript va jami tasdiqlangan kreditlar;
+- qabul, ko‘chirish, chetlashtirish, qayta tiklash, kursdan kursga o‘tkazish, guruh almashtirish va bitirish tarixini audit bilan yuritish;
+- topshiriqlarni oddiy topshiriq, mustaqil ish yoki amaliyot sifatida ajratish.
 
 ## Import formatlari
 
@@ -89,7 +102,7 @@ O‘zbekiston vaqti uchun APP_UTC_OFFSET_MINUTES=300. Ochiq jadval linklari kera
 4. npm start
 5. npm run check
 
-GitHub Actions har push/PR da syntax check va smoke boot bajaradi.
+GitHub Actions har push/PR da Node 22 muhitida syntax check, unit test va HttpOnly-cookie login bilan smoke boot bajaradi.
 
 ## Media qatlami
 
