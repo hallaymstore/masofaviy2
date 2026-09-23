@@ -13,6 +13,7 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
+import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -26,6 +27,7 @@ const corsOptions = { origin: originCheck, credentials: true };
 const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'polling'] });
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
+const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || JWT_SECRET;
 const sessionCookie='m2_session',csrfCookie='m2_csrf';
 const readCookie=(header,name)=>String(header||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
 const csrfFor=token=>crypto.createHmac('sha256',JWT_SECRET).update(token).digest('hex');
@@ -59,6 +61,8 @@ const userSchema = new mongoose.Schema({
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' },
   email: { type: String, trim: true }, phone: { type: String, trim: true }, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
   active: { type: Boolean, default: true }, mustChangePassword: { type: Boolean, default: true },
+  sessionVersion:{type:Number,default:0,min:0},
+  totpEnabled:{type:Boolean,default:false},totpSecretEncrypted:{type:String,select:false},totpPendingSecretEncrypted:{type:String,select:false},totpRecoveryHashes:{type:[String],select:false,default:[]},
   lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 }
 }, { timestamps: true });
 const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['faculty','department','group'], required: true }, name: { type: String, required: true }, externalId: { type: String, trim: true, index: true, sparse: true }, code: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, active: { type: Boolean, default: true } }, { timestamps: true });
@@ -103,7 +107,7 @@ const rangeBounds = days => ({start:localDayBounds(Math.max(1,days)-1).start,end
 const timeToMinutes = value => { const m=String(value||'').match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : 0; };
 const escapeRegex = value => String(value||'').replace(/[.*+?^$()|[\]\\]/g, match => '\\' + match);
 
-const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash; return x; };
+const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash;delete x.totpSecretEncrypted;delete x.totpPendingSecretEncrypted;delete x.totpRecoveryHashes;return x; };
 const hasPermission = (user, permission) => { const base = permissionsByRole[user?.role] || []; return (base.includes('*') || base.includes(permission) || user?.permissions?.includes(permission)) && !user?.deniedPermissions?.includes(permission); };
 const rolePermissions = user => [...new Set([...(permissionsByRole[user?.role]||[]), ...(user?.permissions||[])])].filter(p=>!user?.deniedPermissions?.includes(p));
 const canAssignRole = (actorRole,targetRole) => actorRole==='superadmin' ? Boolean(permissionsByRole[targetRole]) : actorRole==='admin' ? Boolean(permissionsByRole[targetRole])&&targetRole!=='superadmin' : actorRole==='tech' ? Boolean(permissionsByRole[targetRole])&&!['superadmin','admin'].includes(targetRole) : false;
@@ -201,8 +205,8 @@ const buildGroupPerformance = async (scope,days=7) => {
 
 
 
-const sign = user => jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
-const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),fullName:'Bosh administrator',role:'superadmin',permissions:['*'],deniedPermissions:[],active:true,mustChangePassword:true};
+const sign = user => jwt.sign({ id: user.id||String(user._id), role: user.role, sv:Number(user.sessionVersion)||0 }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
+const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),fullName:'Bosh administrator',role:'superadmin',permissions:['*'],deniedPermissions:[],active:true,mustChangePassword:true,sessionVersion:0,totpEnabled:false};
 const auth = async (req, res, next) => { try {
   const bearer=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):'';
   const cookie=readCookie(req.headers.cookie,sessionCookie),token=bearer||cookie;
@@ -211,7 +215,7 @@ const auth = async (req, res, next) => { try {
     const expected=csrfFor(cookie),actual=String(req.headers['x-csrf-token']||'');
     if(actual.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))return res.status(403).json({message:'So‘rov himoya tekshiruvidan o‘tmadi'});
   }
-  req.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean();if(!req.user?.active)throw new Error();next();
+  req.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean();if(!req.user?.active)throw new Error();if(data.id!=='demo'&&Number(data.sv||0)!==Number(req.user.sessionVersion||0))throw new Error();next();
 }catch{res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' });} };
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
@@ -231,15 +235,52 @@ app.post('/api/auth/login', async (req,res) => {
     if(login===demoAdmin.login&&password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')){loginAttempts.delete(key);setSession(res,demoAdmin);return res.json({user:demoAdmin,demo:true})}
     noteLoginFailure(key);return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'});
   }
-  const user=await User.findOne({login});
+  const user=await User.findOne({login}).select('+totpSecretEncrypted +totpRecoveryHashes');
   if(!user||!user.active||!(await bcrypt.compare(password,user.passwordHash))){
     noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
+  if(user.totpEnabled){
+    const otp=String(req.body.otp||'').trim();
+    if(!otp)return res.status(202).json({twoFactorRequired:true,message:'Authenticator kodi yoki recovery kodini kiriting'});
+    let secondFactor=false,recoveryUsed=false;
+    try{secondFactor=verifyTotp(decryptSecret(user.totpSecretEncrypted,TOTP_ENCRYPTION_KEY),otp)}catch{secondFactor=false}
+    if(!secondFactor){const recovery=consumeRecoveryCode(user.totpRecoveryHashes||[],otp);if(recovery.ok){secondFactor=true;recoveryUsed=true;user.totpRecoveryHashes=recovery.hashes}}
+    if(!secondFactor){noteLoginFailure(key);await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'TWO_FACTOR_FAILED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(401).json({message:'2 bosqichli tasdiqlash kodi noto‘g‘ri'})}
+    if(recoveryUsed)await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'TWO_FACTOR_RECOVERY_USE',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});
+  }
   loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
-  await audit({user,ip:req.ip},'LOGIN','User',user.id);setSession(res,user);res.json({user:sanitizeUser(user)});
+  await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user)});
 });
 app.post('/api/auth/logout',auth,(req,res)=>{clearSession(res);res.json({ok:true})});
+app.post('/api/auth/2fa/setup',auth,async(req,res)=>{
+  if(req.user._id==='demo')return res.status(400).json({message:'Demo akkauntda 2FA sozlanmaydi'});
+  const currentPassword=String(req.body.currentPassword||''),user=await User.findById(req.user._id).select('+totpPendingSecretEncrypted');
+  if(!user||!(await bcrypt.compare(currentPassword,user.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'});
+  const secret=generateTotpSecret();user.totpPendingSecretEncrypted=encryptSecret(secret,TOTP_ENCRYPTION_KEY);await user.save();
+  audit(req,'TWO_FACTOR_SETUP','User',user.id);res.json({secret,otpauthUri:otpauthUri({secret,account:user.login,issuer:'Masofaviy2'}),message:'Authenticator ilovasiga secretni kiriting va 6 xonali kod bilan faollashtiring'});
+});
+app.post('/api/auth/2fa/enable',auth,async(req,res)=>{
+  if(req.user._id==='demo')return res.status(400).json({message:'Demo akkauntda 2FA sozlanmaydi'});
+  const user=await User.findById(req.user._id).select('+totpPendingSecretEncrypted +totpSecretEncrypted +totpRecoveryHashes');if(!user?.totpPendingSecretEncrypted)return res.status(409).json({message:'Avval 2FA sozlashni boshlang'});
+  let secret;try{secret=decryptSecret(user.totpPendingSecretEncrypted,TOTP_ENCRYPTION_KEY)}catch{return res.status(409).json({message:'2FA sozlamasi yaroqsiz, qayta boshlang'})}
+  if(!verifyTotp(secret,req.body.code))return res.status(400).json({message:'Authenticator kodi noto‘g‘ri'});
+  const recoveryCodes=generateRecoveryCodes(8);user.totpSecretEncrypted=user.totpPendingSecretEncrypted;user.totpPendingSecretEncrypted=undefined;user.totpRecoveryHashes=recoveryCodes.map(hashRecoveryCode);user.totpEnabled=true;user.sessionVersion=(user.sessionVersion||0)+1;await user.save();
+  setSession(res,user);audit(req,'TWO_FACTOR_ENABLE','User',user.id,{recoveryCount:recoveryCodes.length});res.json({ok:true,recoveryCodes,message:'Recovery kodlarini xavfsiz joyda saqlang. Ular qayta ko‘rsatilmaydi.'});
+});
+app.post('/api/auth/2fa/disable',auth,async(req,res)=>{
+  if(req.user._id==='demo')return res.status(400).json({message:'Demo akkauntda 2FA sozlanmaydi'});
+  const currentPassword=String(req.body.currentPassword||''),code=String(req.body.code||''),user=await User.findById(req.user._id).select('+totpSecretEncrypted +totpRecoveryHashes');
+  if(!user||!(await bcrypt.compare(currentPassword,user.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'});if(!user.totpEnabled)return res.status(409).json({message:'2FA yoqilmagan'});
+  let ok=false;try{ok=verifyTotp(decryptSecret(user.totpSecretEncrypted,TOTP_ENCRYPTION_KEY),code)}catch{}
+  if(!ok){const recovery=consumeRecoveryCode(user.totpRecoveryHashes||[],code);ok=recovery.ok}
+  if(!ok)return res.status(400).json({message:'2FA kodi noto‘g‘ri'});
+  user.totpEnabled=false;user.totpSecretEncrypted=undefined;user.totpPendingSecretEncrypted=undefined;user.totpRecoveryHashes=[];user.sessionVersion=(user.sessionVersion||0)+1;await user.save();setSession(res,user);audit(req,'TWO_FACTOR_DISABLE','User',user.id);res.json({ok:true});
+});
+app.post('/api/auth/revoke-sessions',auth,async(req,res)=>{
+  if(req.user._id==='demo')return res.status(400).json({message:'Demo akkaunt sessiyasi boshqarilmaydi'});const user=await User.findById(req.user._id);if(!user)return res.status(404).json({message:'Foydalanuvchi topilmadi'});user.sessionVersion=(user.sessionVersion||0)+1;await user.save();setSession(res,user);audit(req,'SESSIONS_REVOKE','User',user.id,{keptCurrent:true});res.json({ok:true,message:'Boshqa qurilmalardagi sessiyalar bekor qilindi'});
+});
+
 app.get('/api/me', auth, async (req,res)=>{ let current=sanitizeUser(req.user); if(req.user._id!=='demo'&&mongoose.connection.readyState===1) current=sanitizeUser(await User.findById(req.user._id).populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean()); res.json({user:current,effectivePermissions:rolePermissions(req.user)}); });
 app.get('/api/dashboard', auth, async (req,res)=> {
   if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true});
@@ -311,7 +352,7 @@ app.get('/api/analytics/group/:groupId/students', auth, can('analytics.view'), a
 
 app.get('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.json({user:sanitizeUser(req.user)}); const current=await User.findById(req.user._id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); res.json({user:current}); });
 app.patch('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'}); const allowed=['fullName','email','phone','avatarUrl','bio','direction']; const patch=Object.fromEntries(allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,String(req.body[k]??'').trim()])); const update={$set:patch}; if(req.body.courseYear!==undefined){const cy=Number(req.body.courseYear);if(cy>=1&&cy<=6)patch.courseYear=cy;else update.$unset={courseYear:1}} const u=await User.findByIdAndUpdate(req.user._id,update,{new:true}).select('-passwordHash'); audit(req,'PROFILE_UPDATE','User',req.user._id,patch); res.json({user:u}); });
-app.patch('/api/profile/password', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator paroli Render sozlamalaridan boshqariladi'}); const currentPassword=String(req.body.currentPassword||''),newPassword=String(req.body.newPassword||''); if(newPassword.length<8)return res.status(400).json({message:'Yangi parol kamida 8 ta belgidan iborat bo‘lsin'}); const u=await User.findById(req.user._id); if(!u||!(await bcrypt.compare(currentPassword,u.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'}); u.passwordHash=await bcrypt.hash(newPassword,11);u.mustChangePassword=false;await u.save();audit(req,'PASSWORD_CHANGE','User',u.id);res.json({ok:true}); });
+app.patch('/api/profile/password', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator paroli Render sozlamalaridan boshqariladi'}); const currentPassword=String(req.body.currentPassword||''),newPassword=String(req.body.newPassword||''); if(newPassword.length<8)return res.status(400).json({message:'Yangi parol kamida 8 ta belgidan iborat bo‘lsin'}); const u=await User.findById(req.user._id); if(!u||!(await bcrypt.compare(currentPassword,u.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'}); u.passwordHash=await bcrypt.hash(newPassword,11);u.mustChangePassword=false;u.sessionVersion=(u.sessionVersion||0)+1;await u.save();setSession(res,u);audit(req,'PASSWORD_CHANGE','User',u.id,{sessionsRevoked:true});res.json({ok:true}); });
 
 app.get('/api/structure', auth, async(req,res)=>{
   if(mongoose.connection.readyState!==1)return res.json([]);
@@ -429,8 +470,10 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
   res.status(201).json({imported:credentials.length,skipped:errors.length,errors:errors.slice(0,100),credentials});
 }catch(err){res.status(400).json({message:err.message})} });
 
-app.patch('/api/users/:id/status', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(String(target._id)===String(req.user._id)&&req.body.active===false)return res.status(400).json({message:'O‘zingizni bloklay olmaysiz'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt holatini o‘zgartirish uchun ruxsat yo‘q'});target.active=Boolean(req.body.active);target.statusNote=String(req.body.statusNote||'').trim();await target.save();audit(req,target.active?'UNBLOCK':'BLOCK','User',target.id,{note:target.statusNote});res.json({ok:true,active:target.active})});
-app.post('/api/users/:id/reset-password', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt parolini tiklash uchun ruxsat yo‘q'});const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');if(password.length<8)return res.status(400).json({message:'Parol kamida 8 belgi bo‘lsin'});target.passwordHash=await bcrypt.hash(password,11);target.mustChangePassword=true;await target.save();audit(req,'PASSWORD_RESET','User',target.id);res.json({temporaryPassword:password})});
+app.patch('/api/users/:id/status', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(String(target._id)===String(req.user._id)&&req.body.active===false)return res.status(400).json({message:'O‘zingizni bloklay olmaysiz'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt holatini o‘zgartirish uchun ruxsat yo‘q'});target.active=Boolean(req.body.active);target.statusNote=String(req.body.statusNote||'').trim();if(!target.active)target.sessionVersion=(target.sessionVersion||0)+1;await target.save();audit(req,target.active?'UNBLOCK':'BLOCK','User',target.id,{note:target.statusNote,sessionsRevoked:!target.active});res.json({ok:true,active:target.active})});
+app.post('/api/users/:id/reset-password', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt parolini tiklash uchun ruxsat yo‘q'});const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');if(password.length<8)return res.status(400).json({message:'Parol kamida 8 belgi bo‘lsin'});target.passwordHash=await bcrypt.hash(password,11);target.mustChangePassword=true;target.sessionVersion=(target.sessionVersion||0)+1;await target.save();audit(req,'PASSWORD_RESET','User',target.id,{sessionsRevoked:true});res.json({temporaryPassword:password})});
+
+app.post('/api/users/:id/revoke-sessions',auth,can('users.control'),async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt sessiyalarini bekor qilish uchun ruxsat yo‘q'});target.sessionVersion=(target.sessionVersion||0)+1;await target.save();audit(req,'ADMIN_SESSIONS_REVOKE','User',target.id);res.json({ok:true})});
 
 app.patch('/api/users/:id/permissions', auth, can('permissions.manage'), async(req,res)=>{
   const target=await User.findById(req.params.id);
