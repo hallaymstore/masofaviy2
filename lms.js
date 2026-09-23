@@ -1,12 +1,13 @@
 // Academic records are server-side. Every write checks the course membership.
 import { installScorm } from './scorm.js';
 import { installResourceUploads } from './resource-upload.js';
+import { installAcademicRecords } from './academic-records.js';
 export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
   const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},createdBy:{type:id,ref:'User'}},{timestamps:true});
-  const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,min:1,max:1000},published:{type:Boolean,default:true}},{timestamps:true});
+  const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},category:{type:String,enum:['assignment','independent_work','practice'],default:'assignment',index:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,min:1,max:1000},published:{type:Boolean,default:true}},{timestamps:true});
   const submissionSchema=new mongoose.Schema({assignmentId:{type:id,ref:'Assignment',required:true},studentId:{type:id,ref:'User',required:true},text:String,url:String,submittedAt:Date,score:{type:Number,min:0},feedback:String,gradedBy:{type:id,ref:'User'},gradedAt:Date},{timestamps:true});
   submissionSchema.index({assignmentId:1,studentId:1},{unique:true});
   const quizSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},durationMinutes:{type:Number,min:1,max:240,default:30},maxAttempts:{type:Number,min:1,max:10,default:1},published:{type:Boolean,default:false},proctorRequired:{type:Boolean,default:false},questions:[{prompt:{type:String,required:true},options:[String],correctIndex:{type:Number,required:true,min:0}}]},{timestamps:true});
@@ -26,6 +27,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
   installScorm(app,{mongoose,auth,audit,courseAccess});
   installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
+  const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
@@ -35,18 +37,21 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   }));
   app.get('/api/lms/compliance',auth,wrap(async(req,res)=>{
     if(!['admin','superadmin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    const [courses,groups,students,resources,assignments,quizzes]=await Promise.all([
+    const [courses,groups,students,resources,assignments,quizzes,studyPlans,finalResults,movements]=await Promise.all([
       Course.find({active:true}).populate('teacherId','fullName login').populate('groupId','name externalId').lean(),
       Structure.find({type:'group',active:true}).select('name externalId').lean(),
       User.find({role:'student',active:true,groupId:{$exists:true}}).select('_id groupId').lean(),
       Resource.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
       Assignment.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
-      Quiz.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}])
+      Quiz.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
+      academic.StudyPlan.countDocuments(),
+      academic.CourseResult.countDocuments({status:'final'}),
+      academic.StudentMovement.countDocuments()
     ]);
     const counts=rows=>new Map(rows.map(r=>[String(r._id),r.count]));const rc=counts(resources),ac=counts(assignments),qc=counts(quizzes);
     const enrolled=new Map();for(const student of students){const key=String(student.groupId);if(!enrolled.has(key))enrolled.set(key,new Set());enrolled.get(key).add(String(student._id))}
     const teaching=new Map();for(const course of courses){const teacher=String(course.teacherId?._id||course.teacherId);if(!teaching.has(teacher))teaching.set(teacher,{teacher:course.teacherId,students:new Set(),courseCount:0});const item=teaching.get(teacher);item.courseCount++;for(const student of enrolled.get(String(course.groupId?._id||course.groupId))||[])item.students.add(student)}
-    res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50}))});
+    res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50})),academicRecords:{studyPlans,finalResults,movements}});
   }));
   app.post('/api/lms/courses',auth,wrap(async(req,res)=>{
     if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
@@ -66,7 +71,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
     await courseAccess(req,req.params.id,true);const row=await Resource.create({courseId:req.params.id,title:String(req.body.title||'').trim(),kind:req.body.kind,url:url(req.body.url),description:String(req.body.description||'').slice(0,4000),createdBy:req.user._id});audit(req,'RESOURCE_CREATE','Resource',row.id);res.status(201).json(row);
   }));
   app.post('/api/lms/courses/:id/assignments',auth,wrap(async(req,res)=>{
-    await courseAccess(req,req.params.id,true);const row=await Assignment.create({courseId:req.params.id,title:String(req.body.title||'').trim(),instructions:String(req.body.instructions||'').trim(),dueAt:req.body.dueAt||undefined,maxScore:Number(req.body.maxScore)||100});audit(req,'ASSIGNMENT_CREATE','Assignment',row.id);res.status(201).json(row);
+    await courseAccess(req,req.params.id,true);const category=['assignment','independent_work','practice'].includes(req.body.category)?req.body.category:'assignment';const row=await Assignment.create({courseId:req.params.id,title:String(req.body.title||'').trim(),category,instructions:String(req.body.instructions||'').trim(),dueAt:req.body.dueAt||undefined,maxScore:Number(req.body.maxScore)||100});audit(req,'ASSIGNMENT_CREATE','Assignment',row.id);res.status(201).json(row);
   }));
   app.post('/api/lms/assignments/:id/submit',auth,wrap(async(req,res)=>{
     if(req.user.role!=='student')return res.status(403).json({message:'Faqat talaba topshiradi'});checkId(req.params.id);const assignment=await Assignment.findById(req.params.id);if(!assignment||!assignment.published)throw Object.assign(new Error('Topshiriq topilmadi'),{status:404});await courseAccess(req,assignment.courseId);
