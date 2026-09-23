@@ -52,6 +52,8 @@ Test uchun ixtiyoriy imtihon signalini qayd etish mavjud: talaba oldindan xabard
 
 Admin uchun **Tayyorlik** hisobotida fansiz guruhlar, fanda dastur/material/topshiriq/test borligi va o‘qituvchiga biriktirilgan noyob talabalar soni ko‘rinadi. 50 dan yuqori son tekshiruv signalidir; tasdiqlangan akademik yuklama bilan alohida solishtiriladi.
 
+Jadvaldagi `final_exam` (yakuniy nazorat) jonli xonada boshlanmaydi; interfeys uni OTMda shaxsan deb ko‘rsatadi. Kurs ichidagi onlayn testlar joriy/oraliq o‘zlashtirish uchun mo‘ljallangan; semestr yakuniy nazorati, davlat attestatsiyasi va himoya tartibini almashtirmaydi.
+
 ## Import formatlari
 
 Foydalanuvchi importi (.xlsx yoki .csv):
