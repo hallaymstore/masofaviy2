@@ -30,3 +30,8 @@ Rasmiy “mos” maqomi faqat kod, kontent, infrastruktura va tashkiliy dalillar
 7. `final-exams.js` bo‘yicha semestr yakuniy nazorati, davlat attestatsiyasi va himoya sessiyasini test guruhda yaratish; qatnashuv/shaxs hujjati tekshiruvi, natija qaydi va barcha talabalar yozuvi to‘liq bo‘lmaganda sessiya yopilmasligini tekshirish.
 
 8. Nazoratli testda kamera/mikrofon ruxsati rad etilganda urinish boshlanmasligi; sessiya davomida tab/fullscreen/qurilma/yuz/tovush/tarmoq signallari qayd etilishi; yakunda risk hisobot hosil bo‘lishi va high risk avtomatik ravishda inson ko‘rigiga yuborilishini tekshirish.
+
+9. Productionda `REQUIRE_IN_PERSON_IDENTITY=true` bilan yangi student/o‘qituvchi shaxsan tasdiqlanmasdan login qila olmasligini, admin tasdiq/revoke amallari auditga yozilishini va revoke sessiyalarni bekor qilishini tekshirish.
+10. Qayta o‘qish/topshirish workflow’ida fan, semestr, sabab, urinish raqami, muddat, administrator yakuniy tasdig‘i va study-plan holati yangilanishini test qilish.
+11. Tasdiqlangan o‘quv reja XLSX/CSV importi va readiness sahifasida har guruh/fan bo‘yicha til, kredit, syllabus, resurs, topshiriq, test va amaliyot coverage tekshiruvini real reja bilan solishtirish.
+12. `deploy/backup-mongodb.sh` bilan backup olib, alohida qabul muhitida `deploy/restore-mongodb.sh` orqali restore qilish va `verify-production.sh` health-checkini muvaffaqiyatli yakunlash; backup faylining saqlash/shifrlash siyosatini protokollash.
