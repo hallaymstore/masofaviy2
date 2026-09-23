@@ -20,7 +20,7 @@ export function installFinalExams(app,{mongoose,User,Structure,Course,CourseResu
   const recordSchema=new mongoose.Schema({
     sessionId:{type:id,ref:'FinalExamSession',required:true,index:true},
     studentId:{type:id,ref:'User',required:true,index:true},
-    attendance:{type:String,enum:['present','absent','excused'],required:true},
+    attendance:{type:String,enum:['present','absent','excused','foreign_exempt'],required:true},
     identityDocumentChecked:{type:Boolean,default:false},
     identityCheckedBy:{type:id,ref:'User'},
     score:{type:Number,min:0,max:100},
@@ -83,7 +83,7 @@ export function installFinalExams(app,{mongoose,User,Structure,Course,CourseResu
   app.get('/api/lms/final-exams/:id/records',auth,async(req,res)=>{
     try{checkId(req.params.id);const session=await Session.findById(req.params.id).lean();if(!session)return res.status(404).json({message:'Nazorat topilmadi'});await access(req,session,false);
       let filter={sessionId:session._id};if(req.user.role==='student')filter.studentId=req.user._id;
-      const [records,students]=await Promise.all([Record.find(filter).populate('studentId','fullName login').populate('identityCheckedBy recordedBy','fullName login').sort({createdAt:1}).lean(),req.user.role==='student'?Promise.resolve([]):User.find({role:'student',active:true,groupId:session.groupId}).select('_id fullName login').sort({fullName:1}).lean()]);
+      const [records,students]=await Promise.all([Record.find(filter).populate('studentId','fullName login citizenshipCountry').populate('identityCheckedBy recordedBy','fullName login').sort({createdAt:1}).lean(),req.user.role==='student'?Promise.resolve([]):User.find({role:'student',active:true,groupId:session.groupId}).select('_id fullName login citizenshipCountry').sort({fullName:1}).lean()]);
       res.json({session:await sessionView(session),students,records});
     }catch(e){fail(res,e)}
   });
@@ -91,18 +91,19 @@ export function installFinalExams(app,{mongoose,User,Structure,Course,CourseResu
   app.put('/api/lms/final-exams/:id/records/:studentId',auth,async(req,res)=>{
     try{checkId(req.params.id);checkId(req.params.studentId);const session=await Session.findById(req.params.id);if(!session)return res.status(404).json({message:'Nazorat topilmadi'});await access(req,session,true);if(!['planned','in_progress'].includes(session.status))return res.status(409).json({message:'Nazorat yozuvlari yopilgan'});
       const student=await User.findOne({_id:req.params.studentId,role:'student',active:true,groupId:session.groupId});if(!student)throw new Error('Talaba shu guruhda topilmadi');
-      const attendance=String(req.body.attendance||'');if(!['present','absent','excused'].includes(attendance))throw new Error('Davomat holatini tanlang');const identityDocumentChecked=req.body.identityDocumentChecked===true;
+      const foreign=String(student.citizenshipCountry||'UZ').toUpperCase()!=='UZ';
+      const attendance=String(req.body.attendance||'');if(!['present','absent','excused','foreign_exempt'].includes(attendance))throw new Error('Davomat holatini tanlang');if(attendance==='foreign_exempt'&&!foreign)return res.status(400).json({message:'Xorijiy talaba istisnosi faqat xorijiy fuqaroga qo‘llanadi'});const identityDocumentChecked=req.body.identityDocumentChecked===true;
       if(attendance==='present'&&!identityDocumentChecked)return res.status(400).json({message:'Shaxsan qatnashgan talabaning shaxsini hujjat bilan tekshirishni tasdiqlang'});
       const score=req.body.score===''||req.body.score===undefined?undefined:Number(req.body.score);if(score!==undefined&&(!Number.isFinite(score)||score<0||score>100))throw new Error('Ball 0–100 oralig‘ida bo‘lsin');
       const row=await Record.findOneAndUpdate({sessionId:session._id,studentId:student._id},{$set:{attendance,identityDocumentChecked,identityCheckedBy:identityDocumentChecked?req.user._id:undefined,score,resultLabel:String(req.body.resultLabel||'').trim().slice(0,60),note:String(req.body.note||'').trim().slice(0,2000),recordedBy:req.user._id}},{upsert:true,new:true,runValidators:true});
-      audit(req,'FINAL_EXAM_RECORD','FinalExamRecord',row.id,{sessionId:String(session._id),studentId:String(student._id),attendance,identityDocumentChecked});res.json(row);
+      audit(req,'FINAL_EXAM_RECORD','FinalExamRecord',row.id,{sessionId:String(session._id),studentId:String(student._id),attendance,identityDocumentChecked,foreignExemption:attendance==='foreign_exempt'});res.json(row);
     }catch(e){fail(res,e)}
   });
 
   app.post('/api/lms/final-exams/:id/complete',auth,async(req,res)=>{
     try{if(!isAdmin(req.user))return res.status(403).json({message:'Faqat administrator yakunlaydi'});checkId(req.params.id);const session=await Session.findById(req.params.id);if(!session)return res.status(404).json({message:'Nazorat topilmadi'});if(session.status==='completed')return res.status(409).json({message:'Nazorat allaqachon yakunlangan'});
-      const students=await User.find({role:'student',active:true,groupId:session.groupId}).select('_id').lean(),records=await Record.find({sessionId:session._id}).lean(),byStudent=new Map(records.map(x=>[String(x.studentId),x]));const missing=students.filter(s=>!byStudent.has(String(s._id)));if(missing.length)return res.status(409).json({message:'Barcha talabalar uchun qatnashuv qaydi kiritilmagan',missingCount:missing.length});
-      if(session.type==='semester_final'&&session.courseId){const present=records.filter(x=>x.attendance==='present').map(x=>x.studentId),finalCount=present.length?await CourseResult.countDocuments({studentId:{$in:present},courseId:session.courseId,academicYear:session.academicYear,semester:session.semester,status:'final'}):0;if(finalCount!==present.length)return res.status(409).json({message:'Shaxsan qatnashgan barcha talabalar uchun fan yakuniy natijasi administrator tomonidan tasdiqlanmagan',missingResults:present.length-finalCount})}
+      const students=await User.find({role:'student',active:true,groupId:session.groupId}).select('_id citizenshipCountry').lean(),records=await Record.find({sessionId:session._id}).lean(),byStudent=new Map(records.map(x=>[String(x.studentId),x]));const missing=students.filter(s=>!byStudent.has(String(s._id)));if(missing.length)return res.status(409).json({message:'Barcha talabalar uchun qatnashuv qaydi kiritilmagan',missingCount:missing.length});
+      if(session.type==='semester_final'&&session.courseId){const assessed=records.filter(x=>['present','foreign_exempt'].includes(x.attendance)).map(x=>x.studentId),finalCount=assessed.length?await CourseResult.countDocuments({studentId:{$in:assessed},courseId:session.courseId,academicYear:session.academicYear,semester:session.semester,status:'final'}):0;if(finalCount!==assessed.length)return res.status(409).json({message:'Qatnashgan yoki xorijiy istisno qo‘llangan barcha talabalar uchun fan yakuniy natijasi administrator tomonidan tasdiqlanmagan',missingResults:assessed.length-finalCount})}
       session.status='completed';session.completedBy=req.user._id;session.completedAt=new Date();await session.save();audit(req,'FINAL_EXAM_COMPLETE','FinalExamSession',session.id,{studentCount:students.length,recordCount:records.length});res.json({ok:true,completedAt:session.completedAt});
     }catch(e){fail(res,e)}
   });
