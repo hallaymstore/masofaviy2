@@ -86,7 +86,7 @@ const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED === 'true'
 const VIDEO_PROVIDER_HOST = 'mediasoup';
 const SFU_BRIDGE_URL = String(process.env.SFU_BRIDGE_URL || '');
 const SFU_BRIDGE_SECRET = String(process.env.SFU_BRIDGE_SECRET || '');
-const TURN_URLS = String(process.env.TURN_URLS || '').split(',').map(x=>x.trim()).filter(Boolean);
+const TURN_URLS = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(',').map(x=>x.trim()).filter(Boolean);
 const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
 const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
 
