@@ -26,7 +26,7 @@ services:
       - key: LATE_AFTER_MINUTES
         value: "5"
       - key: PUBLIC_TIMETABLE_ENABLED
-        value: "true"
+        value: "false"
       - key: LOGIN_MAX_ATTEMPTS
         value: "7"
       - key: LOGIN_WINDOW_MS

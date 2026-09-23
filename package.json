@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js",
+    "check": "node --check server.js && node --check lms.js && node --check public/app.js && node --check public/sw.js",
     "prestart": "npm run build:media-client && npm run check",
     "build:media-client": "esbuild frontend/media-client.js --bundle --format=iife --global-name=MasofaviyMediaClientBundle --outfile=public/media-client.bundle.js --minify --target=es2020"
   },

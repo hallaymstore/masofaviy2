@@ -12,6 +12,7 @@ import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
+import { installLms } from './lms.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -69,9 +70,9 @@ const User = mongoose.model('User', userSchema), Structure = mongoose.model('Str
 const onlineUsers = new Map();
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 5));
-const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED !== 'false';
+const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED === 'true';
 const VIDEO_PROVIDER_HOST = 'mediasoup';
-const SFU_BRIDGE_URL = String(process.env.SFU_BRIDGE_URL || 'ws://213.230.97.12:40000');
+const SFU_BRIDGE_URL = String(process.env.SFU_BRIDGE_URL || '');
 const TURN_URLS = String(process.env.TURN_URLS || '').split(',').map(x=>x.trim()).filter(Boolean);
 const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
 const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
@@ -197,6 +198,7 @@ const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').t
 const auth = async (req, res, next) => { try { const token = req.headers.authorization?.replace('Bearer ', ''); const data = jwt.verify(token, JWT_SECRET); req.user = data.id==='demo' ? demoAdmin : await User.findById(data.id).lean(); if (!req.user?.active) throw new Error(); next(); } catch { res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' }); } };
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
+installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', time:new Date().toISOString() }));
 app.get('/api/system/metrics', auth, async(req,res)=>{
@@ -208,6 +210,7 @@ app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
   if(mongoose.connection.readyState!==1){
+    if(process.env.NODE_ENV==='production')return res.status(503).json({message:'Ma’lumotlar bazasi hozir ishlamayapti'});
     if(login===demoAdmin.login&&password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')){loginAttempts.delete(key);return res.json({token:sign(demoAdmin),user:demoAdmin,demo:true})}
     noteLoginFailure(key);return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'});
   }
@@ -654,12 +657,12 @@ async function bootstrap(){
   connectSfuBridge();
   if(process.env.NODE_ENV==='production'&&!process.env.ADMIN_PASSWORD)throw new Error('Production uchun ADMIN_PASSWORD majburiy');
   server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`));
-  if(!process.env.MONGODB_URI){console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return}
+  if(!process.env.MONGODB_URI){if(process.env.NODE_ENV==='production')throw new Error('Production uchun MONGODB_URI majburiy');console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return}
   try{
     await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});
     const login=(process.env.ADMIN_LOGIN||'admin').toLowerCase();
     if(!await User.exists({login}))await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(process.env.ADMIN_PASSWORD||'ChangeMe123!',11),mustChangePassword:true});
     console.log('MongoDB ulandi');
-  }catch(err){console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
+  }catch(err){if(process.env.NODE_ENV==='production')throw err;console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
 }
 bootstrap().catch(err=>{console.error('Ishga tushirish to‘xtatildi:',err.message);process.exit(1)});

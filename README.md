@@ -1,5 +1,7 @@
 # Masofaviy2
 
+> Muvofiqlik holati: tizim hali VM 559-son qarordagi to‘liq LMS talablarini bajarmaydi. SCORM, avtoproktoring va davlat tizimlari integratsiyasi yo‘q. Server va metodik hujjatlar tekshirilmaguncha rasmiy masofaviy ta’lim uchun tayyor deb ko‘rsatmang. Tafsilotlar: `docs/COMPLIANCE_GAP_UZ.md`.
+
 Oliy ta’lim muassasasi uchun mobil-first, yopiq ro‘yxatdan o‘tishga ega masofaviy ta’lim PWA platformasi. Ushbu versiyada **qulaylik + erkin boshqaruv + kuchli nazorat + batafsil statistika** markaziy o‘ringa qo‘yilgan.
 
 ## Asosiy imkoniyatlar
@@ -39,6 +41,10 @@ Statistika platformaning asosiy boshqaruv qismi sifatida kengaytirildi:
 - guruhlar kesimida: talabalar soni, haftalik darslar, kutilgan qatnashuv, qatnashganlar, kechikish, davomat foizi;
 - guruh ichiga kirib har bir talabaning qatnashuvi, kechikishi, darsdagi daqiqasi va foizini ko‘rish;
 - statistika va davomatni CSV eksport qilish.
+
+## Fanlar va vazifalar
+
+Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi va topshiriq kiritadi, talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi. Bu modul SCORM va avtoproktoring vazifasini bajarmaydi.
 
 ## Import formatlari
 
