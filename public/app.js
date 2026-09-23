@@ -81,17 +81,17 @@ async function loadUsers(){
   if(!can('users.manage'))return;
   try{
     const qs=buildUserQuery(),rows=await api('/users'+(qs?'?'+qs:''));
-    $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
+    $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>2FA</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
       let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button><button class="ghost" data-user-edit="'+esc(x._id)+'">Tahrir</button>';
       if(can('permissions.manage'))actions+='<button class="ghost" data-user-permissions="'+esc(x._id)+'">Huquqlar</button>';
-      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button>';
-      return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
+      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>';
+      return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td>'+(x.totpEnabled?'Yoqilgan':'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
     }).join('')+'</tbody></table>';
     all('[data-user-profile]').forEach(function(b){b.onclick=function(){openUserProfile(b.dataset.userProfile)}});
     all('[data-user-edit]').forEach(function(b){b.onclick=function(){editUser(b.dataset.userEdit)}});
     all('[data-user-permissions]').forEach(function(b){b.onclick=function(){editUserPermissions(b.dataset.userPermissions)}});
     all('[data-user-toggle]').forEach(function(b){b.onclick=function(){toggleUserStatus(b)}});
-    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});
+    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});all('[data-user-revoke]').forEach(function(b){b.onclick=function(){revokeUserSessions(b.dataset.userRevoke)}});
   }catch(e){$('#usersList').innerHTML='<p style="padding:15px">'+esc(e.message)+'</p>'}
 }
 async function toggleUserStatus(b){
@@ -100,9 +100,13 @@ async function toggleUserStatus(b){
   const note=active?(prompt('Bloklash sababi (ixtiyoriy):','')||''):'';
   try{await api('/users/'+b.dataset.userToggle+'/status',{method:'PATCH',body:JSON.stringify({active:!active,statusNote:note})});toast(active?'Foydalanuvchi bloklandi':'Foydalanuvchi faollashtirildi');loadUsers()}catch(e){toast(e.message)}
 }
+async function revokeUserSessions(id){
+  if(!confirm('Bu foydalanuvchining barcha qurilmalardagi faol sessiyalari bekor qilinsinmi?'))return;
+  try{await api('/users/'+id+'/revoke-sessions',{method:'POST'});toast('Sessiyalar bekor qilindi')}catch(e){toast(e.message)}
+}
 async function resetUserPassword(id){
   if(!confirm('Yangi vaqtinchalik parol yaratiladimi?'))return;
-  try{const x=await api('/users/'+id+'/reset-password',{method:'POST',body:'{}'});alert('Yangi vaqtinchalik parol:\n\n'+x.temporaryPassword+'\n\nKeyingi kirishda parolni almashtirish tavsiya etiladi.')}catch(e){toast(e.message)}
+  try{const x=await api('/users/'+id+'/reset-password',{method:'POST',body:'{}'});alert('Yangi vaqtinchalik parol:\n\n'+x.temporaryPassword+'\n\nKeyingi kirishda foydalanuvchi parolni almashtirishi shart.')}catch(e){toast(e.message)}
 }
 $('#applyUserFilter').onclick=loadUsers;
 $('#userSearch').addEventListener('keydown',function(e){if(e.key==='Enter')loadUsers()});
