@@ -8,7 +8,7 @@ Asos: VM 559-son qarori (joriy tahrir): https://lex.uz/docs/-6221502. Ushbu jadv
 | 8 | OTMga tegishli yoki kamida 5 yil ijara asosidagi O‘zbekistondagi server hujjati; quvvat va Internet sinovi | Server bosqichida |
 | 8–9, 18–19 | Tasdiqlangan o‘quv rejalari va dasturlar, ta’lim tilidagi barcha fanlar kontenti va O‘zDSt 36.2030 ekspertizasi | Metodik komissiya bilan |
 | 10–11 | SCORM moslik sinovlari, to‘liq avtoproktoring shaxs/nigoh/tovush dalillari, inson ko‘rigi, apellyatsiya va maxfiylik | SCORM 1.2 multi-SCO/resume qisman; proktoring qisman. Mustaqil conformance va to‘liq avtoproktoring hali talab etiladi. |
-| 21 | Shaxsan dastlabki ro‘yxat, har semestr yakuniy nazorati, attestatsiya/himoya jarayoni | OTM reglamenti bilan |
+| 21 | Shaxsan dastlabki ro‘yxat, har semestr yakuniy nazorati, attestatsiya/himoya jarayoni | `final-exams.js` texnik reyestr va audit beradi; production qabulida OTM buyrug‘i, joy/xona, nazoratchilar, shaxs hujjati tekshiruvi va real sessiya dalillari bilan verifikatsiya qilinadi |
 | 24 | Barcha dars, amaliyot, mustaqil ish va baholash qaydnomasi LMS orqali | Texnik oqim bor; real fanlar bo‘yicha kontent va to‘liq foydalanish dalili OTM tomonidan tekshiriladi |
 | 26 | Tasdiqlangan o‘qituvchi–talaba yuklamasi, 1:50 nazorati | Dastlabki indikator bor |
 | 29 | Vakolatli davlat tizimlari bilan rasmiy API kelishuvi, sinxronizatsiya va qabul sinovi | Rasmiy kirish kerak |
@@ -26,3 +26,5 @@ Rasmiy “mos” maqomi faqat kod, kontent, infrastruktura va tashkiliy dalillar
 6. Elektron kutubxona qidiruvi, kursga cheklangan resurs ruxsati, fayl/havola ochilish statistikasi, individual reja, transkript/kredit, talaba harakati va yakuniy natija tasdiqlash oqimini real test ma’lumotlari bilan qabul qilish.
 
 7. `EMAIL_WEBHOOK_URL` ishlatilsa real universitet e-pochta provayderi bilan yuborish/qaytish xatolari, timeout va yetkazib berish jurnalini qabul sinovidan o‘tkazish; webhook sozlanmasa ichki inbox/forum mustaqil ishlashi kerak.
+
+7. `final-exams.js` bo‘yicha semestr yakuniy nazorati, davlat attestatsiyasi va himoya sessiyasini test guruhda yaratish; qatnashuv/shaxs hujjati tekshiruvi, natija qaydi va barcha talabalar yozuvi to‘liq bo‘lmaganda sessiya yopilmasligini tekshirish.
