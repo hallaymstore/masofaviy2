@@ -16,11 +16,13 @@ Asos: VM 559-son qarori (joriy tahrir): https://lex.uz/docs/-6221502. Ushbu jadv
 ## Texnik qabul sinovi
 
 1. GitHub Actions `npm install`, `npm run check`, `npm test` va HttpOnly-cookie login smoke testini o‘tkazadi. Server qabulida qo‘shimcha `npm ci`, production `.env` va MongoDB ulanmaganida xizmat ochilmasligini tasdiqlash.
-2. Universitet serverida TLS, ma’lumotlar joylashuvi, zaxira nusxa va **tiklash** sinovi; 2FA, sessiya va audit bo‘yicha xavfsizlik ko‘rigi.
+2. Universitet serverida TLS, ma’lumotlar joylashuvi, zaxira nusxa va **tiklash** sinovi; TOTP 2FA enrollment/login/recovery/admin-reset, password/resetdan keyingi HTTP + Socket.IO + media session revoke va audit bo‘yicha xavfsizlik ko‘rigi.
 3. Kamida 3–4 parallel xona, 60 ishtirokchili ma’ruza, TURN orqali mobil operator/NAT va Android 8 qurilmasida 80 daqiqalik sinov; kechikish, uzilish va media sifati protokoli.
-4. Guruhga cheklangan kirish, noto‘g‘ri rolni bloklash, login, CSRF, media bridge chiptasi, imtihon va baho auditini mustaqil tekshirish.
+4. Guruhga cheklangan kirish, noto‘g‘ri rolni bloklash, login, CSRF, 2FA/recovery, sessionVersion, media bridge chiptasi, forum/xabar recipient cheklovi, imtihon va baho auditini mustaqil tekshirish.
 5. Articulate/Storyline, iSpring, Captivate va boshqa manbalardan SCORM 1.2 paketlarini sinab: nested/multi-SCO ochilishi, progress, status, ball, `suspend_data`, qayta kirish va assetlarni tekshirish. Sequencing va SCORM 2004 alohida qoladi.
 
 Rasmiy “mos” maqomi faqat kod, kontent, infrastruktura va tashkiliy dalillar birgalikda tekshirilgach universitet vakolatli shaxslari tomonidan tasdiqlanadi.
 
 6. Elektron kutubxona qidiruvi, kursga cheklangan resurs ruxsati, fayl/havola ochilish statistikasi, individual reja, transkript/kredit, talaba harakati va yakuniy natija tasdiqlash oqimini real test ma’lumotlari bilan qabul qilish.
+
+7. `EMAIL_WEBHOOK_URL` ishlatilsa real universitet e-pochta provayderi bilan yuborish/qaytish xatolari, timeout va yetkazib berish jurnalini qabul sinovidan o‘tkazish; webhook sozlanmasa ichki inbox/forum mustaqil ishlashi kerak.
