@@ -57,9 +57,21 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
   },{timestamps:true});
   movementSchema.index({studentId:1,effectiveAt:-1});
 
+  const retakeSchema=new mongoose.Schema({
+    studentId:{type:id,ref:'User',required:true,index:true},courseId:{type:id,ref:'Course',required:true,index:true},
+    academicYear:{type:String,required:true,index:true},semester:{type:Number,required:true,min:1,max:12},
+    kind:{type:String,enum:['retake_exam','repeat_course'],required:true,index:true},
+    attemptNo:{type:Number,required:true,min:1,max:10},reason:{type:String,required:true,trim:true,maxlength:2000},
+    assignedAt:{type:Date,default:Date.now},dueAt:Date,
+    status:{type:String,enum:['planned','in_progress','completed','failed','cancelled'],default:'planned',index:true},
+    assignedBy:{type:id,ref:'User',required:true},completedBy:{type:id,ref:'User'},completedAt:Date,outcomeNote:{type:String,trim:true,maxlength:2000}
+  },{timestamps:true});
+  retakeSchema.index({studentId:1,courseId:1,academicYear:1,semester:1,attemptNo:1},{unique:true});
+
   const StudyPlan=mongoose.models.StudyPlan||mongoose.model('StudyPlan',studyPlanSchema);
   const CourseResult=mongoose.models.CourseResult||mongoose.model('CourseResult',courseResultSchema);
   const StudentMovement=mongoose.models.StudentMovement||mongoose.model('StudentMovement',movementSchema);
+  const AcademicRetake=mongoose.models.AcademicRetake||mongoose.model('AcademicRetake',retakeSchema);
   const fail=(res,e)=>res.status(e.status||400).json({message:e.message||'So‘rov bajarilmadi'});
   const checkId=value=>{if(!mongoose.isValidObjectId(value))throw Object.assign(new Error('ID noto‘g‘ri'),{status:400})};
   const admin=req=>['admin','superadmin'].includes(req.user.role);
@@ -126,6 +138,27 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
     try{const course=await courseAccess(req,req.params.courseId,true);res.json(await CourseResult.find({courseId:course._id}).populate('studentId','fullName login groupId').sort({academicYear:-1,semester:-1,createdAt:-1}).limit(1000).lean())}catch(e){fail(res,e)}
   });
 
+  app.get('/api/lms/academic/retakes/:studentId',auth,async(req,res)=>{
+    try{const student=await studentById(req.params.studentId);if(!await canReadStudent(req,student))return res.status(403).json({message:'Ruxsat yo‘q'});res.json(await AcademicRetake.find({studentId:student._id}).populate('courseId','code title credits').populate('assignedBy completedBy','fullName login').sort({createdAt:-1}).lean())}catch(e){fail(res,e)}
+  });
+  app.post('/api/lms/academic/retakes',auth,async(req,res)=>{
+    try{if(!admin(req))return res.status(403).json({message:'Qayta o‘qish/topshirishni administrator belgilaydi'});const student=await studentById(req.body.studentId);checkId(req.body.courseId);const groupId=await resolveUserGroupId(student),course=await Course.findOne({_id:req.body.courseId,groupId,active:true});if(!course)throw new Error('Fan talaba guruhiga tegishli emas');
+      const academicYear=normalizeAcademicYear(req.body.academicYear),sem=semester(req.body.semester),kind=String(req.body.kind||'');if(!['retake_exam','repeat_course'].includes(kind))throw new Error('Qayta o‘qish turi noto‘g‘ri');const reason=String(req.body.reason||'').trim();if(reason.length<5)throw new Error('Qayta o‘qish/topshirish sababini kiriting');
+      const last=await AcademicRetake.findOne({studentId:student._id,courseId:course._id,academicYear,semester:sem}).sort({attemptNo:-1}).lean(),attemptNo=(last?.attemptNo||0)+1;if(attemptNo>10)throw new Error('Qayta urinishlar chegarasi oshdi');
+      const dueAt=req.body.dueAt?new Date(req.body.dueAt):undefined;if(dueAt&&Number.isNaN(dueAt.getTime()))throw new Error('Muddat sanasi noto‘g‘ri');
+      const row=await AcademicRetake.create({studentId:student._id,courseId:course._id,academicYear,semester:sem,kind,attemptNo,reason,dueAt,assignedBy:req.user._id});await StudyPlan.updateOne({studentId:student._id,academicYear,semester:sem,'items.courseId':course._id},{$set:{'items.$.status':'in_progress'}});
+      audit(req,'ACADEMIC_RETAKE_ASSIGN','AcademicRetake',row.id,{studentId:String(student._id),courseId:String(course._id),kind,attemptNo});res.status(201).json(row);
+    }catch(e){fail(res,e)}
+  });
+  app.patch('/api/lms/academic/retakes/:id/status',auth,async(req,res)=>{
+    try{checkId(req.params.id);const row=await AcademicRetake.findById(req.params.id);if(!row)return res.status(404).json({message:'Qayta o‘qish/topshirish yozuvi topilmadi'});const course=await courseAccess(req,row.courseId,true),isAdmin=admin(req),status=String(req.body.status||'');if(!['in_progress','completed','failed','cancelled'].includes(status))throw new Error('Holat noto‘g‘ri');if(['completed','failed','cancelled'].includes(status)&&!isAdmin)return res.status(403).json({message:'Yakuniy holatni administrator tasdiqlaydi'});
+      row.status=status;row.outcomeNote=String(req.body.outcomeNote||'').trim().slice(0,2000);if(['completed','failed','cancelled'].includes(status)){row.completedBy=req.user._id;row.completedAt=new Date()}await row.save();
+      if(status==='completed')await StudyPlan.updateOne({studentId:row.studentId,academicYear:row.academicYear,semester:row.semester,'items.courseId':row.courseId},{$set:{'items.$.status':'completed'}});
+      if(status==='failed')await StudyPlan.updateOne({studentId:row.studentId,academicYear:row.academicYear,semester:row.semester,'items.courseId':row.courseId},{$set:{'items.$.status':'failed'}});
+      audit(req,'ACADEMIC_RETAKE_'+status.toUpperCase(),'AcademicRetake',row.id,{courseId:String(course._id)});res.json(row);
+    }catch(e){fail(res,e)}
+  });
+
   app.post('/api/lms/academic/movements',auth,async(req,res)=>{
     try{if(!admin(req))return res.status(403).json({message:'Faqat administrator yuritadi'});const student=await studentById(req.body.studentId),kind=String(req.body.kind||'');if(!['admission','transfer_in','transfer_out','expulsion','reinstatement','promotion','group_change','graduation'].includes(kind))throw new Error('Harakat turi noto‘g‘ri');
       for(const key of ['fromGroupId','toGroupId'])if(req.body[key])checkId(req.body[key]);const effectiveAt=new Date(req.body.effectiveAt);if(Number.isNaN(effectiveAt.getTime()))throw new Error('Sana noto‘g‘ri');
@@ -137,5 +170,5 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
     try{const student=await studentById(req.params.studentId);if(!await canReadStudent(req,student))return res.status(403).json({message:'Ruxsat yo‘q'});res.json(await StudentMovement.find({studentId:student._id}).populate('fromGroupId toGroupId','name externalId code').populate('createdBy','fullName login').sort({effectiveAt:-1,createdAt:-1}).lean())}catch(e){fail(res,e)}
   });
 
-  return {StudyPlan,CourseResult,StudentMovement};
+  return {StudyPlan,CourseResult,StudentMovement,AcademicRetake};
 }
