@@ -44,7 +44,7 @@ Statistika platformaning asosiy boshqaruv qismi sifatida kengaytirildi:
 
 ## Fanlar va vazifalar
 
-Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi va topshiriq kiritadi, talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi. Bu modul SCORM va avtoproktoring vazifasini bajarmaydi.
+Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi va topshiriq kiritadi, talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Baho tuzatish boshqa administrator tasdig‘i va audit bilan yuritiladi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi. Bu modul SCORM va avtoproktoring vazifasini bajarmaydi.
 
 ## Import formatlari
 
