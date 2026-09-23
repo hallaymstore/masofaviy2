@@ -80,7 +80,7 @@ const permissionsByRole = {
 
 const userSchema = new mongoose.Schema({
   login: { type: String, unique: true, index: true, required: true, lowercase: true, trim: true }, passwordHash: { type: String, required: true },
-  fullName: { type: String, required: true, trim: true }, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
+  fullName: { type: String, required: true, trim: true }, externalId:{type:String,trim:true,index:true,sparse:true}, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
   permissions: [String], deniedPermissions: [String], faculty: String, department: String, group: String,
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' },
   email: { type: String, trim: true }, phone: { type: String, trim: true }, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
@@ -90,6 +90,7 @@ const userSchema = new mongoose.Schema({
   identityVerifiedAt:Date,identityVerifiedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},identityVerificationMode:{type:String,enum:['in_person']},identityDocumentType:{type:String,trim:true,maxlength:80},identityDocumentLast4:{type:String,trim:true,maxlength:4},identityVerificationNote:{type:String,trim:true,maxlength:300},
   lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 }
 }, { timestamps: true });
+userSchema.index({externalId:1},{unique:true,sparse:true});
 const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['faculty','department','group'], required: true }, name: { type: String, required: true }, externalId: { type: String, trim: true, index: true, sparse: true }, code: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, active: { type: Boolean, default: true } }, { timestamps: true });
 structureSchema.index({ type: 1, externalId: 1 }, { unique: true, sparse: true });
 const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam','final_exam'], default: 'lecture' }, recurring: { type: Boolean, default: true }, liveEnabled:{type:Boolean,default:true}, maxParticipants:{type:Number,default:100,min:2,max:500} }, { timestamps: true });
@@ -399,10 +400,11 @@ app.post('/api/structure', auth, can('structure.manage'), async(req,res)=>{ cons
 app.delete('/api/structure/:id', auth, can('structure.manage'), async(req,res)=>{ const children=await Structure.countDocuments({parentId:req.params.id,active:true}); if(children) return res.status(409).json({message:'Avval ichki bo‘lim yoki guruhlarni o‘chiring'}); await Structure.findByIdAndUpdate(req.params.id,{active:false}); audit(req,'ARCHIVE','Structure',req.params.id); res.json({ok:true}); });
 app.get('/api/users', auth, can('users.manage'), async(req,res)=>{if(mongoose.connection.readyState!==1)return res.json([demoAdmin]);const filter={};if(req.query.role)filter.role=req.query.role;if(req.query.active==='true')filter.active=true;if(req.query.active==='false')filter.active=false;if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80));filter.$or=[{fullName:{$regex:q,$options:'i'}},{login:{$regex:q,$options:'i'}},{phone:{$regex:q,$options:'i'}}]}res.json(await User.find(filter).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').sort({active:-1,fullName:1}).limit(3000).lean())});
 app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
-  const login=String(req.body.login||'').toLowerCase().trim(),fullName=String(req.body.fullName||'').trim(),role=String(req.body.role||'').trim();
+  const login=String(req.body.login||'').toLowerCase().trim(),fullName=String(req.body.fullName||'').trim(),externalId=String(req.body.externalId||'').trim()||undefined,role=String(req.body.role||'').trim();
   if(!login||!fullName)return res.status(400).json({message:'F.I.Sh. va login majburiy'});
   if(!canAssignRole(req.user.role,role))return res.status(403).json({message:'Bu rolni yaratish uchun ruxsat yo‘q'});
   if(await User.exists({login}))return res.status(409).json({message:'Bu login allaqachon mavjud'});
+  if(externalId&&await User.exists({externalId}))return res.status(409).json({message:'Bu tashqi ID allaqachon mavjud'});
   const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');
   if(password.length<8)return res.status(400).json({message:'Parol kamida 8 ta belgidan iborat bo‘lsin'});
   const facultyRaw=String(req.body.facultyId||'').trim(),departmentRaw=String(req.body.departmentId||'').trim(),groupRaw=String(req.body.groupId||'').trim();
@@ -416,7 +418,7 @@ app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
   if(department&&faculty&&String(department.parentId||'')!==String(faculty._id))return res.status(400).json({message:'Kafedra tanlangan fakultetga tegishli emas'});
   if(role==='student'&&!group)return res.status(400).json({message:'Talaba uchun guruh majburiy'});
   const courseYear=Number(req.body.courseYear)||undefined,direction=String(req.body.direction||'').trim();
-  const user=await User.create({login,fullName,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),direction,courseYear,facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
+  const user=await User.create({login,fullName,externalId,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),direction,courseYear,facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
   audit(req,'CREATE','User',user.id,{role:user.role});
   res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password});
 });
@@ -440,6 +442,7 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   if(department&&faculty&&String(department.parentId||'')!==String(faculty._id))return res.status(400).json({message:'Kafedra tanlangan fakultetga tegishli emas'});
   if(nextRole==='student'&&!group)return res.status(400).json({message:'Talabaga group_id majburiy'});
   target.fullName=String(req.body.fullName??target.fullName).trim();
+  if(req.body.externalId!==undefined){const externalId=String(req.body.externalId||'').trim()||undefined;if(externalId&&await User.exists({_id:{$ne:target._id},externalId}))return res.status(409).json({message:'Bu tashqi ID boshqa foydalanuvchiga biriktirilgan'});target.externalId=externalId}
   target.email=String(req.body.email??target.email??'').trim();
   target.phone=String(req.body.phone??target.phone??'').trim();
   target.direction=String(req.body.direction??target.direction??'').trim();
@@ -454,11 +457,12 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
 });
 
 app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ try{
-  const rows=await parseFileRows(req.body),dryRun=req.body.dryRun!==false,prepared=[],errors=[],seen=new Set();
+  const rows=await parseFileRows(req.body),dryRun=req.body.dryRun!==false,prepared=[],errors=[],seen=new Set(),seenExternal=new Set();
   for(let i=0;i<rows.length;i++){
     const row=rows[i],n=i+2;
     const fullName=String(pick(row,['full_name','fullname','fio','fish','f_i_sh','ism_familiya'])||'').trim();
     const login=String(pick(row,['login','username','user_login'])||'').toLowerCase().trim();
+    const externalId=String(pick(row,['external_id','tashqi_id','hemis_id','student_id','employee_id'])||'').trim();
     const rv=normKey(pick(row,['role','rol']));
     const role=({talaba:'student',student:'student',oqituvchi:'teacher',teacher:'teacher',tyutor:'tutor',tutor:'tutor',kafedra:'department',department:'department',dekan:'dean',dean:'dean',rektorat:'rectorate',rectorate:'rectorate',texnik:'tech',tech:'tech',admin:'admin',superadmin:'superadmin'})[rv]||rv;
     const password=String(pick(row,['password','parol'])||'').trim()||crypto.randomBytes(5).toString('hex');
@@ -471,6 +475,7 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     if(!canAssignRole(req.user.role,role)){errors.push({row:n,message:'Bu rolni yaratish uchun ruxsat yo‘q: '+role});continue}
     if(seen.has(login)||await User.exists({login})){errors.push({row:n,message:'login takrorlangan yoki tizimda mavjud: '+login});continue}
     seen.add(login);
+    if(externalId){if(seenExternal.has(externalId)||await User.exists({externalId})){errors.push({row:n,message:'external_id takrorlangan yoki tizimda mavjud: '+externalId});continue}seenExternal.add(externalId)}
     let [faculty,department,group]=await Promise.all([
       facultyRaw?resolveStructure(facultyRaw,'faculty'):null,
       departmentRaw?resolveStructure(departmentRaw,'department'):null,
@@ -484,13 +489,13 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     if(group&&department&&String(group.parentId||'')!==String(department._id)){errors.push({row:n,message:'group_id tanlangan department_id tarkibiga kirmaydi'});continue}
     if(department&&faculty&&String(department.parentId||'')!==String(faculty._id)){errors.push({row:n,message:'department_id tanlangan faculty_id tarkibiga kirmaydi'});continue}
     if(role==='student'&&!group){errors.push({row:n,message:'Talaba uchun group_id majburiy'});continue}
-    prepared.push({row:n,fullName,login,role,password,email:String(pick(row,['email','e_mail'])||'').trim(),phone:String(pick(row,['phone','telefon','tel'])||'').trim(),direction:String(pick(row,['direction','yonalish','yo_nalish'])||'').trim(),courseYear:Number(pick(row,['course_year','kurs','course'])||0)||undefined,faculty,department,group});
+    prepared.push({row:n,fullName,login,externalId,role,password,email:String(pick(row,['email','e_mail'])||'').trim(),phone:String(pick(row,['phone','telefon','tel'])||'').trim(),direction:String(pick(row,['direction','yonalish','yo_nalish'])||'').trim(),courseYear:Number(pick(row,['course_year','kurs','course'])||0)||undefined,faculty,department,group});
   }
-  if(dryRun)return res.json({dryRun:true,total:rows.length,valid:prepared.length,invalid:errors.length,errors:errors.slice(0,100),preview:prepared.slice(0,20).map(x=>({row:x.row,fullName:x.fullName,login:x.login,role:x.role,faculty_id:x.faculty?.externalId||x.faculty?.code||'',department_id:x.department?.externalId||x.department?.code||'',group_id:x.group?.externalId||x.group?.code||''}))});
+  if(dryRun)return res.json({dryRun:true,total:rows.length,valid:prepared.length,invalid:errors.length,errors:errors.slice(0,100),preview:prepared.slice(0,20).map(x=>({row:x.row,fullName:x.fullName,login:x.login,external_id:x.externalId||'',role:x.role,faculty_id:x.faculty?.externalId||x.faculty?.code||'',department_id:x.department?.externalId||x.department?.code||'',group_id:x.group?.externalId||x.group?.code||''}))});
   const credentials=[],docs=[];
   for(let i=0;i<prepared.length;i+=24){
     const batch=prepared.slice(i,i+24),hashed=await Promise.all(batch.map(p=>bcrypt.hash(p.password,11)));
-    batch.forEach((p,j)=>{docs.push({fullName:p.fullName,login:p.login,role:p.role,passwordHash:hashed[j],email:p.email,phone:p.phone,direction:p.direction,courseYear:p.courseYear,facultyId:p.faculty?._id,faculty:p.faculty?(p.faculty.externalId||p.faculty.code||p.faculty.name):'',departmentId:p.department?._id,department:p.department?(p.department.externalId||p.department.code||p.department.name):'',groupId:p.group?._id,group:p.group?(p.group.externalId||p.group.code||p.group.name):'',mustChangePassword:true});credentials.push({fullName:p.fullName,login:p.login,role:p.role,password:p.password,group_id:p.group?.externalId||p.group?.code||''})});
+    batch.forEach((p,j)=>{docs.push({fullName:p.fullName,login:p.login,externalId:p.externalId||undefined,role:p.role,passwordHash:hashed[j],email:p.email,phone:p.phone,direction:p.direction,courseYear:p.courseYear,facultyId:p.faculty?._id,faculty:p.faculty?(p.faculty.externalId||p.faculty.code||p.faculty.name):'',departmentId:p.department?._id,department:p.department?(p.department.externalId||p.department.code||p.department.name):'',groupId:p.group?._id,group:p.group?(p.group.externalId||p.group.code||p.group.name):'',mustChangePassword:true});credentials.push({fullName:p.fullName,login:p.login,role:p.role,password:p.password,group_id:p.group?.externalId||p.group?.code||''})});
   }
   if(docs.length)await User.insertMany(docs,{ordered:false});
   audit(req,'BULK_IMPORT','User','bulk',{created:credentials.length,errors:errors.length});
