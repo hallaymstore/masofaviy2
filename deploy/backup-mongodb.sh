@@ -30,6 +30,11 @@ if [[ -n "${BACKUP_GPG_RECIPIENT:-}" ]]; then
   rm -f "$OUT" "$OUT.sha256"
   echo "Shifrlangan backup: $OUT.gpg"
 else
+  if [[ "${NODE_ENV:-}" == "production" || "${REQUIRE_ENCRYPTED_BACKUPS:-false}" == "true" ]]; then
+    rm -f "$OUT" "$OUT.sha256"
+    echo "ERROR: production backup uchun BACKUP_GPG_RECIPIENT majburiy." >&2
+    exit 1
+  fi
   echo "OGOHLANTIRISH: BACKUP_GPG_RECIPIENT berilmagan; backup faqat filesystem ruxsatlari bilan himoyalangan."
 fi
 
