@@ -98,6 +98,10 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
     }catch(e){fail(res,e)}
   });
 
+  app.get('/api/lms/academic/course/:courseId/students',auth,async(req,res)=>{
+    try{const course=await courseAccess(req,req.params.courseId,true);const students=await User.find({role:'student',active:true,groupId:course.groupId}).select('_id fullName login groupId').sort({fullName:1}).lean();res.json({course:{id:course._id,code:course.code,title:course.title,credits:course.credits},students})}catch(e){fail(res,e)}
+  });
+
   app.get('/api/lms/academic/transcript/:studentId',auth,async(req,res)=>{
     try{const student=await studentById(req.params.studentId);if(!await canReadStudent(req,student))return res.status(403).json({message:'Ruxsat yo‘q'});
       const rows=await CourseResult.find({studentId:student._id,status:'final'}).populate('courseId','code title credits language').populate('finalizedBy','fullName login').sort({academicYear:1,semester:1,createdAt:1}).lean();
