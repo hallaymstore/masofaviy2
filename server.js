@@ -28,6 +28,7 @@ const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'po
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
 const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || JWT_SECRET;
+const REQUIRE_IN_PERSON_IDENTITY = String(process.env.REQUIRE_IN_PERSON_IDENTITY||'false').toLowerCase()==='true';
 const sessionCookie='m2_session',csrfCookie='m2_csrf';
 const readCookie=(header,name)=>String(header||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
 const csrfFor=token=>crypto.createHmac('sha256',JWT_SECRET).update(token).digest('hex');
@@ -63,6 +64,7 @@ const userSchema = new mongoose.Schema({
   active: { type: Boolean, default: true }, mustChangePassword: { type: Boolean, default: true },
   sessionVersion:{type:Number,default:0,min:0},
   totpEnabled:{type:Boolean,default:false},totpSecretEncrypted:{type:String,select:false},totpPendingSecretEncrypted:{type:String,select:false},totpRecoveryHashes:{type:[String],select:false,default:[]},
+  identityVerifiedAt:Date,identityVerifiedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},identityVerificationMode:{type:String,enum:['in_person']},identityDocumentType:{type:String,trim:true,maxlength:80},identityDocumentLast4:{type:String,trim:true,maxlength:4},identityVerificationNote:{type:String,trim:true,maxlength:300},
   lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 }
 }, { timestamps: true });
 const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['faculty','department','group'], required: true }, name: { type: String, required: true }, externalId: { type: String, trim: true, index: true, sparse: true }, code: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, active: { type: Boolean, default: true } }, { timestamps: true });
@@ -241,6 +243,7 @@ app.post('/api/auth/login', async (req,res) => {
     noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
+  if(REQUIRE_IN_PERSON_IDENTITY&&['student','teacher'].includes(user.role)&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
   if(user.totpEnabled){
     const otp=String(req.body.otp||'').trim();
     if(!otp)return res.status(202).json({twoFactorRequired:true,message:'Authenticator kodi yoki recovery kodini kiriting'});
@@ -477,6 +480,18 @@ app.post('/api/users/:id/reset-password', auth, can('users.control'), async(req,
 app.post('/api/users/:id/revoke-sessions',auth,can('users.control'),async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt sessiyalarini bekor qilish uchun ruxsat yo‘q'});target.sessionVersion=(target.sessionVersion||0)+1;await target.save();disconnectUserSockets(target._id);audit(req,'ADMIN_SESSIONS_REVOKE','User',target.id);res.json({ok:true})});
 
 app.post('/api/users/:id/reset-2fa',auth,can('users.control'),async(req,res)=>{const target=await User.findById(req.params.id).select('+totpSecretEncrypted +totpPendingSecretEncrypted +totpRecoveryHashes');if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt 2FA sozlamasini tiklash uchun ruxsat yo‘q'});target.totpEnabled=false;target.totpSecretEncrypted=undefined;target.totpPendingSecretEncrypted=undefined;target.totpRecoveryHashes=[];target.sessionVersion=(target.sessionVersion||0)+1;await target.save();disconnectUserSockets(target._id);audit(req,'ADMIN_TWO_FACTOR_RESET','User',target.id,{sessionsRevoked:true});res.json({ok:true})});
+
+app.post('/api/users/:id/identity-verification',auth,can('users.control'),async(req,res)=>{
+  const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt shaxsini tasdiqlash uchun ruxsat yo‘q'});
+  const documentType=String(req.body.documentType||'').trim().slice(0,80),last4=String(req.body.documentLast4||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(-4),note=String(req.body.note||'').trim().slice(0,300);
+  if(documentType.length<2||last4.length<2)return res.status(400).json({message:'Hujjat turi va hujjatning oxirgi 2–4 belgisini kiriting'});
+  target.identityVerifiedAt=new Date();target.identityVerifiedBy=req.user._id;target.identityVerificationMode='in_person';target.identityDocumentType=documentType;target.identityDocumentLast4=last4;target.identityVerificationNote=note;await target.save();
+  audit(req,'IDENTITY_VERIFY_IN_PERSON','User',target.id,{documentType,documentLast4:last4});res.json({ok:true,identityVerifiedAt:target.identityVerifiedAt});
+});
+app.delete('/api/users/:id/identity-verification',auth,can('users.control'),async(req,res)=>{
+  const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt shaxs tasdig‘ini bekor qilish uchun ruxsat yo‘q'});
+  target.identityVerifiedAt=undefined;target.identityVerifiedBy=undefined;target.identityVerificationMode=undefined;target.identityDocumentType=undefined;target.identityDocumentLast4=undefined;target.identityVerificationNote=undefined;target.sessionVersion=(target.sessionVersion||0)+1;await target.save();disconnectUserSockets(target._id);audit(req,'IDENTITY_VERIFICATION_REVOKE','User',target.id,{sessionsRevoked:true});res.json({ok:true});
+});
 
 app.patch('/api/users/:id/permissions', auth, can('permissions.manage'), async(req,res)=>{
   const target=await User.findById(req.params.id);
