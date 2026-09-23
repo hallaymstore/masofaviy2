@@ -83,7 +83,7 @@ const userSchema = new mongoose.Schema({
   fullName: { type: String, required: true, trim: true }, externalId:{type:String,trim:true,index:true,sparse:true}, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
   permissions: [String], deniedPermissions: [String], faculty: String, department: String, group: String,
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' },
-  email: { type: String, trim: true }, phone: { type: String, trim: true }, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
+  email: { type: String, trim: true }, phone: { type: String, trim: true }, citizenshipCountry:{type:String,trim:true,uppercase:true,default:'UZ',maxlength:2}, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
   active: { type: Boolean, default: true }, mustChangePassword: { type: Boolean, default: true },
   sessionVersion:{type:Number,default:0,min:0},
   totpEnabled:{type:Boolean,default:false},totpSecretEncrypted:{type:String,select:false},totpPendingSecretEncrypted:{type:String,select:false},totpRecoveryHashes:{type:[String],select:false,default:[]},
@@ -267,7 +267,7 @@ app.post('/api/auth/login', async (req,res) => {
     noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
-  if(REQUIRE_IN_PERSON_IDENTITY&&IN_PERSON_IDENTITY_ROLES.has(user.role)&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
+  if(REQUIRE_IN_PERSON_IDENTITY&&IN_PERSON_IDENTITY_ROLES.has(user.role)&&String(user.citizenshipCountry||'UZ').toUpperCase()==='UZ'&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
   if(user.totpEnabled){
     const otp=String(req.body.otp||'').trim();
     if(!otp)return res.status(202).json({twoFactorRequired:true,message:'Authenticator kodi yoki recovery kodini kiriting'});
@@ -401,6 +401,7 @@ app.delete('/api/structure/:id', auth, can('structure.manage'), async(req,res)=>
 app.get('/api/users', auth, can('users.manage'), async(req,res)=>{if(mongoose.connection.readyState!==1)return res.json([demoAdmin]);const filter={};if(req.query.role)filter.role=req.query.role;if(req.query.active==='true')filter.active=true;if(req.query.active==='false')filter.active=false;if(req.query.q){const q=escapeRegex(String(req.query.q).slice(0,80));filter.$or=[{fullName:{$regex:q,$options:'i'}},{login:{$regex:q,$options:'i'}},{phone:{$regex:q,$options:'i'}}]}res.json(await User.find(filter).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').sort({active:-1,fullName:1}).limit(3000).lean())});
 app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
   const login=String(req.body.login||'').toLowerCase().trim(),fullName=String(req.body.fullName||'').trim(),externalId=String(req.body.externalId||'').trim()||undefined,role=String(req.body.role||'').trim();
+  const citizenshipCountry=String(req.body.citizenshipCountry||'UZ').trim().toUpperCase();if(!/^[A-Z]{2}$/.test(citizenshipCountry))return res.status(400).json({message:'Fuqarolik davlat kodi ISO-2 ko‘rinishida bo‘lsin, masalan UZ'});
   if(!login||!fullName)return res.status(400).json({message:'F.I.Sh. va login majburiy'});
   if(!canAssignRole(req.user.role,role))return res.status(403).json({message:'Bu rolni yaratish uchun ruxsat yo‘q'});
   if(await User.exists({login}))return res.status(409).json({message:'Bu login allaqachon mavjud'});
@@ -418,7 +419,7 @@ app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
   if(department&&faculty&&String(department.parentId||'')!==String(faculty._id))return res.status(400).json({message:'Kafedra tanlangan fakultetga tegishli emas'});
   if(role==='student'&&!group)return res.status(400).json({message:'Talaba uchun guruh majburiy'});
   const courseYear=Number(req.body.courseYear)||undefined,direction=String(req.body.direction||'').trim();
-  const user=await User.create({login,fullName,externalId,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),direction,courseYear,facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
+  const user=await User.create({login,fullName,externalId,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),citizenshipCountry,direction,courseYear,facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
   audit(req,'CREATE','User',user.id,{role:user.role});
   res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password});
 });
@@ -445,6 +446,7 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   if(req.body.externalId!==undefined){const externalId=String(req.body.externalId||'').trim()||undefined;if(externalId&&await User.exists({_id:{$ne:target._id},externalId}))return res.status(409).json({message:'Bu tashqi ID boshqa foydalanuvchiga biriktirilgan'});target.externalId=externalId}
   target.email=String(req.body.email??target.email??'').trim();
   target.phone=String(req.body.phone??target.phone??'').trim();
+  if(req.body.citizenshipCountry!==undefined){const cc=String(req.body.citizenshipCountry||'').trim().toUpperCase();if(!/^[A-Z]{2}$/.test(cc))return res.status(400).json({message:'Fuqarolik kodi ISO-2 ko‘rinishida bo‘lsin'});target.citizenshipCountry=cc}
   target.direction=String(req.body.direction??target.direction??'').trim();
   if(req.body.courseYear!==undefined){const cy=Number(req.body.courseYear);target.courseYear=cy>=1&&cy<=6?cy:undefined}
   target.role=nextRole;
@@ -463,6 +465,7 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     const fullName=String(pick(row,['full_name','fullname','fio','fish','f_i_sh','ism_familiya'])||'').trim();
     const login=String(pick(row,['login','username','user_login'])||'').toLowerCase().trim();
     const externalId=String(pick(row,['external_id','tashqi_id','hemis_id','student_id','employee_id'])||'').trim();
+    const citizenshipCountry=String(pick(row,['citizenship_country','citizenship','fuqarolik','country_code'])||'UZ').trim().toUpperCase();
     const rv=normKey(pick(row,['role','rol']));
     const role=({talaba:'student',student:'student',oqituvchi:'teacher',teacher:'teacher',tyutor:'tutor',tutor:'tutor',kafedra:'department',department:'department',dekan:'dean',dean:'dean',rektorat:'rectorate',rectorate:'rectorate',texnik:'tech',tech:'tech',admin:'admin',superadmin:'superadmin'})[rv]||rv;
     const password=String(pick(row,['password','parol'])||'').trim()||crypto.randomBytes(5).toString('hex');
@@ -470,6 +473,7 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     const departmentRaw=String(pick(row,['department_id','kafedra_id','departmentid'])||'').trim();
     const groupRaw=String(pick(row,['group_id','guruh_id','groupid'])||'').trim();
     if(!fullName){errors.push({row:n,message:'F.I.Sh. bo‘sh'});continue}
+    if(!/^[A-Z]{2}$/.test(citizenshipCountry)){errors.push({row:n,message:'citizenship_country ISO-2 noto‘g‘ri: '+citizenshipCountry});continue}
     if(!login){errors.push({row:n,message:'login bo‘sh'});continue}
     if(!permissionsByRole[role]){errors.push({row:n,message:'rol noto‘g‘ri: '+(role||'-')});continue} 
     if(!canAssignRole(req.user.role,role)){errors.push({row:n,message:'Bu rolni yaratish uchun ruxsat yo‘q: '+role});continue}
@@ -489,13 +493,13 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
     if(group&&department&&String(group.parentId||'')!==String(department._id)){errors.push({row:n,message:'group_id tanlangan department_id tarkibiga kirmaydi'});continue}
     if(department&&faculty&&String(department.parentId||'')!==String(faculty._id)){errors.push({row:n,message:'department_id tanlangan faculty_id tarkibiga kirmaydi'});continue}
     if(role==='student'&&!group){errors.push({row:n,message:'Talaba uchun group_id majburiy'});continue}
-    prepared.push({row:n,fullName,login,externalId,role,password,email:String(pick(row,['email','e_mail'])||'').trim(),phone:String(pick(row,['phone','telefon','tel'])||'').trim(),direction:String(pick(row,['direction','yonalish','yo_nalish'])||'').trim(),courseYear:Number(pick(row,['course_year','kurs','course'])||0)||undefined,faculty,department,group});
+    prepared.push({row:n,fullName,login,externalId,citizenshipCountry,role,password,email:String(pick(row,['email','e_mail'])||'').trim(),phone:String(pick(row,['phone','telefon','tel'])||'').trim(),direction:String(pick(row,['direction','yonalish','yo_nalish'])||'').trim(),courseYear:Number(pick(row,['course_year','kurs','course'])||0)||undefined,faculty,department,group});
   }
   if(dryRun)return res.json({dryRun:true,total:rows.length,valid:prepared.length,invalid:errors.length,errors:errors.slice(0,100),preview:prepared.slice(0,20).map(x=>({row:x.row,fullName:x.fullName,login:x.login,external_id:x.externalId||'',role:x.role,faculty_id:x.faculty?.externalId||x.faculty?.code||'',department_id:x.department?.externalId||x.department?.code||'',group_id:x.group?.externalId||x.group?.code||''}))});
   const credentials=[],docs=[];
   for(let i=0;i<prepared.length;i+=24){
     const batch=prepared.slice(i,i+24),hashed=await Promise.all(batch.map(p=>bcrypt.hash(p.password,11)));
-    batch.forEach((p,j)=>{docs.push({fullName:p.fullName,login:p.login,externalId:p.externalId||undefined,role:p.role,passwordHash:hashed[j],email:p.email,phone:p.phone,direction:p.direction,courseYear:p.courseYear,facultyId:p.faculty?._id,faculty:p.faculty?(p.faculty.externalId||p.faculty.code||p.faculty.name):'',departmentId:p.department?._id,department:p.department?(p.department.externalId||p.department.code||p.department.name):'',groupId:p.group?._id,group:p.group?(p.group.externalId||p.group.code||p.group.name):'',mustChangePassword:true});credentials.push({fullName:p.fullName,login:p.login,role:p.role,password:p.password,group_id:p.group?.externalId||p.group?.code||''})});
+    batch.forEach((p,j)=>{docs.push({fullName:p.fullName,login:p.login,externalId:p.externalId||undefined,citizenshipCountry:p.citizenshipCountry,role:p.role,passwordHash:hashed[j],email:p.email,phone:p.phone,direction:p.direction,courseYear:p.courseYear,facultyId:p.faculty?._id,faculty:p.faculty?(p.faculty.externalId||p.faculty.code||p.faculty.name):'',departmentId:p.department?._id,department:p.department?(p.department.externalId||p.department.code||p.department.name):'',groupId:p.group?._id,group:p.group?(p.group.externalId||p.group.code||p.group.name):'',mustChangePassword:true});credentials.push({fullName:p.fullName,login:p.login,role:p.role,password:p.password,group_id:p.group?.externalId||p.group?.code||''})});
   }
   if(docs.length)await User.insertMany(docs,{ordered:false});
   audit(req,'BULK_IMPORT','User','bulk',{created:credentials.length,errors:errors.length});
