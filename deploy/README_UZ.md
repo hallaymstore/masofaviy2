@@ -146,7 +146,26 @@ Keyin real tarmoqlarda:
 
 CPU, RAM, packet loss, reconnect, audio/video sifati va participant peak protokolga yoziladi.
 
-## 8. Yangilash
+## 8. Backup va tiklash
+
+MongoDB ichida GridFS fayllari ham saqlangani uchun bitta `mongodump` arxivi baza + yuklangan resurslarni qamrab oladi.
+
+Backup:
+
+    sudo apt install -y mongodb-database-tools
+    sudo APP_DIR=/home/hallaym/masofaviy BACKUP_DIR=/var/backups/masofaviy2 bash deploy/backup-mongodb.sh
+
+Ixtiyoriy GPG shifrlash:
+
+    sudo BACKUP_GPG_RECIPIENT=backup@example.uz APP_DIR=/home/hallaym/masofaviy bash deploy/backup-mongodb.sh
+
+Tiklash faqat aniq tasdiq bilan ishlaydi:
+
+    sudo BACKUP_FILE=/var/backups/masofaviy2/masofaviy2-YYYYMMDDTHHMMSSZ.archive.gz CONFIRM_RESTORE=YES APP_DIR=/home/hallaym/masofaviy bash deploy/restore-mongodb.sh
+
+Tiklashdan keyin skript LMS va SFU’ni qayta ishga tushirib health-check bajaradi. Production qabulida kamida bitta **backup → restore → verify** mashqi protokolga yozilsin.
+
+## 9. Yangilash
 
 Keyingi GitHub yangilanishlari:
 
