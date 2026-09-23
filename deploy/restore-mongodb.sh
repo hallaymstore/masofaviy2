@@ -22,6 +22,21 @@ cleanup(){ [[ -n "$TMP" ]] && rm -f "$TMP"; }
 trap cleanup EXIT
 
 SOURCE="$BACKUP_FILE"
+
+CHECKSUM_FILE="$BACKUP_FILE.sha256"
+if [[ -f "$CHECKSUM_FILE" ]]; then
+  echo "Backup SHA-256 tekshirilmoqda..."
+  (cd "$(dirname "$BACKUP_FILE")" && sha256sum -c "$(basename "$CHECKSUM_FILE")")
+else
+  echo "ERROR: checksum fayli topilmadi: $CHECKSUM_FILE" >&2
+  exit 1
+fi
+
+if [[ "${SKIP_SAFETY_BACKUP:-false}" != "true" ]]; then
+  echo "Joriy bazadan safety backup olinmoqda..."
+  APP_DIR="$APP_DIR" BACKUP_DIR="${PRE_RESTORE_BACKUP_DIR:-/var/backups/masofaviy2/pre-restore}" RETENTION_DAYS="${PRE_RESTORE_RETENTION_DAYS:-30}" bash "$APP_DIR/deploy/backup-mongodb.sh"
+fi
+
 if [[ "$BACKUP_FILE" == *.gpg ]]; then
   command -v gpg >/dev/null || { echo "gpg topilmadi." >&2; exit 1; }
   TMP="$(mktemp /tmp/masofaviy2-restore.XXXXXX.archive.gz)"
