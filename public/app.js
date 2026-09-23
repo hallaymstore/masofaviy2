@@ -346,7 +346,7 @@ function renderWatchPlayer(v){
   }else if(v.sourceType==='mp4'){
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
   }else{
-    player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>';
+    player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture" allowfullscreen></iframe>';
   }
 }
 async function openVideoLesson(id,pushHistory=true){
