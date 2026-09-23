@@ -6,7 +6,8 @@ import * as mediasoup from 'mediasoup';
 import { WebSocketServer } from 'ws';
 
 const SIGNAL_PORT=Number(process.env.SIGNAL_PORT||40000);
-const LISTEN_IP=process.env.LISTEN_IP||'0.0.0.0';
+const SIGNAL_IP=process.env.SIGNAL_IP||'127.0.0.1';
+const RTC_LISTEN_IP=process.env.RTC_LISTEN_IP||process.env.LISTEN_IP||'0.0.0.0';
 const ANNOUNCED_IP=process.env.ANNOUNCED_IP||'127.0.0.1';
 const RTC_BASE_PORT=Number(process.env.RTC_BASE_PORT||50000);
 const WORKERS=Math.max(1,Math.min(Number(process.env.MEDIASOUP_WORKERS||Math.max(1,Math.min(os.cpus().length,8))),32));
@@ -169,8 +170,8 @@ async function boot(){
   for(let i=0;i<WORKERS;i++){
     const worker=await mediasoup.createWorker({logLevel:process.env.MEDIASOUP_LOG_LEVEL||'warn',logTags:['ice','dtls','rtp','srtp','rtcp']});
     worker.on('died',err=>{console.error('mediasoup worker died',i,err);setTimeout(()=>process.exit(1),2000)});
-    const port=RTC_BASE_PORT+i,listenInfos=[{protocol:'udp',ip:LISTEN_IP,announcedAddress:ANNOUNCED_IP,port,recvBufferSize:4*1024*1024,sendBufferSize:4*1024*1024}];
-    if(ENABLE_RTC_TCP)listenInfos.push({protocol:'tcp',ip:LISTEN_IP,announcedAddress:ANNOUNCED_IP,port});
+    const port=RTC_BASE_PORT+i,listenInfos=[{protocol:'udp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port,recvBufferSize:4*1024*1024,sendBufferSize:4*1024*1024}];
+    if(ENABLE_RTC_TCP)listenInfos.push({protocol:'tcp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port});
     const webRtcServer=await worker.createWebRtcServer({listenInfos});
     workers.push({worker,webRtcServer,port,rooms:0});
     console.log('worker',i,'RTC',port,ENABLE_RTC_TCP?'UDP/TCP':'UDP');
@@ -195,7 +196,7 @@ async function boot(){
     ws.on('error',()=>{});
   });
   const ping=setInterval(()=>{for(const ws of wss.clients){if(!ws.isAlive){try{ws.terminate()}catch{};continue}ws.isAlive=false;try{ws.ping()}catch{}}},20000);ping.unref?.();
-  server.listen(SIGNAL_PORT,LISTEN_IP,()=>console.log(`Masofaviy2 mediasoup SFU signaling :${SIGNAL_PORT}, announced ${ANNOUNCED_IP}, workers ${WORKERS}`));
+  server.listen(SIGNAL_PORT,SIGNAL_IP,()=>console.log(`Masofaviy2 mediasoup SFU signaling ${SIGNAL_IP}:${SIGNAL_PORT}, RTC ${RTC_LISTEN_IP} -> ${ANNOUNCED_IP}, workers ${WORKERS}`));
 }
 boot().catch(err=>{console.error(err);process.exit(1)});
 process.on('SIGTERM',async()=>{for(const id of [...peers.keys()])await closePeer(id,false);for(const w of workers)try{w.worker.close()}catch{}process.exit(0)});
