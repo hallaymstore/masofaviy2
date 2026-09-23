@@ -23,6 +23,8 @@ jobs:
         run: npm run check
       - name: Unit tests
         run: npm test
+      - name: Deployment script syntax
+        run: bash -n deploy/*.sh
       - name: Smoke boot
         run: |
           PORT=3999 JWT_SECRET=ci-secret-at-least-32-characters-long ADMIN_LOGIN=admin ADMIN_PASSWORD=TestAdmin123! npm start > /tmp/masofaviy2.log 2>&1 &
