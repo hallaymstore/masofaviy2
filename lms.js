@@ -31,6 +31,21 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
     else if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
     res.json(await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId').sort({title:1}).lean());
   }));
+  app.get('/api/lms/compliance',auth,wrap(async(req,res)=>{
+    if(!['admin','superadmin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+    const [courses,groups,students,resources,assignments,quizzes]=await Promise.all([
+      Course.find({active:true}).populate('teacherId','fullName login').populate('groupId','name externalId').lean(),
+      Structure.find({type:'group',active:true}).select('name externalId').lean(),
+      User.find({role:'student',active:true,groupId:{$exists:true}}).select('_id groupId').lean(),
+      Resource.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
+      Assignment.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
+      Quiz.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}])
+    ]);
+    const counts=rows=>new Map(rows.map(r=>[String(r._id),r.count]));const rc=counts(resources),ac=counts(assignments),qc=counts(quizzes);
+    const enrolled=new Map();for(const student of students){const key=String(student.groupId);if(!enrolled.has(key))enrolled.set(key,new Set());enrolled.get(key).add(String(student._id))}
+    const teaching=new Map();for(const course of courses){const teacher=String(course.teacherId?._id||course.teacherId);if(!teaching.has(teacher))teaching.set(teacher,{teacher:course.teacherId,students:new Set(),courseCount:0});const item=teaching.get(teacher);item.courseCount++;for(const student of enrolled.get(String(course.groupId?._id||course.groupId))||[])item.students.add(student)}
+    res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50}))});
+  }));
   app.post('/api/lms/courses',auth,wrap(async(req,res)=>{
     if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
     const {code,title,language,teacherId,groupId,credits,syllabusUrl}=req.body;

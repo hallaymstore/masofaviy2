@@ -11,7 +11,7 @@ Holat: kod ko‘rigi, 2026-09-23. Bu hujjat rasmiy huquqiy xulosa emas. Manba: h
 | 18–19 | Til, yo‘nalish, tasdiqlangan reja va dasturga mos kontent | Fan tili va dastur havolasi | Tasdiqlangan o‘quv rejalari va kontent tekshiruvi kerak. |
 | 21 | Shaxsan dastlabki ro‘yxat, semestr yakuniy nazorati, attestatsiya va himoya | Onlayn login va test | OTM tashkiliy jarayoni hamda offlayn yakuniy nazorat qaydlari zarur; onlayn test buni almashtirmaydi. |
 | 24 | Barcha mashg‘ulot, amaliyot, mustaqil ish va baholash LMSda | Jadval, jonli dars, topshiriq, test | Amaliyot, mustaqil ish, to‘liq baholash va nazorat jarayonlari yetishmaydi. |
-| 26 | Bir o‘qituvchiga 1:50 | `maxParticipants` xona cheklovi | Akademik yuklama bo‘yicha avtomatik yoki tashkiliy nazorat kerak; xona sig‘imi boshqa ko‘rsatkich. |
+| 26 | Bir o‘qituvchiga 1:50 | `/api/lms/compliance` faol fanlar bo‘yicha o‘qituvchiga biriktirilgan noyob talabalarni sanab 50 dan oshganini belgilaydi | Bu dastlabki signal, avtomatik huquqiy xulosa emas: semestr, fan va OTMning tasdiqlangan yuklama ro‘yxati bilan solishtirish kerak. Xona sig‘imi boshqa ko‘rsatkich. |
 | 29 | Davlatning ikki monitoring tizimiga integratsiya | Mavjud emas | Rasmiy API kelishuvi, maydonlar xaritasi, sinxronizatsiya va qabul protokoli zarur. |
 
 ## Ishga tushirishdan avvalgi texnik chegaralar

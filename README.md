@@ -50,6 +50,8 @@ SCORM 1.2 uchun dastlabki paket importi va runtime qo‘shildi: ZIP manifesti te
 
 Test uchun ixtiyoriy imtihon signalini qayd etish mavjud: talaba oldindan xabardor bo‘lib davom etsa, brauzer oynasidan chiqish, kamera ruxsati va `FaceDetector` mavjud bo‘lgan brauzerda yuzlar soni serverda vaqt belgisi bilan qayd etiladi. Tasvir va tovush saqlanmaydi. O‘qituvchi signalni ko‘rib chiqadi; signal avtomatik intizomiy qaror emas. Talaba shaxsini biometrik solishtirish, nigoh va xonadagi tovush tahlili mavjud emas, shuning uchun bu to‘liq avtoproktoring emas.
 
+Admin uchun **Tayyorlik** hisobotida fansiz guruhlar, fanda dastur/material/topshiriq/test borligi va o‘qituvchiga biriktirilgan noyob talabalar soni ko‘rinadi. 50 dan yuqori son tekshiruv signalidir; tasdiqlangan akademik yuklama bilan alohida solishtiriladi.
+
 ## Import formatlari
 
 Foydalanuvchi importi (.xlsx yoki .csv):
