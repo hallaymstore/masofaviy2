@@ -81,17 +81,17 @@ async function loadUsers(){
   if(!can('users.manage'))return;
   try{
     const qs=buildUserQuery(),rows=await api('/users'+(qs?'?'+qs:''));
-    $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>2FA</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
+    $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>2FA</th><th>Shaxs</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
       let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button><button class="ghost" data-user-edit="'+esc(x._id)+'">Tahrir</button>';
       if(can('permissions.manage'))actions+='<button class="ghost" data-user-permissions="'+esc(x._id)+'">Huquqlar</button>';
-      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>'+(x.totpEnabled?'<button class="ghost" data-user-reset-2fa="'+esc(x._id)+'">2FA reset</button>':'');
-      return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td>'+(x.totpEnabled?'Yoqilgan':'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
+      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>'+(x.totpEnabled?'<button class="ghost" data-user-reset-2fa="'+esc(x._id)+'">2FA reset</button>':'')+(x.identityVerifiedAt?'<button class="ghost" data-user-unverify="'+esc(x._id)+'">Shaxs tasdig‘ini bekor</button>':'<button class="ghost" data-user-verify="'+esc(x._id)+'">Shaxsni tasdiqlash</button>');
+      return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td>'+(x.totpEnabled?'Yoqilgan':'—')+'</td><td>'+(x.identityVerifiedAt?'Tasdiqlangan':'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
     }).join('')+'</tbody></table>';
     all('[data-user-profile]').forEach(function(b){b.onclick=function(){openUserProfile(b.dataset.userProfile)}});
     all('[data-user-edit]').forEach(function(b){b.onclick=function(){editUser(b.dataset.userEdit)}});
     all('[data-user-permissions]').forEach(function(b){b.onclick=function(){editUserPermissions(b.dataset.userPermissions)}});
     all('[data-user-toggle]').forEach(function(b){b.onclick=function(){toggleUserStatus(b)}});
-    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});all('[data-user-revoke]').forEach(function(b){b.onclick=function(){revokeUserSessions(b.dataset.userRevoke)}});all('[data-user-reset-2fa]').forEach(function(b){b.onclick=function(){resetUserTwoFactor(b.dataset.userReset2fa)}});
+    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});all('[data-user-revoke]').forEach(function(b){b.onclick=function(){revokeUserSessions(b.dataset.userRevoke)}});all('[data-user-reset-2fa]').forEach(function(b){b.onclick=function(){resetUserTwoFactor(b.dataset.userReset2fa)}});all('[data-user-verify]').forEach(function(b){b.onclick=function(){verifyUserIdentity(b.dataset.userVerify)}});all('[data-user-unverify]').forEach(function(b){b.onclick=function(){unverifyUserIdentity(b.dataset.userUnverify)}});
   }catch(e){$('#usersList').innerHTML='<p style="padding:15px">'+esc(e.message)+'</p>'}
 }
 async function toggleUserStatus(b){
@@ -99,6 +99,13 @@ async function toggleUserStatus(b){
   if(active&&!confirm('Foydalanuvchi tizimga kira olmaydi. Bloklansinmi?'))return;
   const note=active?(prompt('Bloklash sababi (ixtiyoriy):','')||''):'';
   try{await api('/users/'+b.dataset.userToggle+'/status',{method:'PATCH',body:JSON.stringify({active:!active,statusNote:note})});toast(active?'Foydalanuvchi bloklandi':'Foydalanuvchi faollashtirildi');loadUsers()}catch(e){toast(e.message)}
+}
+async function verifyUserIdentity(id){
+  modal('OTMda shaxsni tasdiqlash','<p>Bu amal foydalanuvchi OTMga shaxsan kelib, hujjati xodim tomonidan tekshirilganidan keyin bajariladi.</p><label>Hujjat turi<input name="documentType" placeholder="ID karta / pasport" required></label><label>Hujjat oxirgi 2–4 belgisi<input name="documentLast4" maxlength="4" required></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/users/'+id+'/identity-verification',{method:'POST',body:JSON.stringify(d)});toast('Shaxs OTMda tasdiqlandi');loadUsers()});
+}
+async function unverifyUserIdentity(id){
+  if(!confirm('Shaxs tasdig‘i bekor qilinsa foydalanuvchining faol sessiyalari ham chiqariladi. Davom etilsinmi?'))return;
+  try{await api('/users/'+id+'/identity-verification',{method:'DELETE'});toast('Shaxs tasdig‘i bekor qilindi');loadUsers()}catch(e){toast(e.message)}
 }
 async function resetUserTwoFactor(id){
   if(!confirm('2FA reset qilinsa authenticator va recovery kodlar bekor bo‘ladi, barcha sessiyalar ham chiqariladi. Davom etilsinmi?'))return;
@@ -156,7 +163,7 @@ async function openUserProfile(id){
     const x=await api('/users/'+id),u=x.user;
     modal('Foydalanuvchi profili',
       '<div class="profile-mini"><div class="avatar">'+esc((u.fullName||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase())+'</div><h2>'+esc(u.fullName)+'</h2><p>@'+esc(u.login)+' · '+esc(roleName[u.role]||u.role)+'</p></div>'+
-      '<div class="profile-data"><p><b>2FA:</b> '+(u.totpEnabled?'Yoqilgan':'O‘chiq')+'</p><p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Telefon:</b> '+esc(u.phone||'—')+'</p><p><b>Email:</b> '+esc(u.email||'—')+'</p><p><b>Oxirgi kirish:</b> '+(u.lastLoginAt?new Date(u.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</p><p><b>Kirishlar:</b> '+esc(u.loginCount||0)+'</p><p><b>Bio:</b> '+esc(u.bio||'—')+'</p></div>',
+      '<div class="profile-data"><p><b>2FA:</b> '+(u.totpEnabled?'Yoqilgan':'O‘chiq')+'</p><p><b>OTMda shaxs tasdig‘i:</b> '+(u.identityVerifiedAt?'Tasdiqlangan · '+new Date(u.identityVerifiedAt).toLocaleString('uz-UZ'):'Tasdiqlanmagan')+'</p><p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Telefon:</b> '+esc(u.phone||'—')+'</p><p><b>Email:</b> '+esc(u.email||'—')+'</p><p><b>Oxirgi kirish:</b> '+(u.lastLoginAt?new Date(u.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</p><p><b>Kirishlar:</b> '+esc(u.loginCount||0)+'</p><p><b>Bio:</b> '+esc(u.bio||'—')+'</p></div>',
       async()=>{}
     );$('#modalSave').classList.add('hidden')
   }catch(e){toast(e.message)}
