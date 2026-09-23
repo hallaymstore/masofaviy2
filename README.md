@@ -44,7 +44,9 @@ Statistika platformaning asosiy boshqaruv qismi sifatida kengaytirildi:
 
 ## Fanlar va vazifalar
 
-Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi va topshiriq kiritadi, talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Baho tuzatish boshqa administrator tasdig‘i va audit bilan yuritiladi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi. Bu modul SCORM va avtoproktoring vazifasini bajarmaydi.
+Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havolasi va topshiriq kiritadi, talaba javob yuboradi, o‘qituvchi ball va izoh beradi. Baho tuzatish boshqa administrator tasdig‘i va audit bilan yuritiladi. Test API savollarni javob kalitisiz yuboradi va serverda baholaydi. Avtoproktoring hali yo‘q.
+
+SCORM 1.2 uchun dastlabki paket importi va runtime qo‘shildi: ZIP manifesti tekshiriladi, talaba darsi `sandbox` iframe’da ochiladi va asosiy holat (`lesson_status`, ball, joylashuv, `suspend_data`) saqlanadi. Hozirgi hajm chegarasi 8 MB. Murakkab ko‘p SCO, sequencing va SCORM 2004 to‘liq qo‘llanmaydi; avtoproktoring hali yo‘q.
 
 ## Import formatlari
 

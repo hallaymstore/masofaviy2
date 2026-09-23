@@ -6,7 +6,7 @@ Holat: kod ko‘rigi, 2026-09-23. Bu hujjat rasmiy huquqiy xulosa emas. Manba: h
 |---|---|---|---|
 | 8 | LMS, bir yillik kontent, barcha fanlar majmualari, infratuzilma, O‘zbekistondagi OTMga tegishli yoki kamida 5 yillik ijara server | `server.js`, `lms.js`, `render.yaml` | LMS qisman. Kontent to‘liqligi va server shartnomasi OTM dalillari bilan tasdiqlanadi. Render Singapur konfiguratsiyasi rasmiy server talabini bajarmaydi. |
 | 9 | O‘zDSt 36.2030 bo‘yicha metodik resurslar | Fan va material metadata | Kontent ekspertizasi va standartga moslik protokoli kerak. |
-| 10 | SCORM va avtoproktoring | Mavjud emas | SCORM paket manifesti, resurslar, runtime ma’lumotlari, izolyatsiyalangan yetkazish; proktoringning shaxsni tekshirish, signal, dalil, inson ko‘rigi va apellyatsiya jarayonlari ishlab chiqilishi kerak. |
+| 10 | SCORM va avtoproktoring | `scorm.js`: ZIP manifesti, sandbox iframe, SCORM 1.2 asosiy runtime va progress | Qisman: ko‘p SCO/sequencing, SCORM 2004 moslik sinovlari qolgan. Avtoproktoring mavjud emas; shaxsni tekshirish, signal, dalil, inson ko‘rigi va apellyatsiya jarayonlari ishlab chiqilishi kerak. |
 | 11 | Axborot resurslari, boshqaruv, davomat va o‘zlashtirish, aloqa, kontingent, kurs, kredit, statistika, bilim nazorati | `server.js` va `lms.js`da qisman | Kurs, topshiriq va test dastlabki bosqich. Individual reja, elektron kutubxona, kreditlar, qabul/ko‘chirish/arxiv, imtihon va to‘liq baholash qaydnomasi yetishmaydi. |
 | 18–19 | Til, yo‘nalish, tasdiqlangan reja va dasturga mos kontent | Fan tili va dastur havolasi | Tasdiqlangan o‘quv rejalari va kontent tekshiruvi kerak. |
 | 21 | Shaxsan dastlabki ro‘yxat, semestr yakuniy nazorati, attestatsiya va himoya | Onlayn login va test | OTM tashkiliy jarayoni hamda offlayn yakuniy nazorat qaydlari zarur; onlayn test buni almashtirmaydi. |
@@ -22,4 +22,4 @@ Holat: kod ko‘rigi, 2026-09-23. Bu hujjat rasmiy huquqiy xulosa emas. Manba: h
 - Mediasoup kodi va signaling mavjud, ammo real TURN/NAT, 3–4 parallel guruh, 60 talaba yuklama va eski Android qurilmalari bilan o‘lchangan sinov yo‘q.
 - Yakuniy muvofiqlik uchun OTMning qabul, kadrlar, metodik kontent, auditoriya, server mulki/ijarasi va rasmiy veb-sahifa hujjatlari zarur.
 - Bahoni tuzatish so‘rovi va boshqa administrator tasdig‘i `lms.js`da bor; bu imtihon qaydnomasi, yakuniy nazorat va akademik apellyatsiya tartibining o‘rnini bosmaydi.
-- SCORM paketini asosiy sayt originida ochish xavfli: paket JavaScripti sessiya tokeniga kira olishi mumkin. Mustaqil origin, token almashish, virus/ZIP tekshiruvi, saqlash va runtime protokoli tayyor bo‘lmaguncha SCORM yuklash yoqilmaydi.
+- SCORM paketining iframe’i `sandbox="allow-scripts"` bilan opaque origin oladi; token qisqa muddatli, runtime o‘zgarishlari parent orqali autentifikatsiyalanadi. Import ZIP yo‘li, hajm, manifest va asosiy HTML tekshiriladi. Antivirus, murakkab paket mosligi va tashqi test to‘plami bilan audit zarur.

@@ -1,4 +1,5 @@
 // Academic records are server-side. Every write checks the course membership.
+import { installScorm } from './scorm.js';
 export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
@@ -22,6 +23,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
     return course;
   };
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
+  installScorm(app,{mongoose,auth,audit,courseAccess});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
