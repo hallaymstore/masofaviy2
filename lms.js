@@ -7,7 +7,8 @@ import { installCommunications } from './communications.js';
 import { installFinalExams } from './final-exams.js';
 import { installCurriculum } from './curriculum.js';
 import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady } from './proctoring.js';
-export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
+import { installMonitoringExport } from './monitoring-export.js';
+export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
@@ -37,6 +38,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   installCommunications(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const finalExams=installFinalExams(app,{mongoose,User,Structure,Course,CourseResult:academic.CourseResult,auth,audit,courseAccess,resolveUserGroupId});
   const curriculum=installCurriculum(app,{mongoose,User,Structure,Course,Resource,Assignment,Quiz,auth,audit,resolveUserGroupId});
+  installMonitoringExport(app,{mongoose,User,Structure,Course,Schedule,Attendance,CourseResult:academic.CourseResult,StudyPlan:academic.StudyPlan,StudentMovement:academic.StudentMovement,auth,audit});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
