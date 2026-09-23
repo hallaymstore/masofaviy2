@@ -73,6 +73,7 @@ const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 
 const PUBLIC_TIMETABLE_ENABLED = process.env.PUBLIC_TIMETABLE_ENABLED === 'true';
 const VIDEO_PROVIDER_HOST = 'mediasoup';
 const SFU_BRIDGE_URL = String(process.env.SFU_BRIDGE_URL || '');
+const SFU_BRIDGE_SECRET = String(process.env.SFU_BRIDGE_SECRET || '');
 const TURN_URLS = String(process.env.TURN_URLS || '').split(',').map(x=>x.trim()).filter(Boolean);
 const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
 const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
@@ -491,7 +492,13 @@ const roomNameFor=(scheduleId,dateKey)=>'M2-'+crypto.createHmac('sha256',JWT_SEC
 const mediaTicketFor=(user,roomName,scheduleId)=>jwt.sign({typ:'media',sub:String(user._id||user.id),fullName:user.fullName,login:user.login,role:user.role,avatarUrl:user.avatarUrl||'',roomName,scheduleId:String(scheduleId)},JWT_SECRET,{expiresIn:'10m',issuer:'masofaviy2',audience:'masofaviy2-sfu'});
 const mediaIceServers=()=>TURN_URLS.length&&TURN_USERNAME&&TURN_CREDENTIAL?[{urls:TURN_URLS,username:TURN_USERNAME,credential:TURN_CREDENTIAL}]:[];
 const mediaJoinPayload=(user,roomName,scheduleId)=>({provider:'mediasoup',roomName,mediaTicket:mediaTicketFor(user,roomName,scheduleId),iceServers:mediaIceServers()});
-app.post('/api/media/verify',(req,res)=>{try{const payload=jwt.verify(String(req.body.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});if(payload.typ!=='media'||!payload.roomName||!payload.sub)throw new Error();res.json({ok:true,payload})}catch{res.status(401).json({ok:false,message:'Media ticket yaroqsiz yoki muddati tugagan'})}});
+app.post('/api/media/verify',async(req,res)=>{try{
+  const payload=jwt.verify(String(req.body.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});
+  if(payload.typ!=='media'||!payload.roomName||!mongoose.isValidObjectId(payload.scheduleId)||!mongoose.isValidObjectId(payload.sub))throw new Error();
+  const [user,lesson,session]=await Promise.all([User.findById(payload.sub).lean(),Schedule.findById(payload.scheduleId).lean(),LiveSession.findOne({scheduleId:payload.scheduleId,roomName:payload.roomName,status:'active'}).lean()]);
+  if(!user?.active||!lesson||!session||!(await scheduleAccess(user,lesson)))throw new Error();
+  res.json({ok:true,payload});
+}catch{res.status(401).json({ok:false,message:'Media ticket yaroqsiz yoki muddati tugagan'})}});
 
 const scheduleAccess=async(user,lesson,mode='join')=>{
   if(!lesson)return false;
@@ -633,9 +640,10 @@ const sfuSend = payload => {
   try{sfuBridge.send(JSON.stringify(payload));return true}catch{return false}
 };
 function connectSfuBridge(){
+  if(!SFU_BRIDGE_URL||!SFU_BRIDGE_SECRET)return;
   if(sfuBridge?.readyState===WebSocket.OPEN||sfuBridge?.readyState===WebSocket.CONNECTING)return;
   try{
-    sfuBridge=new WebSocket(SFU_BRIDGE_URL,{handshakeTimeout:7000});
+    sfuBridge=new WebSocket(SFU_BRIDGE_URL,{handshakeTimeout:7000,headers:{'X-SFU-Bridge-Secret':SFU_BRIDGE_SECRET}});
     sfuBridge.on('open',()=>{sfuBridgeConnectedAt=new Date();console.log('SFU bridge ulandi:',SFU_BRIDGE_URL);io.emit('media:bridge',{online:true})});
     sfuBridge.on('message',raw=>{try{const msg=JSON.parse(String(raw));if(!msg?.clientId)return;if(msg.event)io.to(msg.clientId).emit('media:event',msg);else io.to(msg.clientId).emit('media:response',msg)}catch{}});
     sfuBridge.on('close',()=>{sfuBridgeConnectedAt=null;io.emit('media:bridge',{online:false});clearTimeout(sfuReconnectTimer);sfuReconnectTimer=setTimeout(connectSfuBridge,3000);sfuReconnectTimer.unref?.()});
@@ -654,6 +662,7 @@ socket.on('disconnect', async()=>{sfuSend({clientId:socket.id,id:'disconnect-'+D
 
 async function bootstrap(){
   if(process.env.NODE_ENV==='production'&&!process.env.JWT_SECRET)throw new Error('Production uchun JWT_SECRET majburiy');
+  if(process.env.NODE_ENV==='production'&&SFU_BRIDGE_URL&&SFU_BRIDGE_SECRET.length<32)throw new Error('SFU_BRIDGE_URL uchun 32+ belgili SFU_BRIDGE_SECRET majburiy');
   connectSfuBridge();
   if(process.env.NODE_ENV==='production'&&!process.env.ADMIN_PASSWORD)throw new Error('Production uchun ADMIN_PASSWORD majburiy');
   server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`));

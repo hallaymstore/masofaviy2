@@ -89,6 +89,8 @@ GitHub Actions har push/PR da syntax check va smoke boot bajaradi.
 
 ## Media qatlami
 
-Platformaning boshqaruv, import, jadval, profil, audit, statistika va davomat qatlami productionga yaqinlashtirildi. Real ko‘p ishtirokchili video uchun Mediasoup transport/producer/consumer signaling, TURN credential rotatsiyasi va media server monitoringini keyingi media bosqichida ulash kerak.
+Platformaning boshqaruv, import, jadval, profil, audit, statistika va davomat qatlami ishlab chiqilgan. Mediasoup transport/producer/consumer signaling kodi bor; TURN credential rotatsiyasi, real server monitoringi va ko‘p ishtirokchili yuklama sinovi keyingi media bosqichida yakunlanadi.
+
+SFU ishga tushirilganda platforma va `media-server` muhitiga bir xil, tasodifiy kamida 32 belgili `SFU_BRIDGE_SECRET` kiriting. Platformada `SFU_BRIDGE_URL`, media serverda `ANNOUNCED_IP` va `PLATFORM_VERIFY_URL` belgilanadi. Productionda signaling ulanishi maxfiy kalitsiz qabul qilinmaydi; media ticket faol dars va foydalanuvchi bilan qayta tekshiriladi. Haqiqiy server ulanishi va TURN sinovi hali qolgan.
 
 > Texnik funksiyalar muvofiqlik uchun asos yaratadi. Ishga tushirishdan oldin universitetning maxfiylik siyosati, ma’lumotlarni saqlash muddati va axborot xavfsizligi reglamenti mas’ul shaxslar tomonidan tasdiqlanishi kerak.

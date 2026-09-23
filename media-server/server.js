@@ -7,11 +7,12 @@ import { WebSocketServer } from 'ws';
 
 const SIGNAL_PORT=Number(process.env.SIGNAL_PORT||40000);
 const LISTEN_IP=process.env.LISTEN_IP||'0.0.0.0';
-const ANNOUNCED_IP=process.env.ANNOUNCED_IP||'213.230.97.12';
+const ANNOUNCED_IP=process.env.ANNOUNCED_IP||'127.0.0.1';
 const RTC_BASE_PORT=Number(process.env.RTC_BASE_PORT||50000);
 const WORKERS=Math.max(1,Math.min(Number(process.env.MEDIASOUP_WORKERS||Math.max(1,Math.min(os.cpus().length,8))),32));
 const ENABLE_RTC_TCP=process.env.ENABLE_RTC_TCP==='true';
-const PLATFORM_VERIFY_URL=process.env.PLATFORM_VERIFY_URL||'https://masofaviy2.onrender.com/api/media/verify';
+const PLATFORM_VERIFY_URL=process.env.PLATFORM_VERIFY_URL||'http://127.0.0.1:3000/api/media/verify';
+const SFU_BRIDGE_SECRET=String(process.env.SFU_BRIDGE_SECRET||'');
 const MAX_PEERS_PER_ROOM=Math.max(2,Number(process.env.MAX_PEERS_PER_ROOM||120));
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||2500000));
 
@@ -103,6 +104,7 @@ async function handleRequest(ws,msg){
     if(method==='join'){
       const payload=await verifyTicket(String(data.ticket||''));
       if(!payload?.roomName||!payload?.sub)throw new Error('Media ticket noto‘g‘ri');
+      const previous=peers.get(clientId);if(previous&&previous.bridge!==ws)throw new Error('Peer boshqa signaling ulanishiga tegishli');
       await closePeer(clientId,false);
       const room=await getRoom(payload.roomName);
       if(room.peers.size>=MAX_PEERS_PER_ROOM)throw new Error('Bu xonada ishtirokchilar limiti to‘lgan');
@@ -114,7 +116,7 @@ async function handleRequest(ws,msg){
       return;
     }
     const peer=peers.get(clientId);if(!peer)throw new Error('Avval media xonaga ulaning');
-    peer.bridge=ws;
+    if(peer.bridge!==ws)throw new Error('Peer boshqa signaling ulanishiga tegishli');
     if(method==='createTransport'){reply(ws,clientId,id,true,await createTransport(peer,data.direction==='recv'?'recv':'send'));return}
     if(method==='connectTransport'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
@@ -163,6 +165,7 @@ async function handleRequest(ws,msg){
 }
 
 async function boot(){
+  if(process.env.NODE_ENV==='production'&&(!SFU_BRIDGE_SECRET||SFU_BRIDGE_SECRET.length<32||!process.env.ANNOUNCED_IP||!process.env.PLATFORM_VERIFY_URL))throw new Error('SFU_BRIDGE_SECRET (32+), ANNOUNCED_IP va PLATFORM_VERIFY_URL majburiy');
   for(let i=0;i<WORKERS;i++){
     const worker=await mediasoup.createWorker({logLevel:process.env.MEDIASOUP_LOG_LEVEL||'warn',logTags:['ice','dtls','rtp','srtp','rtcp']});
     worker.on('died',err=>{console.error('mediasoup worker died',i,err);setTimeout(()=>process.exit(1),2000)});
@@ -178,7 +181,13 @@ async function boot(){
     if(req.url==='/metrics'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({workers:workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,pid:w.worker.pid})),rooms:[...rooms.values()].map(r=>({id:r.id,peers:r.peers.size,workerPort:r.workerSlot.port,ageSeconds:Math.round((Date.now()-r.createdAt)/1000)})),peers:peers.size}))}
     res.writeHead(404);res.end('not found');
   });
-  const wss=new WebSocketServer({server,maxPayload:2*1024*1024});
+  const wss=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
+  server.on('upgrade',(req,socket,head)=>{
+    const supplied=String(req.headers['x-sfu-bridge-secret']||'');
+    const a=Buffer.from(supplied),b=Buffer.from(SFU_BRIDGE_SECRET);
+    if(!SFU_BRIDGE_SECRET||a.length!==b.length||!crypto.timingSafeEqual(a,b)){socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');socket.destroy();return}
+    wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));
+  });
   wss.on('connection',(ws,req)=>{
     ws.isAlive=true;ws.on('pong',()=>ws.isAlive=true);
     ws.on('message',raw=>{try{const msg=JSON.parse(String(raw));handleRequest(ws,msg)}catch(e){send(ws,{ok:false,error:'JSON noto‘g‘ri'})}});
