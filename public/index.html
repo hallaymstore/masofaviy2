@@ -45,6 +45,7 @@
       <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
       <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
       <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
+      <button data-page="communications"><span data-ico="chat" data-fallback="✉"></span>Xabarlar va forum</button>
       <button data-page="reports"><span data-ico="shield" data-fallback="▤"></span>Nazorat va hisobot</button>
       <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
       <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
@@ -53,6 +54,7 @@
   </aside>
 
   <main>
+    <section id="communications" class="page"><div class="page-head"><div><h1>Xabarlar va forum</h1><p>Doimiy ichki xabarlar, kurs forumi va elektron pochta integratsiyasi</p></div><button id="newInternalMessage" class="primary">+ Xabar</button></div><div class="grid"><article><div class="section-title"><h2>Kiruvchi xabarlar</h2><button id="refreshMessages">Yangilash</button></div><div id="inboxList" class="list"></div></article><article><h2>Yuborilgan</h2><div id="sentList" class="list"></div></article></div><article><h2>Kurs forumlari</h2><div id="forumCourseList" class="quick"></div><div id="forumPanel" class="list"></div></article></section>
     <section id="library" class="page"><div class="page-head"><div><h1>Elektron kutubxona</h1><p>Darslik, monografiya, maqola, tadqiqot va boshqa ilmiy-o‘quv resurslari</p></div><button id="addLibraryItem" class="primary hidden">+ Resurs qo‘shish</button></div><div class="toolbar"><input id="librarySearch" placeholder="Nomi, muallif, mavzu bo‘yicha qidirish"><select id="libraryType"><option value="">Barcha turlar</option><option value="book">Kitob</option><option value="textbook">Darslik</option><option value="manual">Qo‘llanma</option><option value="monograph">Monografiya</option><option value="article">Ilmiy maqola</option><option value="research">Tadqiqot</option><option value="thesis">Dissertatsiya</option><option value="standard">Standart</option><option value="other">Boshqa</option></select><button id="libraryApply">Qidirish</button></div><div id="libraryList" class="list"></div></section>
     <section id="courses" class="page"><div class="page-head"><div><h1>Fanlar va vazifalar</h1><p>O‘quv resurslari, topshiriqlar, testlar va akademik yozuvlar</p></div><div><button id="myAcademic" class="hidden">O‘quv rejam</button> <button id="manageAcademic" class="hidden">Akademik yozuvlar</button> <button id="courseCompliance" class="hidden">Tayyorlik</button> <button id="reviewGrades" class="hidden">Baho so‘rovlari</button> <button id="addCourse" class="primary hidden">+ Fan qo‘shish</button></div></div><div id="courseList" class="list"></div><div id="courseDetail" class="list"></div></section>
     <section id="dashboard" class="page active">
