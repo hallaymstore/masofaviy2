@@ -18,7 +18,7 @@ Holat: kod ko‘rigi, 2026-09-23. Bu hujjat rasmiy huquqiy xulosa emas. Manba: h
 
 - `render.yaml` xizmatining regioni Singapore. O‘zbekistondagi server va ma’lumotlar joylashuvi alohida tasdiqlanmaguncha production migratsiyasi tugallangan hisoblanmaydi.
 - Demo administrator faqat development muhitida ishlaydi; productionda MongoDB ulanishi majburiy. Ochiq jadval standart holatda o‘chiq.
-- JWT brauzer `localStorage`ida; sessiya va XSS tahdidlari bo‘yicha qayta ishlash, 2FA, zaxira nusxa/tiklash testi va xavfsizlik testi qolgan.
+- Brauzer sessiyasi `HttpOnly; SameSite=Strict` cookie, productionda `Secure` va mutatsiyalar uchun CSRF bilan ishlaydi. 2FA, sessiyalarni markaziy bekor qilish, CSP/XSS auditi, zaxira nusxa/tiklash testi va penetratsion xavfsizlik testi qolgan.
 - Mediasoup kodi va signaling mavjud, ammo real TURN/NAT, 3–4 parallel guruh, 60 talaba yuklama va eski Android qurilmalari bilan o‘lchangan sinov yo‘q.
 - SFU signaling maxfiy bridge kaliti bilan cheklangan, har bir peer ulanishi tekshiriladi va media ticket faol darsga qayta bog‘lanadi. Universitet serverida tarmoq/firewall, TLS va TURN sozlash hamda haqiqiy video yuklama sinovi qolgan.
 - Yakuniy muvofiqlik uchun OTMning qabul, kadrlar, metodik kontent, auditoriya, server mulki/ijarasi va rasmiy veb-sahifa hujjatlari zarur.

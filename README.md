@@ -95,4 +95,6 @@ Platformaning boshqaruv, import, jadval, profil, audit, statistika va davomat qa
 
 SFU ishga tushirilganda platforma va `media-server` muhitiga bir xil, tasodifiy kamida 32 belgili `SFU_BRIDGE_SECRET` kiriting. Platformada `SFU_BRIDGE_URL`, media serverda `ANNOUNCED_IP` va `PLATFORM_VERIFY_URL` belgilanadi. Productionda signaling ulanishi maxfiy kalitsiz qabul qilinmaydi; media ticket faol dars va foydalanuvchi bilan qayta tekshiriladi. Haqiqiy server ulanishi va TURN sinovi hali qolgan.
 
+Brauzer login sessiyasi `HttpOnly; SameSite=Strict` cookie orqali yuritiladi (`Secure` productionda yoqiladi). O‘zgartirish so‘rovlarida CSRF token tekshiriladi; oldingi brauzer `localStorage` tokeni avtomatik o‘chiriladi. Mobil ilova yoki boshqa API mijozi uchun Bearer auth vaqtincha qoldirilgan.
+
 > Texnik funksiyalar muvofiqlik uchun asos yaratadi. Ishga tushirishdan oldin universitetning maxfiylik siyosati, ma’lumotlarni saqlash muddati va axborot xavfsizligi reglamenti mas’ul shaxslar tomonidan tasdiqlanishi kerak.

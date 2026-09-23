@@ -26,6 +26,12 @@ const corsOptions = { origin: originCheck, credentials: true };
 const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'polling'] });
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
+const sessionCookie='m2_session',csrfCookie='m2_csrf';
+const readCookie=(header,name)=>String(header||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
+const csrfFor=token=>crypto.createHmac('sha256',JWT_SECRET).update(token).digest('hex');
+const cookieOptions=()=>`Path=/; Max-Age=43200; SameSite=Strict${process.env.NODE_ENV==='production'?'; Secure':''}`;
+const setSession=(res,user)=>{const token=sign(user),options=cookieOptions();res.set('Set-Cookie',[`${sessionCookie}=${token}; HttpOnly; ${options}`,`${csrfCookie}=${csrfFor(token)}; ${options}`]);};
+const clearSession=res=>res.set('Set-Cookie',[`${sessionCookie}=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict`,`${csrfCookie}=; Path=/; Max-Age=0; SameSite=Strict`]);
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, referrerPolicy:{policy:'strict-origin-when-cross-origin'} }));
 app.use(cors(corsOptions));
@@ -196,7 +202,16 @@ const buildGroupPerformance = async (scope,days=7) => {
 
 const sign = user => jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h', issuer: 'masofaviy2' });
 const demoAdmin={_id:'demo',id:'demo',login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),fullName:'Bosh administrator',role:'superadmin',permissions:['*'],deniedPermissions:[],active:true,mustChangePassword:true};
-const auth = async (req, res, next) => { try { const token = req.headers.authorization?.replace('Bearer ', ''); const data = jwt.verify(token, JWT_SECRET); req.user = data.id==='demo' ? demoAdmin : await User.findById(data.id).lean(); if (!req.user?.active) throw new Error(); next(); } catch { res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' }); } };
+const auth = async (req, res, next) => { try {
+  const bearer=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):'';
+  const cookie=readCookie(req.headers.cookie,sessionCookie),token=bearer||cookie;
+  const data=jwt.verify(token, JWT_SECRET);
+  if(cookie&&!bearer&&!['GET','HEAD','OPTIONS'].includes(req.method)){
+    const expected=csrfFor(cookie),actual=String(req.headers['x-csrf-token']||'');
+    if(actual.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))return res.status(403).json({message:'So‘rov himoya tekshiruvidan o‘tmadi'});
+  }
+  req.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean();if(!req.user?.active)throw new Error();next();
+}catch{res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' });} };
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
 installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId});
@@ -212,7 +227,7 @@ app.post('/api/auth/login', async (req,res) => {
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
   if(mongoose.connection.readyState!==1){
     if(process.env.NODE_ENV==='production')return res.status(503).json({message:'Ma’lumotlar bazasi hozir ishlamayapti'});
-    if(login===demoAdmin.login&&password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')){loginAttempts.delete(key);return res.json({token:sign(demoAdmin),user:demoAdmin,demo:true})}
+    if(login===demoAdmin.login&&password===(process.env.ADMIN_PASSWORD||'ChangeMe123!')){loginAttempts.delete(key);setSession(res,demoAdmin);return res.json({user:demoAdmin,demo:true})}
     noteLoginFailure(key);return res.status(401).json({message:'Login yoki parol noto‘g‘ri. Ma’lumotlar bazasi ulanmaguncha administrator akkauntidan foydalaning.'});
   }
   const user=await User.findOne({login});
@@ -221,8 +236,9 @@ app.post('/api/auth/login', async (req,res) => {
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
   loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
-  await audit({user,ip:req.ip},'LOGIN','User',user.id);res.json({token:sign(user),user:sanitizeUser(user)});
+  await audit({user,ip:req.ip},'LOGIN','User',user.id);setSession(res,user);res.json({user:sanitizeUser(user)});
 });
+app.post('/api/auth/logout',auth,(req,res)=>{clearSession(res);res.json({ok:true})});
 app.get('/api/me', auth, async (req,res)=>{ let current=sanitizeUser(req.user); if(req.user._id!=='demo'&&mongoose.connection.readyState===1) current=sanitizeUser(await User.findById(req.user._id).populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean()); res.json({user:current,effectivePermissions:rolePermissions(req.user)}); });
 app.get('/api/dashboard', auth, async (req,res)=> {
   if(mongoose.connection.readyState!==1)return res.json({role:req.user.role,stats:[{label:'Foydalanuvchi',value:1}],today:[],online:io.engine.clientsCount,demo:true});
@@ -655,7 +671,7 @@ app.get('/api/media/status',auth,async(req,res)=>{
   res.json({provider:'mediasoup',bridgeUrl:SFU_BRIDGE_URL,bridgeOnline:sfuBridge?.readyState===WebSocket.OPEN,connectedAt:sfuBridgeConnectedAt,turnEnabled:Boolean(mediaIceServers().length)});
 });
 
-io.use(async(socket,next)=>{ try { const data=jwt.verify(socket.handshake.auth.token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
+io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
 io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:sfuBridge?.readyState===WebSocket.OPEN});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||'');if(!sfuSend({clientId:socket.id,id,method,data:msg?.data||{}}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet mediaserveri hozir ulanmagan'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId)socket.leave('lesson:'+lessonId);if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId)io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}catch{} });
 socket.on('disconnect', async()=>{sfuSend({clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
