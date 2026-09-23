@@ -69,7 +69,7 @@ export function installFinalExams(app,{mongoose,User,Structure,Course,CourseResu
       const location=String(req.body.location||'').trim();if(location.length<3)throw new Error('OTMdagi joylashuvni kiriting');
       const invigilatorIds=[...new Set((Array.isArray(req.body.invigilatorIds)?req.body.invigilatorIds:[req.body.invigilatorIds]).filter(Boolean).map(String))];for(const value of invigilatorIds)checkId(value);
       if(invigilatorIds.length){const count=await User.countDocuments({_id:{$in:invigilatorIds},role:'teacher',active:true});if(count!==invigilatorIds.length)throw new Error('Nazoratchi o‘qituvchi topilmadi')}
-      const row=await Session.create({type,title:String(req.body.title||course?.title||'Yakuniy nazorat').trim(),courseId:course?._id:undefined,groupId:group._id,academicYear,semester:sem,startsAt,endsAt,location,room:String(req.body.room||'').trim(),inPerson:true,invigilatorIds,createdBy:req.user._id});
+      const row=await Session.create({type,title:String(req.body.title||course?.title||'Yakuniy nazorat').trim(),courseId:course?._id,groupId:group._id,academicYear,semester:sem,startsAt,endsAt,location,room:String(req.body.room||'').trim(),inPerson:true,invigilatorIds,createdBy:req.user._id});
       audit(req,'FINAL_EXAM_CREATE','FinalExamSession',row.id,{type,groupId:String(group._id),courseId:course?String(course._id):null,academicYear,semester:sem,inPerson:true});res.status(201).json(await sessionView(row));
     }catch(e){fail(res,e)}
   });
