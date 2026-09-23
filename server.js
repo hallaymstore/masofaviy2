@@ -37,6 +37,7 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false,
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
+app.use('/vendor/face-detection',express.static('node_modules/@mediapipe/face_detection',{maxAge:'1y',immutable:true,index:false}));
 app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
 
 const permissionsByRole = {

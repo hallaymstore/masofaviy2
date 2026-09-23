@@ -14,6 +14,10 @@ test('SCORM importer finds launch file and counts resources',async()=>{
 test('SCORM importer rejects missing manifest',async()=>{
   const zip=new JSZip();zip.file('index.html','Hello');await assert.rejects(inspectScormZip(await zip.generateAsync({type:'nodebuffer'})),/imsmanifest/);
 });
+test('SCORM 2004 is never mislabeled as 1.2',async()=>{
+  const zip=new JSZip();zip.file('imsmanifest.xml',manifest.replace('<manifest>','<manifest><metadata><schemaversion>2004 4th Edition</schemaversion></metadata>'));zip.file('index.html','<html></html>');
+  await assert.rejects(inspectScormZip(await zip.generateAsync({type:'nodebuffer'})),/SCORM 2004/);
+});
 test('SCORM importer rejects path traversal in an archive',async()=>{
   const zip=new JSZip();zip.file('imsmanifest.xml',manifest);zip.file('index.html','<html></html>');zip.file('../outside.js','bad');
   await assert.rejects(inspectScormZip(await zip.generateAsync({type:'nodebuffer'})),/xavfli/);

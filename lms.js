@@ -1,15 +1,16 @@
 // Academic records are server-side. Every write checks the course membership.
 import { installScorm } from './scorm.js';
+import { installResourceUploads } from './resource-upload.js';
 export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
-  const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','video','link'],required:true},url:{type:String,required:true},description:String,published:{type:Boolean,default:true},createdBy:{type:id,ref:'User'}},{timestamps:true});
+  const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},createdBy:{type:id,ref:'User'}},{timestamps:true});
   const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,min:1,max:1000},published:{type:Boolean,default:true}},{timestamps:true});
   const submissionSchema=new mongoose.Schema({assignmentId:{type:id,ref:'Assignment',required:true},studentId:{type:id,ref:'User',required:true},text:String,url:String,submittedAt:Date,score:{type:Number,min:0},feedback:String,gradedBy:{type:id,ref:'User'},gradedAt:Date},{timestamps:true});
   submissionSchema.index({assignmentId:1,studentId:1},{unique:true});
   const quizSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},durationMinutes:{type:Number,min:1,max:240,default:30},maxAttempts:{type:Number,min:1,max:10,default:1},published:{type:Boolean,default:false},proctorRequired:{type:Boolean,default:false},questions:[{prompt:{type:String,required:true},options:[String],correctIndex:{type:Number,required:true,min:0}}]},{timestamps:true});
-  const attemptSchema=new mongoose.Schema({quizId:{type:id,ref:'Quiz',required:true},studentId:{type:id,ref:'User',required:true},startedAt:{type:Date,default:Date.now},submittedAt:Date,answers:[Number],score:Number,proctorConsentAt:Date,proctorEvents:[{type:{type:String,enum:['page_hidden','window_blur','camera_unavailable','camera_ready','face_missing','multiple_faces','face_detector_unavailable','microphone_unavailable']},at:Date}],reviewDecision:{type:String,enum:['pending','cleared','needs_review'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
+  const attemptSchema=new mongoose.Schema({quizId:{type:id,ref:'Quiz',required:true},studentId:{type:id,ref:'User',required:true},startedAt:{type:Date,default:Date.now},submittedAt:Date,answers:[Number],score:Number,proctorConsentAt:Date,proctorEvents:[{type:{type:String,enum:['page_hidden','window_blur','camera_unavailable','camera_ready','face_missing','multiple_faces','face_detector_unavailable','microphone_unavailable','ambient_sound']},at:Date}],reviewDecision:{type:String,enum:['pending','cleared','needs_review'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
   const gradeChangeSchema=new mongoose.Schema({submissionId:{type:id,ref:'Submission',required:true},requestedBy:{type:id,ref:'User',required:true},oldScore:{type:Number,required:true},newScore:{type:Number,required:true},reason:{type:String,required:true},status:{type:String,enum:['pending','approved','rejected'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
   const Course=mongoose.model('Course',courseSchema),Resource=mongoose.model('Resource',resourceSchema),Assignment=mongoose.model('Assignment',assignmentSchema),Submission=mongoose.model('Submission',submissionSchema),Quiz=mongoose.model('Quiz',quizSchema),Attempt=mongoose.model('QuizAttempt',attemptSchema),GradeChange=mongoose.model('GradeChange',gradeChangeSchema);
   const fail=(res,e)=>res.status(e.status||400).json({message:e.message||'So‘rov bajarilmadi'});
@@ -24,6 +25,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   };
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
   installScorm(app,{mongoose,auth,audit,courseAccess});
+  installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
@@ -117,7 +119,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
     const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id);res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
   }));
   app.post('/api/lms/attempts/:id/proctor-events',auth,wrap(async(req,res)=>{
-    checkId(req.params.id);const type=String(req.body.type||'');const allowed=['page_hidden','window_blur','camera_unavailable','camera_ready','face_missing','multiple_faces','face_detector_unavailable','microphone_unavailable'];
+    checkId(req.params.id);const type=String(req.body.type||'');const allowed=['page_hidden','window_blur','camera_unavailable','camera_ready','face_missing','multiple_faces','face_detector_unavailable','microphone_unavailable','ambient_sound'];
     if(!allowed.includes(type))throw new Error('Hodisa turi noto‘g‘ri');const row=await Attempt.findOne({_id:req.params.id,studentId:req.user._id,submittedAt:null,proctorConsentAt:{$exists:true}});if(!row)return res.status(403).json({message:'Faol nazorat sessiyasi yo‘q'});
     const quiz=await Quiz.findById(row.quizId).select('durationMinutes');if(!quiz||Date.now()-row.startedAt.getTime()>(quiz.durationMinutes*60+30)*1000)return res.status(409).json({message:'Imtihon tugagan'});
     if(row.proctorEvents.length>=200)return res.status(429).json({message:'Hodisa chegarasi tugadi'});
