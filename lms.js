@@ -2,6 +2,7 @@
 import { installScorm } from './scorm.js';
 import { installResourceUploads } from './resource-upload.js';
 import { installAcademicRecords } from './academic-records.js';
+import { installLibrary } from './library.js';
 export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
@@ -28,6 +29,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   installScorm(app,{mongoose,auth,audit,courseAccess});
   installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
   const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
+  const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
@@ -37,7 +39,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   }));
   app.get('/api/lms/compliance',auth,wrap(async(req,res)=>{
     if(!['admin','superadmin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    const [courses,groups,students,resources,assignments,quizzes,studyPlans,finalResults,movements]=await Promise.all([
+    const [courses,groups,students,resources,assignments,quizzes,studyPlans,finalResults,movements,libraryItems]=await Promise.all([
       Course.find({active:true}).populate('teacherId','fullName login').populate('groupId','name externalId').lean(),
       Structure.find({type:'group',active:true}).select('name externalId').lean(),
       User.find({role:'student',active:true,groupId:{$exists:true}}).select('_id groupId').lean(),
@@ -46,12 +48,13 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
       Quiz.aggregate([{$match:{published:true}},{$group:{_id:'$courseId',count:{$sum:1}}}]),
       academic.StudyPlan.countDocuments(),
       academic.CourseResult.countDocuments({status:'final'}),
-      academic.StudentMovement.countDocuments()
+      academic.StudentMovement.countDocuments(),
+      library.LibraryItem.countDocuments({published:true})
     ]);
     const counts=rows=>new Map(rows.map(r=>[String(r._id),r.count]));const rc=counts(resources),ac=counts(assignments),qc=counts(quizzes);
     const enrolled=new Map();for(const student of students){const key=String(student.groupId);if(!enrolled.has(key))enrolled.set(key,new Set());enrolled.get(key).add(String(student._id))}
     const teaching=new Map();for(const course of courses){const teacher=String(course.teacherId?._id||course.teacherId);if(!teaching.has(teacher))teaching.set(teacher,{teacher:course.teacherId,students:new Set(),courseCount:0});const item=teaching.get(teacher);item.courseCount++;for(const student of enrolled.get(String(course.groupId?._id||course.groupId))||[])item.students.add(student)}
-    res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50})),academicRecords:{studyPlans,finalResults,movements}});
+    res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50})),academicRecords:{studyPlans,finalResults,movements},libraryItems});
   }));
   app.post('/api/lms/courses',auth,wrap(async(req,res)=>{
     if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
