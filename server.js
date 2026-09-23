@@ -37,7 +37,29 @@ const cookieOptions=()=>`Path=/; Max-Age=43200; SameSite=Strict${process.env.NOD
 const setSession=(res,user)=>{const token=sign(user),options=cookieOptions();res.set('Set-Cookie',[`${sessionCookie}=${token}; HttpOnly; ${options}`,`${csrfCookie}=${csrfFor(token)}; ${options}`]);};
 const clearSession=res=>res.set('Set-Cookie',[`${sessionCookie}=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict`,`${csrfCookie}=; Path=/; Max-Age=0; SameSite=Strict`]);
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, referrerPolicy:{policy:'strict-origin-when-cross-origin'} }));
+app.use(helmet({
+  contentSecurityPolicy:{
+    useDefaults:false,
+    directives:{
+      defaultSrc:["'self'"],
+      baseUri:["'self'"],
+      objectSrc:["'none'"],
+      formAction:["'self'"],
+      frameAncestors:["'self'"],
+      scriptSrc:["'self'","'unsafe-eval'","blob:"],
+      styleSrc:["'self'","'unsafe-inline'"],
+      imgSrc:["'self'","data:","blob:","https:"],
+      mediaSrc:["'self'","blob:","https:"],
+      connectSrc:["'self'","https:","ws:","wss:"],
+      frameSrc:["'self'","https:"],
+      fontSrc:["'self'","data:"],
+      workerSrc:["'self'","blob:"],
+      manifestSrc:["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy:false,
+  referrerPolicy:{policy:'strict-origin-when-cross-origin'}
+}));
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
@@ -643,7 +665,7 @@ app.get('/api/videos', auth, async(req,res)=>{
 });
 app.post('/api/videos', auth, async(req,res)=>{
   if(!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(403).json({message:'Videodars joylash huquqi yo‘q'});
-  const title=String(req.body.title||'').trim(),sourceUrl=String(req.body.sourceUrl||'').trim();if(!title||!/^https?:\/\//i.test(sourceUrl))return res.status(400).json({message:'Nomi va to‘g‘ri video havolasi majburiy'});
+  const title=String(req.body.title||'').trim(),sourceUrl=String(req.body.sourceUrl||'').trim();let parsedVideoUrl;try{parsedVideoUrl=new URL(sourceUrl)}catch{}const allowedVideoProtocol=parsedVideoUrl&&(parsedVideoUrl.protocol==='https:'||(process.env.NODE_ENV!=='production'&&parsedVideoUrl.protocol==='http:'));if(!title||!allowedVideoProtocol)return res.status(400).json({message:'Nomi va HTTPS video havolasi majburiy'});
   const rawGroups=Array.isArray(req.body.groupIds)?req.body.groupIds:String(req.body.groupIds||'').split(',').map(x=>x.trim()).filter(Boolean),groupIds=[];
   for(const id of rawGroups){const g=await resolveStructure(id,'group');if(g)groupIds.push(g._id)}
   let teacherId=req.user.role==='teacher'?req.user._id:req.body.teacherId;if(teacherId&&!mongoose.isValidObjectId(teacherId)){const t=await User.findOne({login:String(teacherId).toLowerCase(),role:'teacher',active:true}).lean();teacherId=t?._id}
