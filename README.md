@@ -48,6 +48,8 @@ Fanlar guruh va o‘qituvchiga biriktiriladi. O‘qituvchi HTTPS material havola
 
 SCORM 1.2 uchun dastlabki paket importi va runtime qo‘shildi: ZIP manifesti tekshiriladi, talaba darsi `sandbox` iframe’da ochiladi va asosiy holat (`lesson_status`, ball, joylashuv, `suspend_data`) saqlanadi. Hozirgi hajm chegarasi 8 MB. Murakkab ko‘p SCO, sequencing va SCORM 2004 to‘liq qo‘llanmaydi; avtoproktoring hali yo‘q.
 
+Test uchun ixtiyoriy imtihon signalini qayd etish mavjud: talaba oldindan xabardor bo‘lib davom etsa, brauzer oynasidan chiqish, kamera ruxsati va `FaceDetector` mavjud bo‘lgan brauzerda yuzlar soni serverda vaqt belgisi bilan qayd etiladi. Tasvir va tovush saqlanmaydi. O‘qituvchi signalni ko‘rib chiqadi; signal avtomatik intizomiy qaror emas. Talaba shaxsini biometrik solishtirish, nigoh va xonadagi tovush tahlili mavjud emas, shuning uchun bu to‘liq avtoproktoring emas.
+
 ## Import formatlari
 
 Foydalanuvchi importi (.xlsx yoki .csv):
