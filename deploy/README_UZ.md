@@ -70,6 +70,10 @@ Secret yaratish misoli:
 
     openssl rand -hex 32
 
+### Shaxsni OTMda tasdiqlash
+
+Productionda `REQUIRE_IN_PERSON_IDENTITY=true` bo‘lsa student va o‘qituvchi loginidan oldin **Foydalanuvchilar → Shaxsni tasdiqlash** orqali OTM xodimi shaxs hujjatini joyida tekshiradi. Tizim to‘liq hujjat raqamini saqlamaydi; hujjat turi va oxirgi 2–4 belgisi, tekshirgan xodim, vaqt va audit qaydi saqlanadi.
+
 ## 4. Kodni tekshirish va build
 
 `hallaym` user bilan:
