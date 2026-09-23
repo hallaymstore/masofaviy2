@@ -34,7 +34,7 @@ systemctl stop masofaviy2-media.service masofaviy2.service || true
 echo "MongoDB + GridFS tiklanmoqda..."
 if mongorestore --uri="$MONGODB_URI" --archive="$SOURCE" --gzip --drop; then
   systemctl start masofaviy2.service masofaviy2-media.service
-  "$APP_DIR/deploy/verify-production.sh"
+  bash "$APP_DIR/deploy/verify-production.sh"
   echo "Tiklash muvaffaqiyatli."
 else
   systemctl start masofaviy2.service masofaviy2-media.service || true
