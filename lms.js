@@ -4,6 +4,7 @@ import { installResourceUploads } from './resource-upload.js';
 import { installAcademicRecords } from './academic-records.js';
 import { installLibrary } from './library.js';
 import { installCommunications } from './communications.js';
+import { installFinalExams } from './final-exams.js';
 export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
@@ -32,6 +33,7 @@ export function installLms(app,{mongoose,User,Structure,auth,audit,hasPermission
   const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
   installCommunications(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
+  const finalExams=installFinalExams(app,{mongoose,User,Structure,Course,CourseResult:academic.CourseResult,auth,audit,courseAccess,resolveUserGroupId});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
