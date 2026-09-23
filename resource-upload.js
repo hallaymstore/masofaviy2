@@ -43,6 +43,15 @@ export async function validateOfficePackage(stream,extension,size){
 
 export function installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess}){
   const bucket=()=>new mongoose.mongo.GridFSBucket(mongoose.connection.db,{bucketName:'edu_resources'});
+  const id=mongoose.Schema.Types.ObjectId;
+  const accessSchema=new mongoose.Schema({resourceId:{type:id,ref:'Resource',required:true,index:true},userId:{type:id,required:true,index:true},source:{type:String,enum:['file','link'],required:true},accessedAt:{type:Date,default:Date.now,index:true}},{versionKey:false});
+  accessSchema.index({resourceId:1,userId:1,accessedAt:-1});
+  const ResourceAccess=mongoose.models.ResourceAccess||mongoose.model('ResourceAccess',accessSchema);
+  const noteAccess=async(resourceId,userId,source)=>{
+    const since=new Date(Date.now()-30*60*1000);
+    if(await ResourceAccess.exists({resourceId,userId,accessedAt:{$gte:since}}))return;
+    await Promise.all([ResourceAccess.create({resourceId,userId,source}),Resource.updateOne({_id:resourceId},{$inc:{accessCount:1},$set:{lastAccessedAt:new Date()}})]);
+  };
   const maxBytes=Math.max(1,Math.min(Number(process.env.MAX_RESOURCE_MB)||1024,1024))*1024*1024;
   const upload=async(req,res)=>{
     let gridId;
@@ -73,7 +82,7 @@ export function installResourceUploads(app,{mongoose,auth,audit,Resource,courseA
   app.post('/api/lms/courses/:id/resources/upload',auth,upload);
   app.get('/api/lms/resources/:id/content',auth,async(req,res)=>{
     try{
-      if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id).lean();if(!row?.fileId)return res.status(404).end();await courseAccess(req,row.courseId);
+      if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id).lean();if(!row?.fileId)return res.status(404).end();await courseAccess(req,row.courseId);await noteAccess(row._id,req.user._id,'file');
       const bucketInstance=bucket(),name=encodeURIComponent(row.originalName||'resource');
       res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','private, no-store');res.set('Accept-Ranges','bytes');res.set('Content-Type',row.mimeType);
       const inline=/^(image|audio|video)\//.test(row.mimeType)||row.mimeType==='application/pdf';
@@ -83,6 +92,15 @@ export function installResourceUploads(app,{mongoose,auth,audit,Resource,courseA
       if(range){if(!range[1]&&!range[2])return res.status(416).end();if(!range[1]){const last=Number(range[2]);start=Math.max(0,row.size-last)}else start=Number(range[1]);if(range[1]&&range[2])end=Math.min(row.size,Number(range[2])+1);if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>=end||start>=row.size)return res.status(416).end();res.status(206);res.set('Content-Range',`bytes ${start}-${end-1}/${row.size}`)}
       res.set('Content-Length',String(end-start));const stream=bucketInstance.openDownloadStream(row.fileId,{start,end});stream.on('error',()=>{if(!res.headersSent)res.status(404).end();else res.destroy()});stream.pipe(res);
     }catch(e){res.status(e.status||403).json({message:e.message})}
+  });
+  app.get('/api/lms/resources/:id/open',auth,async(req,res)=>{
+    try{if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id).lean();if(!row?.url)return res.status(404).json({message:'Havola topilmadi'});await courseAccess(req,row.courseId);await noteAccess(row._id,req.user._id,'link');res.redirect(302,row.url)}catch(e){res.status(e.status||403).json({message:e.message})}
+  });
+  app.get('/api/lms/courses/:id/resource-usage',auth,async(req,res)=>{
+    try{await courseAccess(req,req.params.id,true);const resources=await Resource.find({courseId:req.params.id,published:true}).select('title kind accessCount lastAccessedAt').lean(),ids=resources.map(x=>x._id);
+      const grouped=ids.length?await ResourceAccess.aggregate([{$match:{resourceId:{$in:ids}}},{$group:{_id:'$resourceId',events:{$sum:1},users:{$addToSet:'$userId'},lastAccessedAt:{$max:'$accessedAt'}}}]):[];
+      const byId=new Map(grouped.map(x=>[String(x._id),x]));res.json(resources.map(r=>{const x=byId.get(String(r._id));return {...r,uniqueUsers:x?.users?.length||0,recordedSessions:x?.events||0,lastAccessedAt:x?.lastAccessedAt||r.lastAccessedAt||null}}));
+    }catch(e){res.status(e.status||400).json({message:e.message})}
   });
   app.delete('/api/lms/resources/:id',auth,async(req,res)=>{
     try{if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id);if(!row)return res.status(404).end();await courseAccess(req,row.courseId,true);await row.deleteOne();if(row.fileId)await bucket().delete(row.fileId).catch(()=>{});audit(req,'RESOURCE_DELETE','Resource',row.id);res.json({ok:true})}catch(e){res.status(e.status||400).json({message:e.message})}
