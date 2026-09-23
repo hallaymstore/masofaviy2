@@ -7,9 +7,8 @@ export function normalizeAcademicYear(value){
 export function normalizeScore(value,name='Ball'){
   const n=Number(value);if(!Number.isFinite(n)||n<0||n>100)throw new Error(name+' 0–100 oralig‘ida bo‘lsin');return Math.round(n*100)/100;
 }
-export function scoreToGrade(score){
-  const n=Number(score);if(!Number.isFinite(n))return '';
-  if(n>=90)return 'A';if(n>=80)return 'B';if(n>=70)return 'C';if(n>=60)return 'D';return 'F';
+export function normalizeOutcome(value){
+  const text=String(value||'').trim();if(!['completed','failed'].includes(text))throw new Error('Natija holatini tanlang');return text;
 }
 export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId}){
   const id=mongoose.Schema.Types.ObjectId;
@@ -37,7 +36,7 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
     continuousScore:{type:Number,min:0,max:100,required:true},
     finalScore:{type:Number,min:0,max:100,required:true},
     totalScore:{type:Number,min:0,max:100,required:true},
-    letterGrade:{type:String,enum:['A','B','C','D','F'],required:true},
+    gradeLabel:{type:String,trim:true,maxlength:30},
     creditsAwarded:{type:Number,min:0,max:60,default:0},
     status:{type:String,enum:['submitted','final'],default:'submitted',index:true},
     note:{type:String,maxlength:2000},
@@ -114,12 +113,13 @@ export function installAcademicRecords(app,{mongoose,User,Course,auth,audit,cour
       const current=await CourseResult.findOne({studentId:student._id,courseId:course._id,academicYear,semester:sem}),isAdmin=admin(req),finalize=req.body.finalize===true;
       if(current?.status==='final'&&(!isAdmin||String(req.body.revisionReason||'').trim().length<10))return res.status(409).json({message:'Yakuniy natijani o‘zgartirish uchun administrator va kamida 10 belgili sabab kerak'});
       if(finalize&&!isAdmin)return res.status(403).json({message:'Yakuniy natijani faqat administrator tasdiqlaydi'});
-      const creditsAwarded=Number(req.body.creditsAwarded??(totalScore>=60?course.credits:0));if(!Number.isFinite(creditsAwarded)||creditsAwarded<0||creditsAwarded>Number(course.credits||0))throw new Error('Beriladigan kredit fan kreditidan oshmasin');
-      const update={continuousScore,finalScore,totalScore,letterGrade:scoreToGrade(totalScore),creditsAwarded,status:finalize?'final':'submitted',note:String(req.body.note||'').slice(0,2000),enteredBy:req.user._id,revisionReason:String(req.body.revisionReason||'').slice(0,2000)};
+      const creditsAwarded=Number(req.body.creditsAwarded);if(!Number.isFinite(creditsAwarded)||creditsAwarded<0||creditsAwarded>Number(course.credits||0))throw new Error('Beriladigan kreditni 0 dan fan kreditigacha kiriting');
+      const gradeLabel=String(req.body.gradeLabel||'').trim().slice(0,30),outcome=finalize?normalizeOutcome(req.body.outcome):null;
+      const update={continuousScore,finalScore,totalScore,gradeLabel,creditsAwarded,status:finalize?'final':'submitted',note:String(req.body.note||'').slice(0,2000),enteredBy:req.user._id,revisionReason:String(req.body.revisionReason||'').slice(0,2000)};
       if(finalize){update.finalizedBy=req.user._id;update.finalizedAt=new Date()}
       const row=await CourseResult.findOneAndUpdate({studentId:student._id,courseId:course._id,academicYear,semester:sem},{$set:update},{upsert:true,new:true,runValidators:true});
-      if(finalize)await StudyPlan.updateOne({studentId:student._id,academicYear,semester:sem,'items.courseId':course._id},{$set:{'items.$.status':creditsAwarded>0?'completed':'failed'}});
-      audit(req,finalize?'COURSE_RESULT_FINALIZE':'COURSE_RESULT_SUBMIT','CourseResult',row.id,{studentId:String(student._id),courseId:String(course._id),totalScore,creditsAwarded,revision:Boolean(current?.status==='final')});res.json(row);
+      if(finalize)await StudyPlan.updateOne({studentId:student._id,academicYear,semester:sem,'items.courseId':course._id},{$set:{'items.$.status':outcome}});
+      audit(req,finalize?'COURSE_RESULT_FINALIZE':'COURSE_RESULT_SUBMIT','CourseResult',row.id,{studentId:String(student._id),courseId:String(course._id),totalScore,gradeLabel,creditsAwarded,outcome,revision:Boolean(current?.status==='final')});res.json(row);
     }catch(e){fail(res,e)}
   });
   app.get('/api/lms/academic/results/course/:courseId',auth,async(req,res)=>{
