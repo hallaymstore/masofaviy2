@@ -66,7 +66,10 @@ export function installScorm(app,{mongoose,auth,audit,courseAccess}){
     const pkg=await Package.findById(session.packageId);if(!pkg?.published)return res.status(404).end();
     const zip=await JSZip.loadAsync(pkg.zip);const file=zip.file(path);if(!file||file.dir)return res.status(404).end();
     const data=await file.async('nodebuffer');if(data.length>MAX_EXPANDED)return res.status(413).end();
-    res.set('Content-Type',mime(path));res.set('Content-Security-Policy',"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'; base-uri 'none'");
+    // An iframe without allow-same-origin has an opaque origin: 'self' alone would block its package assets.
+    const host=String(req.get('host')||'');if(!/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host))return res.status(400).end();
+    const packageOrigin=`${req.protocol}://${host}`;
+    res.set('Content-Type',mime(path));res.set('Content-Security-Policy',`default-src ${packageOrigin} data: blob:; script-src ${packageOrigin} 'unsafe-inline' 'unsafe-eval' blob:; style-src ${packageOrigin} 'unsafe-inline'; connect-src 'none'; frame-ancestors ${packageOrigin}; form-action 'none'; base-uri 'none'`);
     if(path===pkg.launch){
       const html=data.toString('utf8');const shim=`<script>${runtimeShim(req.params[0])}</script>`;
       return res.send(/<head[^>]*>/i.test(html)?html.replace(/<head[^>]*>/i,m=>m+shim):shim+html);

@@ -1,6 +1,6 @@
 # Masofaviy2
 
-> Muvofiqlik holati: tizim hali VM 559-son qarordagi to‘liq LMS talablarini bajarmaydi. SCORM, avtoproktoring va davlat tizimlari integratsiyasi yo‘q. Server va metodik hujjatlar tekshirilmaguncha rasmiy masofaviy ta’lim uchun tayyor deb ko‘rsatmang. Tafsilotlar: `docs/COMPLIANCE_GAP_UZ.md`.
+> Muvofiqlik holati: tizim hali VM 559-son qarordagi to‘liq LMS talablarini bajarmaydi. SCORM 1.2 qisman, imtihon signalini qayd etish qisman; to‘liq avtoproktoring va davlat tizimlari integratsiyasi yo‘q. Server va metodik hujjatlar tekshirilmaguncha rasmiy masofaviy ta’lim uchun tayyor deb ko‘rsatmang. Tafsilotlar: `docs/COMPLIANCE_GAP_UZ.md`, `docs/RELEASE_GATE_UZ.md`.
 
 Oliy ta’lim muassasasi uchun mobil-first, yopiq ro‘yxatdan o‘tishga ega masofaviy ta’lim PWA platformasi. Ushbu versiyada **qulaylik + erkin boshqaruv + kuchli nazorat + batafsil statistika** markaziy o‘ringa qo‘yilgan.
 
