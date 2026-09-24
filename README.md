@@ -1,6 +1,6 @@
 # Masofaviy2
 
-> Muvofiqlik holati: tizim hali VM 559-son qarordagi to‘liq LMS talablarini bajarmaydi. SCORM 1.2 qisman, imtihon signalini qayd etish qisman; to‘liq avtoproktoring va davlat tizimlari integratsiyasi yo‘q. Server va metodik hujjatlar tekshirilmaguncha rasmiy masofaviy ta’lim uchun tayyor deb ko‘rsatmang. Tafsilotlar: `docs/COMPLIANCE_GAP_UZ.md`, `docs/RELEASE_GATE_UZ.md`.
+> Muvofiqlik holati: LMSning asosiy 559-son oqimlari sezilarli darajada yopilgan: SCORM 1.2 multi-SCO/resume, akademik reja/kredit/transkript, qayta o‘qish, elektron kutubxona, kommunikatsiya, shaxsan identifikatsiya qaydi, yakuniy nazorat reyestri, monitoring eksport/sync adapteri, 2FA va backup/restore mavjud. Shunga qaramay **rasmiy “to‘liq mos” deb e’lon qilinmaydi**: avtoproktoringning 2-banddagi to‘liq biometrik/gaze/tovush imkoniyatlari, real SCORM conformance, davlatning ikki tizimi bilan vakolatli API qabul sinovi, O‘zDSt 36.2030 metodik ekspertizasi va universitet serveridagi yuklama/xavfsizlik qabul protokoli hali tashqi dalillar bilan yopilishi kerak. Tafsilotlar: `docs/COMPLIANCE_GAP_UZ.md`, `docs/RELEASE_GATE_UZ.md`.
 
 Oliy ta’lim muassasasi uchun mobil-first, yopiq ro‘yxatdan o‘tishga ega masofaviy ta’lim PWA platformasi. Ushbu versiyada **qulaylik + erkin boshqaruv + kuchli nazorat + batafsil statistika** markaziy o‘ringa qo‘yilgan.
 
@@ -115,6 +115,12 @@ O‘zbekiston vaqti uchun APP_UTC_OFFSET_MINUTES=300. Ochiq jadval linklari kera
 5. npm run check
 
 GitHub Actions har push/PR da Node 22 muhitida syntax check, unit test va HttpOnly-cookie login bilan smoke boot bajaradi.
+
+## Davlat monitoring integratsiyasi
+
+29-band uchun `monitoring-export.js` ikki alohida provider bilan ishlashga tayyorlangan. U student/o‘qituvchi va tuzilma external-ID mapping’ini tekshiradi, snapshot hash yaratadi, faqat HTTPS gateway’ga yuboradi, token/schema/ruxsat flagi to‘liq bo‘lmasa syncni bloklaydi, idempotency kaliti ishlatadi va receipt/reference hamda audit tarixini saqlaydi.
+
+Bu **rasmiy API topilgan deb taxmin qilmaydi**. `MONITORING_MINISTRY_*` va `MONITORING_QUALITY_*` qiymatlari faqat vakolatli tashkilotlar bergan integratsiya hujjati asosida productionga kiritiladi. Shundan keyin test eksport → sync → receipt → qayta yuborish/idempotency qabul sinovi o‘tkaziladi.
 
 ## Media qatlami
 
