@@ -1,7 +1,21 @@
 import crypto from 'node:crypto';
+import net from 'node:net';
 
+// Generated timestamps are transport metadata: they must not change the identity of unchanged academic records.
 export function stableMonitoringHash(payload){
-  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  const {generatedAt: _ignored, ...academicData}=payload;
+  const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'
+    ?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,canonical(v)])):value;
+  return crypto.createHash('sha256').update(JSON.stringify(canonical(academicData))).digest('hex');
+}
+
+// An accepted or delivered payload is not silently transmitted twice.
+// Failed attempts can be retried; explicitly rejected receipts require a new reviewed export.
+export function monitoringSyncDecision(status,startedAt,now=Date.now()){
+  if(status==='accepted'||status==='delivered')return 'already_delivered';
+  if(status==='rejected')return 'rejected';
+  if(status==='sending' && (!startedAt || now-new Date(startedAt).getTime()<120000))return 'in_progress';
+  return 'send';
 }
 
 export function validateReceiptReference(value){
@@ -10,11 +24,16 @@ export function validateReceiptReference(value){
   return text;
 }
 
-export function validateMonitoringGatewayUrl(value){
+export function validateMonitoringGatewayUrl(value,approvedHost=''){
   const text=String(value||'').trim();if(!text)return '';
   let parsed;try{parsed=new URL(text)}catch{throw new Error('Monitoring gateway URL noto‘g‘ri')}
   if(parsed.protocol!=='https:')throw new Error('Monitoring gateway faqat HTTPS bo‘lishi kerak');
   if(parsed.username||parsed.password||parsed.hash)throw new Error('Monitoring gateway URL ichida credential/hash bo‘lmasin');
+  const host=parsed.hostname.toLowerCase().replace(/^\[|\]$/g,'');
+  if(net.isIP(host)||!host.includes('.')||/(^|\.)(localhost|local|internal|test|invalid)$/.test(host))
+    throw new Error('Monitoring gateway uchun ommaviy rasmiy domen talab etiladi');
+  const approved=String(approvedHost||'').trim().toLowerCase();
+  if(approved&&parsed.host.toLowerCase()!==approved)throw new Error('Monitoring gateway domeni tasdiqlangan rasmiy host bilan mos emas');
   return parsed.toString();
 }
 
@@ -24,6 +43,7 @@ const providerConfig=provider=>{
     provider,
     label:provider==='ministry'?'Oliy ta’lim jarayonlarini boshqarish axborot tizimi':'Ta’lim muassasalari, pedagoglar va ta’lim oluvchilar yagona ma’lumotlar bazasi',
     url:String(process.env[prefix+'_URL']||'').trim(),
+    approvedHost:String(process.env[prefix+'_ALLOWED_HOST']||'').trim().toLowerCase(),
     token:String(process.env[prefix+'_TOKEN']||'').trim(),
     schemaVersion:String(process.env[prefix+'_SCHEMA_VERSION']||'').trim(),
     contractConfirmed:String(process.env[prefix+'_OFFICIAL_CONTRACT_CONFIRMED']||'false').toLowerCase()==='true'
@@ -36,7 +56,8 @@ export function installMonitoringExport(app,{mongoose,User,Structure,Course,Sche
     provider:{type:String,enum:['ministry','quality'],required:true,index:true},
     payloadHash:{type:String,required:true,index:true},
     generatedAt:{type:Date,required:true},
-    status:{type:String,enum:['generated','delivered','accepted','rejected','failed'],default:'generated',index:true},
+    status:{type:String,enum:['generated','sending','delivered','accepted','rejected','failed'],default:'generated',index:true},
+    syncStartedAt:Date,
     deliveredAt:Date,receiptReference:{type:String,maxlength:500},receiptNote:{type:String,maxlength:2000},
     lastHttpStatus:Number,deliveryError:{type:String,maxlength:2000},gatewayRequestId:{type:String,maxlength:500},
     recordedBy:{type:id,ref:'User',required:true}
@@ -48,33 +69,40 @@ export function installMonitoringExport(app,{mongoose,User,Structure,Course,Sche
   const institutionCode=()=>String(process.env.INSTITUTION_CODE||'').trim();
 
   const mappingReadiness=async()=>{
-    const [missingUsers,missingStructures,activeUsers,activeStructures]=await Promise.all([
-      User.find({active:true,role:{$in:['student','teacher']},$or:[{externalId:{$exists:false}},{externalId:''}]}).select('_id login fullName role').limit(200).lean(),
-      Structure.find({active:true,$or:[{externalId:{$exists:false}},{externalId:''}]}).select('_id type name code').limit(200).lean(),
+    const missingUserFilter={active:true,role:{$in:['student','teacher']},$or:[{externalId:{$exists:false}},{externalId:null},{externalId:''}]},
+      missingStructureFilter={active:true,$or:[{externalId:{$exists:false}},{externalId:null},{externalId:''}]};
+    const [missingUsers,missingStructures,missingUserCount,missingStructureCount,activeUsers,activeStructures]=await Promise.all([
+      User.find(missingUserFilter).select('_id login fullName role').limit(200).lean(),
+      Structure.find(missingStructureFilter).select('_id type name code').limit(200).lean(),
+      User.countDocuments(missingUserFilter),
+      Structure.countDocuments(missingStructureFilter),
       User.countDocuments({active:true,role:{$in:['student','teacher']}}),
       Structure.countDocuments({active:true})
     ]);
-    return {activeUsers,activeStructures,missingUserExternalIds:missingUsers.length,missingStructureExternalIds:missingStructures.length,missingUsers,missingStructures};
+    return {activeUsers,activeStructures,missingUserExternalIds:missingUserCount,missingStructureExternalIds:missingStructureCount,missingUsers,missingStructures};
   };
 
   const buildSnapshot=async()=>{
-    const now=new Date(),since=new Date(now.getTime()-30*86400000);
+    const generatedAt=new Date(),now=new Date(Math.floor(generatedAt.getTime()/3600000)*3600000),since=new Date(now.getTime()-30*86400000);
     const [users,structures,courses,schedules,attendance,results,plans,movements]=await Promise.all([
       User.find({active:true}).select('_id externalId login fullName role facultyId departmentId groupId direction courseYear identityVerifiedAt').lean(),
       Structure.find({active:true}).select('_id type name externalId code parentId').lean(),
       Course.find({active:true}).select('_id code title language credits teacherId groupId').lean(),
       Schedule.find({}).select('_id title subject groupId teacherId weekday date start end kind recurring').lean(),
-      Attendance.aggregate([{$match:{createdAt:{$gte:since}}},{$group:{_id:{lessonId:'$lessonId',status:'$status'},count:{$sum:1},minutes:{$sum:{$ifNull:['$minutes',0]}}}}]),
+      Attendance.aggregate([{$match:{createdAt:{$gte:since,$lt:now}}},{$group:{_id:{lessonId:'$lessonId',status:'$status'},count:{$sum:1},minutes:{$sum:{$ifNull:['$minutes',0]}}}}]),
       CourseResult.find({status:'final'}).select('studentId courseId academicYear semester totalScore gradeLabel creditsAwarded finalizedAt').lean(),
       StudyPlan.find({}).select('studentId academicYear semester items approvedAt').lean(),
       StudentMovement.find({effectiveAt:{$gte:new Date(now.getTime()-365*86400000)}}).select('studentId kind effectiveAt fromGroupId toGroupId documentNo').lean()
     ]);
+    const byId=(a,b)=>String(a._id||'').localeCompare(String(b._id||''));
+    users.sort(byId);structures.sort(byId);courses.sort(byId);schedules.sort(byId);results.sort(byId);plans.sort(byId);movements.sort(byId);
+    attendance.sort((a,b)=>(String(a._id.lessonId)+'/'+a._id.status).localeCompare(String(b._id.lessonId)+'/'+b._id.status));
     const usersById=new Map(users.map(x=>[String(x._id),x])),structuresById=new Map(structures.map(x=>[String(x._id),x])),coursesById=new Map(courses.map(x=>[String(x._id),x]));
     const userExternal=x=>{const row=usersById.get(String(x||''));return row?.externalId||''};
     const structureExternal=x=>{const row=structuresById.get(String(x||''));return row?.externalId||row?.code||''};
     const courseCode=x=>coursesById.get(String(x||''))?.code||'';
     return {
-      schema:'masofaviy2-monitoring-v2',institutionCode:institutionCode(),generatedAt:now.toISOString(),
+      schema:'masofaviy2-monitoring-v2',institutionCode:institutionCode(),generatedAt:generatedAt.toISOString(),
       period:{attendanceFrom:since.toISOString(),attendanceTo:now.toISOString()},
       counts:{students:users.filter(x=>x.role==='student').length,teachers:users.filter(x=>x.role==='teacher').length,courses:courses.length,schedules:schedules.length,finalResults:results.length},
       structures:structures.map(x=>({localId:String(x._id),externalId:x.externalId||x.code||'',type:x.type,name:x.name,parentExternalId:structureExternal(x.parentId)})),
@@ -90,17 +118,18 @@ export function installMonitoringExport(app,{mongoose,User,Structure,Course,Sche
 
   const readinessFor=async provider=>{
     const config=providerConfig(provider),mapping=await mappingReadiness();let gatewayUrl='',urlError='';
-    if(config.url){try{gatewayUrl=validateMonitoringGatewayUrl(config.url)}catch(e){urlError=e.message}}
+    if(config.url&&config.approvedHost){try{gatewayUrl=validateMonitoringGatewayUrl(config.url,config.approvedHost)}catch(e){urlError=e.message}}
     const checks={
       institutionCode:Boolean(institutionCode()),
       gatewayHttps:Boolean(gatewayUrl),
+      gatewayHostApproved:Boolean(config.approvedHost&&gatewayUrl),
       gatewayToken:config.token.length>=16,
       schemaVersion:Boolean(config.schemaVersion),
       officialContractConfirmed:config.contractConfirmed,
       userExternalIds:mapping.missingUserExternalIds===0,
       structureExternalIds:mapping.missingStructureExternalIds===0
     };
-    return {provider,label:config.label,ready:Object.values(checks).every(Boolean),checks,urlError,mapping:{activeUsers:mapping.activeUsers,activeStructures:mapping.activeStructures,missingUserExternalIds:mapping.missingUserExternalIds,missingStructureExternalIds:mapping.missingStructureExternalIds},config:{endpointConfigured:Boolean(config.url),schemaVersion:config.schemaVersion||null,officialContractConfirmed:config.contractConfirmed}};
+    return {provider,label:config.label,ready:Object.values(checks).every(Boolean),checks,urlError,mapping:{activeUsers:mapping.activeUsers,activeStructures:mapping.activeStructures,missingUserExternalIds:mapping.missingUserExternalIds,missingStructureExternalIds:mapping.missingStructureExternalIds},config:{endpointConfigured:Boolean(config.url),allowedHostConfigured:Boolean(config.approvedHost),schemaVersion:config.schemaVersion||null,officialContractConfirmed:config.contractConfirmed}};
   };
 
   app.get('/api/lms/monitoring/readiness',auth,async(req,res)=>{
