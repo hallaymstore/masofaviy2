@@ -19,15 +19,23 @@ const caps={
 };
 
 export function summarizeProctorEvents(events=[]){
-  const counts={};for(const row of events){const type=String(row?.type||'');if(!PROCTOR_EVENT_TYPES.includes(type))continue;counts[type]=(counts[type]||0)+1}
+  const counts={};let cameraReady=false,microphoneReady=false;
+  for(const row of events){
+    const type=String(row?.type||'');if(!PROCTOR_EVENT_TYPES.includes(type))continue;
+    counts[type]=(counts[type]||0)+1;
+    // Readiness is the LATEST device state, never a historical "ready" flag.
+    if(type==='camera_ready')cameraReady=true;
+    if(type==='camera_unavailable'||type==='camera_track_ended')cameraReady=false;
+    if(type==='microphone_ready')microphoneReady=true;
+    if(type==='microphone_unavailable'||type==='microphone_track_ended')microphoneReady=false;
+  }
   let score=0;for(const [type,count] of Object.entries(counts)){const raw=(weights[type]||0)*count;score+=caps[type]?Math.min(raw,caps[type]):raw}
-  const cameraReady=Boolean(counts.camera_ready),microphoneReady=Boolean(counts.microphone_ready);
   if(!cameraReady)score+=35;if(!microphoneReady)score+=20;
   score=Math.max(0,Math.min(100,Math.round(score)));
   const reviewPriority=score>=60?'high':score>=25?'medium':'low';
   const warnings=[];
-  if(!cameraReady)warnings.push('Kamera tayyorligi tasdiqlanmagan');
-  if(!microphoneReady)warnings.push('Mikrofon tayyorligi tasdiqlanmagan');
+  if(!cameraReady)warnings.push('Kamera tayyorligi tasdiqlanmagan yoki uzilgan');
+  if(!microphoneReady)warnings.push('Mikrofon tayyorligi tasdiqlanmagan yoki uzilgan');
   if(counts.multiple_faces)warnings.push('Bir nechta yuz aniqlangan');
   if(counts.face_missing)warnings.push('Yuz kadrdan yo‘qolgan');
   if(counts.page_hidden||counts.window_blur||counts.fullscreen_exit)warnings.push('Imtihon oynasidan chiqish signallari bor');
