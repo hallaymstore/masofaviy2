@@ -8,6 +8,7 @@ import { installFinalExams } from './final-exams.js';
 import { installCurriculum } from './curriculum.js';
 import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady } from './proctoring.js';
 import { installMonitoringExport } from './monitoring-export.js';
+import { installFeedback } from './feedback.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
@@ -36,6 +37,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
   installCommunications(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
+  installFeedback(app,{mongoose,auth,audit,courseAccess});
   const finalExams=installFinalExams(app,{mongoose,User,Structure,Course,CourseResult:academic.CourseResult,auth,audit,courseAccess,resolveUserGroupId});
   const curriculum=installCurriculum(app,{mongoose,User,Structure,Course,Resource,Assignment,Quiz,auth,audit,resolveUserGroupId});
   installMonitoringExport(app,{mongoose,User,Structure,Course,Schedule,Attendance,CourseResult:academic.CourseResult,StudyPlan:academic.StudyPlan,StudentMovement:academic.StudentMovement,auth,audit});
