@@ -11,7 +11,7 @@ Asos: VM 559-son qarori (joriy tahrir): https://lex.uz/docs/-6221502. Ushbu jadv
 | 21 | Shaxsan dastlabki ro‘yxat, har semestr yakuniy nazorati, attestatsiya/himoya jarayoni | `final-exams.js` texnik reyestr va audit beradi; production qabulida OTM buyrug‘i, joy/xona, nazoratchilar, shaxs hujjati tekshiruvi va real sessiya dalillari bilan verifikatsiya qilinadi |
 | 24 | Barcha dars, amaliyot, mustaqil ish va baholash qaydnomasi LMS orqali | Texnik oqim bor; real fanlar bo‘yicha kontent va to‘liq foydalanish dalili OTM tomonidan tekshiriladi |
 | 26 | Tasdiqlangan o‘qituvchi–talaba yuklamasi, 1:50 nazorati | Dastlabki indikator bor |
-| 29 | Vakolatli davlat tizimlari bilan rasmiy API kelishuvi, sinxronizatsiya va qabul sinovi | Rasmiy kirish kerak |
+| 29 | Vakolatli davlat tizimlari bilan rasmiy API kelishuvi, sinxronizatsiya va qabul sinovi | Guarded adapter, mapping readiness, auditli eksport/sync va receipt qaydi tayyor; rasmiy URL/token/schema/shartnoma hamda ikki tizim bilan real qabul sinovi hali vakolatli tomondan talab etiladi |
 
 ## Texnik qabul sinovi
 
@@ -35,3 +35,5 @@ Rasmiy “mos” maqomi faqat kod, kontent, infrastruktura va tashkiliy dalillar
 10. Qayta o‘qish/topshirish workflow’ida fan, semestr, sabab, urinish raqami, muddat, administrator yakuniy tasdig‘i va study-plan holati yangilanishini test qilish.
 11. Tasdiqlangan o‘quv reja XLSX/CSV importi va readiness sahifasida har guruh/fan bo‘yicha til, kredit, syllabus, resurs, topshiriq, test va amaliyot coverage tekshiruvini real reja bilan solishtirish.
 12. `deploy/backup-mongodb.sh` bilan backup olib, alohida qabul muhitida `deploy/restore-mongodb.sh` orqali restore qilish va `verify-production.sh` health-checkini muvaffaqiyatli yakunlash; backup faylining saqlash/shifrlash siyosatini protokollash.
+
+13. 29-band bo‘yicha har ikki provider uchun `INSTITUTION_CODE`, rasmiy HTTPS gateway URL, alohida token, schema version va `*_OFFICIAL_CONTRACT_CONFIRMED=true` ni faqat vakolatli integratsiya hujjati olingach kiritish; student/o‘qituvchi va tuzilmalardagi external ID mapping 100% bo‘lgach test eksport → rasmiy sync → receipt/reference → qayta yuborishda idempotency oqimini protokollash.
