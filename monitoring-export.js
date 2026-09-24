@@ -13,8 +13,8 @@ export function stableMonitoringHash(payload){
 // Failed attempts can be retried; explicitly rejected receipts require a new reviewed export.
 export function monitoringSyncDecision(status,startedAt,now=Date.now()){
   if(status==='accepted'||status==='delivered')return 'already_delivered';
-  if(status==='rejected')return 'rejected';
-  if(status==='sending' && (!startedAt || now-new Date(startedAt).getTime()<120000))return 'in_progress';
+  if(status==='rejected'||status==='unknown')return 'needs_reconciliation';
+  if(status==='sending')return startedAt&&now-new Date(startedAt).getTime()>=120000?'needs_reconciliation':'in_progress';
   return 'send';
 }
 
@@ -56,8 +56,8 @@ export function installMonitoringExport(app,{mongoose,User,Structure,Course,Sche
     provider:{type:String,enum:['ministry','quality'],required:true,index:true},
     payloadHash:{type:String,required:true,index:true},
     generatedAt:{type:Date,required:true},
-    status:{type:String,enum:['generated','sending','delivered','accepted','rejected','failed'],default:'generated',index:true},
-    syncStartedAt:Date,
+    status:{type:String,enum:['generated','sending','delivered','accepted','rejected','failed','unknown'],default:'generated',index:true},
+    syncStartedAt:Date,syncAttempts:{type:Number,default:0},
     deliveredAt:Date,receiptReference:{type:String,maxlength:500},receiptNote:{type:String,maxlength:2000},
     lastHttpStatus:Number,deliveryError:{type:String,maxlength:2000},gatewayRequestId:{type:String,maxlength:500},
     recordedBy:{type:id,ref:'User',required:true}
@@ -150,20 +150,96 @@ export function installMonitoringExport(app,{mongoose,User,Structure,Course,Sche
   });
 
   app.post('/api/lms/monitoring/:provider/sync',auth,async(req,res)=>{
-    try{if(!admin(req))return res.status(403).json({message:'Ruxsat yo‘q'});if(req.body.confirmOfficialTransfer!==true)return res.status(400).json({message:'Rasmiy tizim/gatewayga ma’lumot uzatishni aniq tasdiqlang'});
-      const provider=String(req.params.provider||'');if(!['ministry','quality'].includes(provider))throw new Error('Monitoring tizimi noto‘g‘ri');
-      const readiness=await readinessFor(provider);if(!readiness.ready)return res.status(409).json({message:'Rasmiy integratsiya readiness to‘liq emas',readiness});
-      const config=providerConfig(provider),gatewayUrl=validateMonitoringGatewayUrl(config.url),payload=await buildSnapshot(),payloadHash=stableMonitoringHash(payload),serialized=JSON.stringify({contract:'masofaviy2-monitoring-gateway-v1',provider,institutionCode:institutionCode(),schemaVersion:config.schemaVersion,payloadHash,payload});
-      const maxBytes=Math.max(1,Math.min(Number(process.env.MONITORING_MAX_PAYLOAD_MB)||8,32))*1024*1024;if(Buffer.byteLength(serialized)>maxBytes)return res.status(413).json({message:'Monitoring payload gateway chegarasidan katta'});
-      const row=await Export.findOneAndUpdate({provider,payloadHash},{$setOnInsert:{provider,payloadHash,generatedAt:new Date(payload.generatedAt),recordedBy:req.user._id},$set:{status:'generated',deliveryError:''}},{upsert:true,new:true}),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(3000,Math.min(Number(process.env.MONITORING_TIMEOUT_MS)||20000,60000)));
+    try{
+      if(!admin(req))return res.status(403).json({message:'Ruxsat yo‘q'});
+      if(req.body.confirmOfficialTransfer!==true)return res.status(400).json({message:'Rasmiy tizimga ma’lumot uzatishni aniq tasdiqlang'});
+      const provider=String(req.params.provider||'');
+      if(!['ministry','quality'].includes(provider))return res.status(400).json({message:'Monitoring tizimi noto‘g‘ri'});
+      const readiness=await readinessFor(provider);
+      if(!readiness.ready)return res.status(409).json({message:'Rasmiy integratsiya sozlamalari va ID mapping to‘liq emas',readiness});
+      const config=providerConfig(provider);
+      // The operator-provided allowlisted host is mandatory; do not follow HTTP redirects.
+      const gatewayUrl=validateMonitoringGatewayUrl(config.url,config.approvedHost);
+      const payload=await buildSnapshot(),payloadHash=stableMonitoringHash(payload);
+      const serialized=JSON.stringify({
+        contract:'masofaviy2-monitoring-gateway-v1',provider,
+        institutionCode:institutionCode(),schemaVersion:config.schemaVersion,payloadHash,payload
+      });
+      const maxBytes=Math.max(1,Math.min(Number(process.env.MONITORING_MAX_PAYLOAD_MB)||8,32))*1024*1024;
+      if(Buffer.byteLength(serialized)>maxBytes)return res.status(413).json({message:'Monitoring ma’lumoti belgilangan hajmdan katta'});
+
+      // Unique (provider,hash), followed by atomic claim, prevents concurrent double-submission.
+      let row;
+      try{
+        row=await Export.findOneAndUpdate({provider,payloadHash},{
+          $setOnInsert:{provider,payloadHash,generatedAt:new Date(payload.generatedAt),recordedBy:req.user._id}
+        },{upsert:true,new:true,runValidators:true});
+      }catch(e){
+        if(e.code!==11000)throw e;
+        row=await Export.findOne({provider,payloadHash});
+      }
+      const decision=monitoringSyncDecision(row?.status,row?.syncStartedAt);
+      if(decision!=='send'){
+        return res.status(409).json({message:decision==='already_delivered'
+          ?'Ushbu eksport avval yuborilgan, qayta jo‘natilmadi'
+          :decision==='in_progress'?'Ushbu eksport hozir yuborilmoqda'
+          :'Oldingi yuborish natijasi qo‘lda tekshirilishi kerak',
+          provider,payloadHash,status:row?.status,receiptReference:row?.receiptReference||null});
+      }
+      const claimed=await Export.findOneAndUpdate({
+        _id:row._id,status:{$in:['generated','failed']}
+      },{
+        $set:{status:'sending',syncStartedAt:new Date(),deliveryError:''},
+        $inc:{syncAttempts:1}
+      },{new:true});
+      if(!claimed)return res.status(409).json({message:'Boshqa jarayon ushbu eksportni yubormoqda yoki holati o‘zgargan',provider,payloadHash});
+
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),Math.max(3000,Math.min(Number(process.env.MONITORING_TIMEOUT_MS)||20000,60000)));
       let response,responseText='',parsed=null;
-      try{response=await fetch(gatewayUrl,{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token,'idempotency-key':payloadHash,'x-masofaviy2-payload-hash':payloadHash},body:serialized,signal:controller.signal});responseText=(await response.text()).slice(0,4000);try{parsed=JSON.parse(responseText)}catch{}}
-      catch(e){row.status='failed';row.deliveryError=String(e.message||e).slice(0,2000);await row.save();audit(req,'MONITORING_SYNC_FAILED','MonitoringExport',row.id,{provider,payloadHash,error:row.deliveryError});return res.status(502).json({message:'Monitoring gatewayga yuborilmadi',error:row.deliveryError})}
-      finally{clearTimeout(timer)}
-      row.lastHttpStatus=response.status;row.deliveredAt=new Date();row.status=response.ok?'delivered':'failed';row.deliveryError=response.ok?'':('HTTP '+response.status+' '+responseText).slice(0,2000);
-      if(response.ok&&parsed?.accepted===true){row.status='accepted';row.receiptReference=validateReceiptReference(parsed.reference||parsed.requestId||payloadHash.slice(0,16));row.gatewayRequestId=String(parsed.requestId||parsed.reference||'').slice(0,500)}
-      await row.save();audit(req,response.ok?'MONITORING_SYNC_DELIVERED':'MONITORING_SYNC_FAILED','MonitoringExport',row.id,{provider,payloadHash,httpStatus:response.status,status:row.status,receiptReference:row.receiptReference||''});
-      res.status(response.ok?200:502).json({ok:response.ok,provider,status:row.status,payloadHash,httpStatus:response.status,receiptReference:row.receiptReference||null,gatewayRequestId:row.gatewayRequestId||null});
+      try{
+        response=await fetch(gatewayUrl,{
+          method:'POST',redirect:'error',cache:'no-store',
+          headers:{'content-type':'application/json','authorization':'Bearer '+config.token,
+            'idempotency-key':payloadHash,'x-masofaviy2-payload-hash':payloadHash},
+          body:serialized,signal:controller.signal
+        });
+        responseText=(await response.text()).slice(0,4000);
+        try{parsed=JSON.parse(responseText)}catch{}
+      }catch(e){
+        // Timeout, redirect or connection loss does not prove the remote system rejected the payload.
+        // Retrying without checking an official receipt could create duplicate academic records.
+        claimed.status='unknown';
+        claimed.deliveryError='Natija noma’lum; gateway receipt tekshirilsin: '+String(e.message||e).slice(0,1400);
+        await claimed.save();
+        audit(req,'MONITORING_SYNC_UNKNOWN','MonitoringExport',claimed.id,{provider,payloadHash});
+        return res.status(502).json({message:'Yuborish natijasi noma’lum. Rasmiy gateway holatini tekshirib, receipt kiriting.',provider,payloadHash,status:'unknown'});
+      }finally{clearTimeout(timer)}
+      claimed.lastHttpStatus=response.status;
+      claimed.deliveredAt=response.ok?new Date():undefined;
+      const receipt=String(parsed?.reference||parsed?.requestId||'').trim();
+      if(response.ok && parsed?.accepted===true && receipt){
+        claimed.status='accepted';
+        claimed.receiptReference=validateReceiptReference(receipt);
+        claimed.gatewayRequestId=String(parsed.requestId||parsed.reference||'').slice(0,500);
+      }else if(response.ok){
+        claimed.status='delivered'; // HTTP success alone is NOT an official acceptance receipt.
+        if(receipt)claimed.gatewayRequestId=receipt.slice(0,500);
+      }else if(response.status>=500){
+        claimed.status='unknown';
+        claimed.deliveryError='HTTP '+response.status+'; rasmiy gateway holatini tekshiring';
+      }else{
+        claimed.status='failed';
+        claimed.deliveryError=('HTTP '+response.status+' '+responseText).slice(0,2000);
+      }
+      await claimed.save();
+      audit(req,response.ok?'MONITORING_SYNC_DELIVERED':'MONITORING_SYNC_FAILED','MonitoringExport',claimed.id,{
+        provider,payloadHash,status:claimed.status,httpStatus:response.status,receiptReference:claimed.receiptReference||''
+      });
+      res.status(response.ok?200:502).json({ok:response.ok,provider,payloadHash,
+        status:claimed.status,httpStatus:response.status,receiptReference:claimed.receiptReference||null,
+        gatewayRequestId:claimed.gatewayRequestId||null,
+        message:claimed.status==='unknown'?'Qabul holati noma’lum; takroriy yuborishdan oldin rasmiy tizimni tekshiring':undefined});
     }catch(e){fail(res,e)}
   });
 
