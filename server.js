@@ -13,6 +13,7 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
+import { requireInPersonIdentity, requiresIdentityForUser } from './identity-policy.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 
 const app = express();
@@ -28,7 +29,7 @@ const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'po
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
 const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || JWT_SECRET;
-const REQUIRE_IN_PERSON_IDENTITY = String(process.env.REQUIRE_IN_PERSON_IDENTITY||'false').toLowerCase()==='true';
+const REQUIRE_IN_PERSON_IDENTITY = requireInPersonIdentity(process.env.NODE_ENV,process.env.REQUIRE_IN_PERSON_IDENTITY);
 const IN_PERSON_IDENTITY_ROLES = new Set(String(process.env.IN_PERSON_IDENTITY_ROLES||'student').split(',').map(x=>x.trim()).filter(Boolean));
 const sessionCookie='m2_session',csrfCookie='m2_csrf';
 const readCookie=(header,name)=>String(header||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -267,7 +268,7 @@ app.post('/api/auth/login', async (req,res) => {
     noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
-  if(REQUIRE_IN_PERSON_IDENTITY&&IN_PERSON_IDENTITY_ROLES.has(user.role)&&String(user.citizenshipCountry||'UZ').toUpperCase()==='UZ'&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
+  if(REQUIRE_IN_PERSON_IDENTITY&&requiresIdentityForUser(user,[...IN_PERSON_IDENTITY_ROLES])){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
   if(user.totpEnabled){
     const otp=String(req.body.otp||'').trim();
     if(!otp)return res.status(202).json({twoFactorRequired:true,message:'Authenticator kodi yoki recovery kodini kiriting'});
