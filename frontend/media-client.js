@@ -111,9 +111,10 @@ export class MediaRoomClient{
   }
   async toggleScreen(){
     const p=this.producers.get('screen');
-    if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
+    if(p){await this.closeProducer('screen');if(this.cameraPausedForScreen){const cam=this.producers.get('camera');if(cam){cam.resume();cam.track.enabled=true;await this.request('resumeProducer',{producerId:cam.id}).catch(()=>{})}this.cameraPausedForScreen=false}this.onState({screen:false});return false}
     try{
       const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:lite?8:12,max:lite?12:20}},audio:false}),track=stream.getVideoTracks()[0];
+      if(this.mediaProfile==='lecture-lite'){const cam=this.producers.get('camera');if(cam&&!cam.paused){cam.pause();cam.track.enabled=false;await this.request('pauseProducer',{producerId:cam.id}).catch(()=>{});this.cameraPausedForScreen=true}}
       const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:lite?700000:1800000}],appData:{mediaTag:'screen',role:this.user.role}});
       this.producers.set('screen',producer);producer.on('trackended',()=>this.closeProducer('screen'));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
     }catch(e){if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
@@ -134,7 +135,7 @@ export class MediaRoomClient{
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
-    const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities});
+    const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:this.lowEnd?'low':'auto'});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
     this.attachRemote(consumer,meta);
