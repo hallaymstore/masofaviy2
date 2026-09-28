@@ -255,6 +255,30 @@ app.get('/api/system/metrics', auth, async(req,res)=>{
   const mem=process.memoryUsage();
   const activeLiveRooms=mongoose.connection.readyState===1?await LiveSession.countDocuments({status:'active',dateKey:localDateKey()}):0;res.json({database:mongoose.connection.readyState===1?'connected':'disconnected',uptimeSeconds:Math.round(process.uptime()),memory:{rssMB:Math.round(mem.rss/1024/1024),heapMB:Math.round(mem.heapUsed/1024/1024)},onlineUsers:onlineUsers.size,socketConnections:io.engine.clientsCount,activeLiveRooms,node:process.version,time:new Date().toISOString()});
 });
+app.get('/api/presentation/readiness', auth, async(req,res)=>{
+  if(!['superadmin','admin','tech','rectorate'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+  if(mongoose.connection.readyState!==1)return res.status(503).json({message:'Ma’lumotlar bazasi ulanmagan'});
+  const db=mongoose.connection.db;
+  const [faculties,departments,distanceGroups,presentationTeachers,presentationStudents,sampleCourses,sampleSchedules,sampleCurricula,libraryItems,videos]=await Promise.all([
+    db.collection('structures').countDocuments({type:'faculty',active:true}),
+    db.collection('structures').countDocuments({type:'department',active:true}),
+    db.collection('structures').countDocuments({type:'group',active:true,externalId:/^QDTU-MT-2026-/}),
+    db.collection('users').countDocuments({active:true,externalId:/^PRES-T-/}),
+    db.collection('users').countDocuments({active:true,externalId:/^PRES-S-/}),
+    db.collection('courses').countDocuments({active:true,code:/^PRES-/}),
+    db.collection('schedules').countDocuments({title:/^\[NAMUNA\]/}),
+    db.collection('curriculumplans').countDocuments({active:true,programCode:/^PRES-/}),
+    db.collection('libraryitems').countDocuments({published:true}),
+    db.collection('videolessons').countDocuments({published:true})
+  ]);
+  const checks=[
+    ['Fakultetlar',faculties,7],['Masofaviy guruhlar',distanceGroups,12],['Namunaviy fanlar',sampleCourses,48],
+    ['Haftalik darslar',sampleSchedules,48],['O‘quv rejalar',sampleCurricula,12],['Kutubxona',libraryItems,4]
+  ];
+  const percent=Math.round(checks.reduce((sum,[,value,target])=>sum+Math.min(1,target?value/target:1),0)/checks.length*100);
+  res.json({generatedAt:new Date(),percent,official:{faculties,departments,distanceGroups},presentation:{teachers:presentationTeachers,students:presentationStudents,courses:sampleCourses,schedules:sampleSchedules,curricula:sampleCurricula,libraryItems,videos},checks:checks.map(([label,value,target])=>({label,value,target,ready:value>=target}))});
+});
+
 app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
