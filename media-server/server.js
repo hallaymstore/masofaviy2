@@ -147,7 +147,7 @@ async function handleRequest(ws,msg){
       if(!peer.room.router.canConsume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities}))throw new Error('Brauzer bu media formatini qabul qila olmaydi');
       const consumer=await t.consume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities,paused:true,appData:{meta:serializeProducer(found.producer,found.owner)}});
       peer.consumers.set(consumer.id,consumer);
-      if(consumer.kind==='video'&&peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'&&consumer.type==='simulcast')try{await consumer.setPreferredLayers({spatialLayer:peer.user.role==='teacher'?2:1})}catch{}
+      if(consumer.kind==='video'&&consumer.type==='simulcast')try{const preferred=data.quality==='low'?0:(peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'?1:2);await consumer.setPreferredLayers({spatialLayer:preferred})}catch{}
       consumer.on('transportclose',()=>peer.consumers.delete(consumer.id));consumer.on('producerclose',()=>peer.consumers.delete(consumer.id));
       reply(ws,clientId,id,true,{id:consumer.id,producerId:found.producer.id,kind:consumer.kind,rtpParameters:consumer.rtpParameters,type:consumer.type,producerPaused:consumer.producerPaused,appData:consumer.appData});return;
     }
