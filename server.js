@@ -80,7 +80,7 @@ const permissionsByRole = {
 
 const userSchema = new mongoose.Schema({
   login: { type: String, unique: true, index: true, required: true, lowercase: true, trim: true }, passwordHash: { type: String, required: true },
-  fullName: { type: String, required: true, trim: true }, externalId:{type:String,trim:true,index:true,sparse:true}, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
+  fullName: { type: String, required: true, trim: true }, externalId:{type:String,trim:true}, role: { type: String, enum: Object.keys(permissionsByRole), required: true },
   permissions: [String], deniedPermissions: [String], faculty: String, department: String, group: String,
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' },
   email: { type: String, trim: true }, phone: { type: String, trim: true }, citizenshipCountry:{type:String,trim:true,uppercase:true,default:'UZ',maxlength:2}, avatarUrl: { type: String, trim: true }, bio: { type: String, trim: true, maxlength: 500 }, direction: { type: String, trim: true }, courseYear: { type: Number, min: 1, max: 6 },
