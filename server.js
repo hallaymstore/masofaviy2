@@ -600,7 +600,8 @@ app.get('/api/public/timetable/group/:groupId', async(req,res)=>{ if(!PUBLIC_TIM
 app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIMETABLE_ENABLED)return res.status(403).json({message:'Ochiq jadval havolalari o‘chirilgan'}); if(mongoose.connection.readyState!==1)return res.json({teacher:null,schedule:[]});const t=await User.findOne({login:String(req.params.login).toLowerCase(),role:'teacher',active:true}).select('fullName login').lean();if(!t)return res.status(404).json({message:'O‘qituvchi topilmadi'});res.json({teacher:{fullName:t.fullName,login:t.login},schedule:await scheduleQuery({teacherId:t._id}).lean()}); });
 
 const roomNameFor=(scheduleId,dateKey)=>'M2-'+crypto.createHmac('sha256',JWT_SECRET).update(String(scheduleId)+':'+dateKey).digest('hex').slice(0,28);
-const mediaTicketFor=(user,roomName,scheduleId)=>jwt.sign({typ:'media',sub:String(user._id||user.id),sv:Number(user.sessionVersion)||0,fullName:user.fullName,login:user.login,role:user.role,avatarUrl:user.avatarUrl||'',roomName,scheduleId:String(scheduleId)},JWT_SECRET,{expiresIn:'10m',issuer:'masofaviy2',audience:'masofaviy2-sfu'});
+const mediaProfileFor=lesson=>(lesson?.kind==='lecture'||Number(lesson?.maxParticipants||0)>=40)?'lecture-lite':'seminar';
+const mediaTicketFor=(user,roomName,lesson)=>jwt.sign({typ:'media',sub:String(user._id||user.id),sv:Number(user.sessionVersion)||0,fullName:user.fullName,login:user.login,role:user.role,avatarUrl:user.avatarUrl||'',roomName,scheduleId:String(lesson?._id||lesson),mediaProfile:mediaProfileFor(lesson),maxParticipants:Math.min(120,Math.max(2,Number(lesson?.maxParticipants||60)))},JWT_SECRET,{expiresIn:'10m',issuer:'masofaviy2',audience:'masofaviy2-sfu'});
 const mediaIceServers=(user=null)=>{
   if(!TURN_URLS.length)return [];
   if(TURN_SHARED_SECRET){
@@ -611,7 +612,7 @@ const mediaIceServers=(user=null)=>{
   }
   return TURN_USERNAME&&TURN_CREDENTIAL?[{urls:TURN_URLS,username:TURN_USERNAME,credential:TURN_CREDENTIAL}]:[];
 };
-const mediaJoinPayload=(user,roomName,scheduleId)=>({provider:'mediasoup',roomName,mediaTicket:mediaTicketFor(user,roomName,scheduleId),iceServers:mediaIceServers(user)});
+const mediaJoinPayload=(user,roomName,lesson)=>({provider:'mediasoup',roomName,mediaProfile:mediaProfileFor(lesson),mediaTicket:mediaTicketFor(user,roomName,lesson),iceServers:mediaIceServers(user)});
 app.post('/api/media/verify',async(req,res)=>{try{
   const payload=jwt.verify(String(req.body.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});
   if(payload.typ!=='media'||!payload.roomName||!mongoose.isValidObjectId(payload.scheduleId)||!mongoose.isValidObjectId(payload.sub))throw new Error();
@@ -649,7 +650,7 @@ app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
   const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:new Date(),endedAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
   audit(req,'LIVE_START','LiveSession',session.id,{scheduleId:String(lesson._id),roomName});
   io.emit('live:changed',{scheduleId:String(lesson._id),status:'active'});
-  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,roomName,lesson._id)});
+  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,roomName,lesson)});
 });
 app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
@@ -660,7 +661,7 @@ app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
   const isHost=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
   if(!session&&isHost){session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName:roomNameFor(lesson._id,dateKey),providerHost:'mediasoup',status:'active',startedAt:new Date(),startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined})}
   if(!session||session.status!=='active')return res.status(409).json({message:'O‘qituvchi hali jonli darsni boshlamagan'});
-  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,session.roomName,lesson._id)});
+  res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,session.roomName,lesson)});
 });
 app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   const lesson=mongoose.isValidObjectId(req.params.scheduleId)?await Schedule.findById(req.params.scheduleId).lean():null;if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
