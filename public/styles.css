@@ -69,3 +69,5 @@
 .program-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}.program-grid span{font-size:9px;color:var(--accent);font-weight:800;margin-top:6px;letter-spacing:.03em}
 @media(max-width:1050px){.university-hero{grid-template-columns:1fr}.faculty-showcase{grid-template-columns:repeat(2,minmax(0,1fr))}.program-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:680px){.university-hero{padding:15px;border-radius:13px}.university-hero h2{font-size:19px}.uni-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.uni-facts b{font-size:20px}.uni-people{grid-template-columns:1fr}.faculty-showcase,.program-grid{grid-template-columns:1fr}.uni-detail-list>div{align-items:flex-start;flex-direction:column;gap:3px}.uni-detail-list b{text-align:left}}
+
+.structure-parent{margin:7px 0 10px;color:var(--muted);font-size:10px;line-height:1.45}
