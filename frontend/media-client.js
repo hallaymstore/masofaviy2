@@ -6,9 +6,11 @@ const safe=s=>String(s??'');
 
 export class MediaRoomClient{
   constructor({socket,joinPayload,mount,user,lowEnd=false,onState=()=>{},onError=()=>{}}){
-    this.socket=socket;this.joinPayload=joinPayload;this.mount=mount;this.user=user;this.lowEnd=lowEnd;this.onState=onState;this.onError=onError;
-    this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=lowEnd?3:8;this.studentVideoConsumers=0;this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);
+    this.socket=socket;this.joinPayload=joinPayload;this.mount=mount;this.user=user;this.onState=onState;this.onError=onError;
+    const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection,weakNet=Boolean(conn?.saveData)||/2g|3g/.test(String(conn?.effectiveType||''));
+    this.lowEnd=Boolean(lowEnd||weakNet||(navigator.deviceMemory&&navigator.deviceMemory<=4)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=4));
+    this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
+    this.maxStudentVideos=this.lowEnd?2:6;this.studentVideoConsumers=0;this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -34,15 +36,17 @@ export class MediaRoomClient{
   }
   getPreferredConstraints(kind){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=localStorage.getItem(key);
-    if(kind==='audio')return id?{deviceId:{exact:id},echoCancellation:true,noiseSuppression:true,autoGainControl:true}:{echoCancellation:true,noiseSuppression:true,autoGainControl:true};
-    return id?{deviceId:{exact:id},width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}}:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}};
+    if(kind==='audio')return id?{deviceId:{exact:id},echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}}:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}};
+    const lite=this.lowEnd||this.mediaProfile==='lecture-lite',video=lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}};
+    return id?{deviceId:{exact:id},...video}:video;
   }
   async connect(){
     const joined=await this.request('join',{ticket:this.joinPayload.mediaTicket});
-    this.room=joined.room;this.device=new Device();await this.device.load({routerRtpCapabilities:joined.routerRtpCapabilities});
+    this.room=joined.room;this.mediaProfile=joined.mediaProfile||this.joinPayload.mediaProfile||'standard';this.device=new Device();await this.device.load({routerRtpCapabilities:joined.routerRtpCapabilities});
     this.renderShell();
     await this.createTransports();
-    await this.startMicrophone();
+    if(!(this.mediaProfile==='lecture-lite'&&this.user.role==='student'))await this.startMicrophone();else this.onState({mic:false,lectureLite:true,audioSlots:joined.limits?.studentAudioSlots||4});
+    document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
     this.onState({connected:true,participants:joined.participants||[]});
     return joined;
@@ -77,7 +81,7 @@ export class MediaRoomClient{
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:this.getPreferredConstraints('audio'),video:false});
       const track=stream.getAudioTracks()[0];if(!track)return;
-      const producer=await this.sendTransport.produce({track,appData:{mediaTag:'mic',role:this.user.role}});
+      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:16000},appData:{mediaTag:'mic',role:this.user.role}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
       this.onState({mic:true});
     }catch(e){this.onError(new Error('Mikrofon ochilmadi: '+e.message));this.onState({mic:false})}
@@ -89,6 +93,7 @@ export class MediaRoomClient{
     p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.onState({mic:false});return false;
   }
   async toggleCamera(){
+    if(this.mediaProfile==='lecture-lite'&&this.user.role==='student'){this.onError(new Error('Yengil ma’ruza rejimida talabalar kamerasi o‘chiq'));return false}
     const p=this.producers.get('camera');
     if(p){
       if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:true});return true}
@@ -96,8 +101,8 @@ export class MediaRoomClient{
     }
     try{
       const stream=await navigator.mediaDevices.getUserMedia({video:this.getPreferredConstraints('video'),audio:false}),track=stream.getVideoTracks()[0];
-      const encodings=this.lowEnd?[{maxBitrate:450000,scaleResolutionDownBy:2},{maxBitrate:900000,scaleResolutionDownBy:1}]:[{maxBitrate:150000,scaleResolutionDownBy:4},{maxBitrate:500000,scaleResolutionDownBy:2},{maxBitrate:1200000,scaleResolutionDownBy:1}];
-      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:600},appData:{mediaTag:'camera',role:this.user.role}});
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=lite?[{maxBitrate:120000,scaleResolutionDownBy:4},{maxBitrate:350000,scaleResolutionDownBy:2},{maxBitrate:700000,scaleResolutionDownBy:1}]:[{maxBitrate:150000,scaleResolutionDownBy:4},{maxBitrate:500000,scaleResolutionDownBy:2},{maxBitrate:1200000,scaleResolutionDownBy:1}];
+      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:lite?300:600},appData:{mediaTag:'camera',role:this.user.role}});
       this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){this.onError(new Error('Kamera ochilmadi: '+e.message));return false}
   }
@@ -108,8 +113,8 @@ export class MediaRoomClient{
     const p=this.producers.get('screen');
     if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
     try{
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:12,max:20}},audio:false}),track=stream.getVideoTracks()[0];
-      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:1800000}],appData:{mediaTag:'screen',role:this.user.role}});
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:lite?8:12,max:lite?12:20}},audio:false}),track=stream.getVideoTracks()[0];
+      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:lite?700000:1800000}],appData:{mediaTag:'screen',role:this.user.role}});
       this.producers.set('screen',producer);producer.on('trackended',()=>this.closeProducer('screen'));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
     }catch(e){if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
   }
@@ -122,6 +127,7 @@ export class MediaRoomClient{
   shouldConsume(meta){
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
+    if(this.mediaProfile==='lecture-lite')return tag==='screen'||role==='teacher';
     if(tag==='screen'||role==='teacher')return true;
     if(this.user.role==='teacher')return this.studentVideoConsumers<(this.lowEnd?6:12);
     return this.studentVideoConsumers<this.maxStudentVideos;
@@ -143,6 +149,11 @@ export class MediaRoomClient{
     const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
     if(meta.appData?.mediaTag==='screen')tile.classList.add('screen-share');
   }
+  async updateVisibility(){
+    if(this.closed)return;const pause=document.hidden;
+    for(const c of this.consumers.values())if(c.kind==='video'){try{if(pause){await this.request('pauseConsumer',{consumerId:c.id});c.pause()}else{await this.request('resumeConsumer',{consumerId:c.id});c.resume()}}catch{}}
+    this.onState({background:pause});
+  }
   closeConsumerByProducer(producerId){this.removeConsumer(producerId)}
   removeConsumer(producerId){
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
@@ -157,7 +168,7 @@ export class MediaRoomClient{
   async close(){
     if(this.closed)return;this.closed=true;
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
-    this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);
+    this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
     for(const c of this.consumers.values())try{c.close()}catch{}
     try{this.sendTransport?.close()}catch{};try{this.recvTransport?.close()}catch{}
