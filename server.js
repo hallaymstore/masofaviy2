@@ -115,6 +115,7 @@ const SFU_BRIDGE_SECRET = String(process.env.SFU_BRIDGE_SECRET || '');
 const TURN_URLS = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(',').map(x=>x.trim()).filter(Boolean);
 const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
 const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
+const TURN_SHARED_SECRET = String(process.env.TURN_SHARED_SECRET || '');
 
 const LOGIN_WINDOW_MS = Math.max(60000, Number(process.env.LOGIN_WINDOW_MS || 15*60*1000));
 const LOGIN_MAX_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 7));
@@ -600,8 +601,17 @@ app.get('/api/public/timetable/teacher/:login', async(req,res)=>{ if(!PUBLIC_TIM
 
 const roomNameFor=(scheduleId,dateKey)=>'M2-'+crypto.createHmac('sha256',JWT_SECRET).update(String(scheduleId)+':'+dateKey).digest('hex').slice(0,28);
 const mediaTicketFor=(user,roomName,scheduleId)=>jwt.sign({typ:'media',sub:String(user._id||user.id),sv:Number(user.sessionVersion)||0,fullName:user.fullName,login:user.login,role:user.role,avatarUrl:user.avatarUrl||'',roomName,scheduleId:String(scheduleId)},JWT_SECRET,{expiresIn:'10m',issuer:'masofaviy2',audience:'masofaviy2-sfu'});
-const mediaIceServers=()=>TURN_URLS.length&&TURN_USERNAME&&TURN_CREDENTIAL?[{urls:TURN_URLS,username:TURN_USERNAME,credential:TURN_CREDENTIAL}]:[];
-const mediaJoinPayload=(user,roomName,scheduleId)=>({provider:'mediasoup',roomName,mediaTicket:mediaTicketFor(user,roomName,scheduleId),iceServers:mediaIceServers()});
+const mediaIceServers=(user=null)=>{
+  if(!TURN_URLS.length)return [];
+  if(TURN_SHARED_SECRET){
+    const identity=String(user?.login||user?._id||user?.id||'rtc').replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,80)||'rtc';
+    const username=`${Math.floor(Date.now()/1000)+7200}:${identity}`;
+    const credential=crypto.createHmac('sha1',TURN_SHARED_SECRET).update(username).digest('base64');
+    return [{urls:TURN_URLS,username,credential}];
+  }
+  return TURN_USERNAME&&TURN_CREDENTIAL?[{urls:TURN_URLS,username:TURN_USERNAME,credential:TURN_CREDENTIAL}]:[];
+};
+const mediaJoinPayload=(user,roomName,scheduleId)=>({provider:'mediasoup',roomName,mediaTicket:mediaTicketFor(user,roomName,scheduleId),iceServers:mediaIceServers(user)});
 app.post('/api/media/verify',async(req,res)=>{try{
   const payload=jwt.verify(String(req.body.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});
   if(payload.typ!=='media'||!payload.roomName||!mongoose.isValidObjectId(payload.scheduleId)||!mongoose.isValidObjectId(payload.sub))throw new Error();
