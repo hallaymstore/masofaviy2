@@ -103,7 +103,44 @@ const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.T
 videoProgressSchema.index({videoId:1,userId:1},{unique:true});
 const videoCommentSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true,index:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},parentId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoComment',default:null,index:true},text:{type:String,required:true,trim:true,maxlength:1500},editedAt:Date},{timestamps:true});
 videoCommentSchema.index({videoId:1,createdAt:-1});
-const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema), VideoComment=mongoose.model('VideoComment',videoCommentSchema);
+const institutionSettingsSchema = new mongoose.Schema({
+  key:{type:String,unique:true,default:'primary',immutable:true},
+  institutionName:{type:String,trim:true,maxlength:240,default:'Qarshi davlat texnika universiteti'},
+  shortName:{type:String,trim:true,maxlength:60,default:'QarDTU'},
+  website:{type:String,trim:true,maxlength:1000,default:'https://kstu.uz/'},
+  logoUrl:{type:String,trim:true,maxlength:1000,default:''},
+  address:{type:String,trim:true,maxlength:500,default:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy'},
+  phone:{type:String,trim:true,maxlength:80,default:'+998 75 220-09-24'},
+  founded:{type:String,trim:true,maxlength:120,default:'10.12.2024'},
+  legalBasis:{type:String,trim:true,maxlength:240,default:'PQ-428'},
+  description:{type:String,trim:true,maxlength:2000,default:'Universitetning fakultet, kafedra, guruh, dars jadvali, elektron resurs va jonli mashg‘ulotlarini yagona raqamli muhitda boshqarish.'},
+  lmsUrl:{type:String,trim:true,maxlength:1000,default:'https://moodle.kstu.uz/'},
+  repositoryUrl:{type:String,trim:true,maxlength:1000,default:'https://dspace.kstu.uz/'},
+  portfolioUrl:{type:String,trim:true,maxlength:1000,default:'https://portfel.kstu.uz/'},
+  admissionsUrl:{type:String,trim:true,maxlength:1000,default:'https://my.uzbmb.uz/university-about-direction/435'}
+},{timestamps:true});
+const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema), VideoComment=mongoose.model('VideoComment',videoCommentSchema), InstitutionSettings=mongoose.model('InstitutionSettings',institutionSettingsSchema);
+
+const DEFAULT_BRANDING=Object.freeze({
+  productName:'HALLAYM EDU',
+  institutionName:'Qarshi davlat texnika universiteti',
+  shortName:'QarDTU',
+  website:'https://kstu.uz/',
+  logoUrl:'',
+  address:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy',
+  phone:'+998 75 220-09-24',
+  founded:'10.12.2024',
+  legalBasis:'PQ-428',
+  description:'Universitetning fakultet, kafedra, guruh, dars jadvali, elektron resurs va jonli mashg‘ulotlarini yagona raqamli muhitda boshqarish.',
+  lmsUrl:'https://moodle.kstu.uz/',
+  repositoryUrl:'https://dspace.kstu.uz/',
+  portfolioUrl:'https://portfel.kstu.uz/',
+  admissionsUrl:'https://my.uzbmb.uz/university-about-direction/435'
+});
+const brandingPublic=row=>Object.fromEntries(Object.keys(DEFAULT_BRANDING).map(k=>[k,k==='productName'?DEFAULT_BRANDING.productName:(row?.[k]??DEFAULT_BRANDING[k])]));
+const getBranding=async()=>mongoose.connection.readyState===1?brandingPublic(await InstitutionSettings.findOne({key:'primary'}).lean()):{...DEFAULT_BRANDING};
+const brandingText=(value,max,required=false)=>{const s=String(value??'').trim().slice(0,max);if(required&&!s)throw new Error('Universitet nomini kiriting');return s};
+const brandingUrl=value=>{const s=String(value??'').trim();if(!s)return '';if(s.length>1000||!/^https:\/\//i.test(s))throw new Error('Havola https:// bilan boshlanishi kerak');return s};
 const onlineUsers = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
@@ -249,7 +286,34 @@ const can = permission => (req, res, next) => { const base = permissionsByRole[r
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
 
-app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'Masofaviy2', time:new Date().toISOString() }));
+app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString() }));
+app.get('/api/branding', async(_req,res)=>{
+  try{res.json(await getBranding())}catch{res.json({...DEFAULT_BRANDING})}
+});
+app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
+  try{
+    if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Faqat administrator platforma sozlamalarini o‘zgartiradi'});
+    if(mongoose.connection.readyState!==1)return res.status(503).json({message:'Ma’lumotlar bazasi ulanmagan'});
+    const patch={
+      institutionName:brandingText(req.body.institutionName,240,true),
+      shortName:brandingText(req.body.shortName,60),
+      website:brandingUrl(req.body.website),
+      logoUrl:brandingUrl(req.body.logoUrl),
+      address:brandingText(req.body.address,500),
+      phone:brandingText(req.body.phone,80),
+      founded:brandingText(req.body.founded,120),
+      legalBasis:brandingText(req.body.legalBasis,240),
+      description:brandingText(req.body.description,2000),
+      lmsUrl:brandingUrl(req.body.lmsUrl),
+      repositoryUrl:brandingUrl(req.body.repositoryUrl),
+      portfolioUrl:brandingUrl(req.body.portfolioUrl),
+      admissionsUrl:brandingUrl(req.body.admissionsUrl)
+    };
+    const row=await InstitutionSettings.findOneAndUpdate({key:'primary'},{$set:patch,$setOnInsert:{key:'primary'}},{new:true,upsert:true,setDefaultsOnInsert:true});
+    audit(req,'INSTITUTION_SETTINGS_UPDATE','InstitutionSettings',row.id,{institutionName:row.institutionName,shortName:row.shortName});
+    res.json(brandingPublic(row.toObject()));
+  }catch(e){res.status(400).json({message:e.message||'Sozlamalarni saqlab bo‘lmadi'})}
+});
 app.get('/api/system/metrics', auth, async(req,res)=>{
   if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Tizim metrikasi uchun ruxsat yo‘q'});
   const mem=process.memoryUsage();
@@ -311,7 +375,7 @@ app.post('/api/auth/2fa/setup',auth,async(req,res)=>{
   const currentPassword=String(req.body.currentPassword||''),user=await User.findById(req.user._id).select('+totpPendingSecretEncrypted');
   if(!user||!(await bcrypt.compare(currentPassword,user.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'});
   const secret=generateTotpSecret();user.totpPendingSecretEncrypted=encryptSecret(secret,TOTP_ENCRYPTION_KEY);await user.save();
-  audit(req,'TWO_FACTOR_SETUP','User',user.id);res.json({secret,otpauthUri:otpauthUri({secret,account:user.login,issuer:'Masofaviy2'}),message:'Authenticator ilovasiga secretni kiriting va 6 xonali kod bilan faollashtiring'});
+  audit(req,'TWO_FACTOR_SETUP','User',user.id);res.json({secret,otpauthUri:otpauthUri({secret,account:user.login,issuer:'HALLAYM EDU'}),message:'Authenticator ilovasiga secretni kiriting va 6 xonali kod bilan faollashtiring'});
 });
 app.post('/api/auth/2fa/enable',auth,async(req,res)=>{
   if(req.user._id==='demo')return res.status(400).json({message:'Demo akkauntda 2FA sozlanmaydi'});
