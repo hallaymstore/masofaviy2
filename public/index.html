@@ -8,12 +8,12 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
-  <title>QarDTU Masofaviy ta’lim</title>
+  <title>HALLAYM EDU</title>
 </head>
 <body>
 <div id="login" class="login">
   <form id="loginForm" class="login-card">
-    <div class="brand"><span class="brand-mark">QT</span><div><b>QarDTU Masofaviy</b><small>Qarshi davlat texnika universiteti</small></div></div>
+    <div class="brand"><span class="brand-mark">HE</span><div><b data-product-name>HALLAYM EDU</b><small data-institution-name>Qarshi davlat texnika universiteti</small></div></div>
     <div class="welcome-icon"><span data-ico="cap" data-fallback="🎓"></span></div><h1>Xush kelibsiz</h1>
     <p class="login-lead">Dars jadvali, jonli mashg‘ulot, davomat, nazorat va statistika — barchasi bitta tizimda.</p>
     <label>Login<input name="login" autocomplete="username" placeholder="Sizga berilgan login" required></label>
@@ -27,7 +27,7 @@
 <div id="shell" class="shell hidden">
   <header>
     <button id="menuBtn" class="icon-btn" aria-label="Menyu">☰</button>
-    <div class="brand"><span class="brand-mark">QT</span><div><b>QarDTU Masofaviy</b><small id="roleLabel"></small></div></div>
+    <div class="brand"><span class="brand-mark">HE</span><div><b data-product-name>HALLAYM EDU</b><small><span id="roleLabel"></span><span class="brand-institution-sep"> · </span><span data-institution-short>QarDTU</span></small></div></div>
     <div class="header-actions">
       <button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot">●</span><span id="headerName"></span></button>
       <span id="onlineBadge" class="badge">● Onlayn</span>
@@ -51,6 +51,7 @@
       <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
       <button data-page="communications"><span data-ico="message" data-fallback="✉"></span>Xabarlar va forum</button>
       <button data-page="reports"><span data-ico="shield" data-fallback="▤"></span>Nazorat va hisobot</button>
+      <button data-page="settings" class="hidden"><span data-ico="building" data-fallback="⚙"></span>Platforma sozlamalari</button>
       <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
       <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
     </nav>
@@ -59,70 +60,60 @@
 
   <main>
     <section id="university" class="page">
-      <div class="page-head"><div><h1>Qarshi davlat texnika universiteti</h1><p>Universitet tuzilmasi, masofaviy ta’lim yo‘nalishlari va asosiy ma’lumotlar</p></div><a class="secondary button-link" href="https://kstu.uz" target="_blank" rel="noopener">Rasmiy sayt ↗</a></div>
+      <div class="page-head">
+        <div><h1 id="institutionPageName">Universitet</h1><p>OTM tuzilmasi, masofaviy guruhlar va HALLAYM EDU bilan bog‘langan asosiy ma’lumotlar</p></div>
+        <a id="institutionWebsiteButton" class="secondary button-link hidden" href="#" target="_blank" rel="noopener">Rasmiy sayt ↗</a>
+      </div>
       <div class="university-hero">
-        <div><span class="uni-kicker">QarDTU · 2026/2027</span><h2>Muhandislik, raqamli texnologiyalar va iqtisodiyot yo‘nalishlarini birlashtirgan texnika universiteti</h2><p>Qarshi davlat texnika universiteti 2024-yil 10-dekabrdagi PQ-428-son qaror asosida tashkil etilgan. Masofaviy ta’lim platformasi universitetning fakultet, kafedra, guruh, dars jadvali, elektron resurs va jonli mashg‘ulotlarini yagona muhitda boshqarishga mo‘ljallangan.</p></div>
-        <div class="uni-facts"><div><b>7</b><span>Fakultet</span></div><div><b>12</b><span>Masofaviy yo‘nalish</span></div><div><b>12</b><span>2026/27 ichki guruh</span></div><div><b>24/7</b><span>Raqamli platforma</span></div></div>
+        <div>
+          <span id="institutionKicker" class="uni-kicker">OTM · HALLAYM EDU</span>
+          <h2 id="institutionHeroTitle">HALLAYM EDU — universitetning yagona masofaviy ta’lim muhiti</h2>
+          <p id="institutionDescription">Universitetning fakultet, kafedra, guruh, dars jadvali, elektron resurs va jonli mashg‘ulotlarini yagona raqamli muhitda boshqarish.</p>
+        </div>
+        <div class="uni-facts">
+          <div><b id="institutionFacultyCount">0</b><span>Fakultet</span></div>
+          <div><b id="institutionDepartmentCount">0</b><span>Kafedra</span></div>
+          <div><b id="institutionGroupCount">0</b><span>Guruh</span></div>
+          <div><b>24/7</b><span>Raqamli platforma</span></div>
+        </div>
       </div>
+
       <div class="grid university-grid">
-        <article><div class="section-title"><h2>Universitet haqida</h2><small>Asosiy ma’lumotlar</small></div>
+        <article>
+          <div class="section-title"><h2>Universitet haqida</h2><small>Admin sozlamalaridan boshqariladi</small></div>
           <div class="uni-detail-list">
-            <div><span>Tashkil etilgan</span><b>10.12.2024 · PQ-428</b></div>
-            <div><span>Manzil</span><b>Qarshi sh., Mustaqillik ko‘chasi, 225-uy</b></div>
-            <div><span>Rasmiy sayt</span><b>kstu.uz</b></div>
-            <div><span>Call-markaz</span><b>+998 75 220-09-24</b></div>
-            <div><span>Masofaviy portal</span><b>hallaym.kstu.uz</b></div>
+            <div><span>Qisqa nom</span><b id="institutionShortName">—</b></div>
+            <div><span>Tashkil etilgan</span><b id="institutionFounded">—</b></div>
+            <div><span>Huquqiy asos</span><b id="institutionLegalBasis">—</b></div>
+            <div><span>Manzil</span><b id="institutionAddress">—</b></div>
+            <div><span>Telefon</span><b id="institutionPhone">—</b></div>
+            <div><span>Masofaviy portal</span><b id="institutionPortalHost">—</b></div>
           </div>
         </article>
-        <article><div class="section-title"><h2>Rahbariyat va dekanlar</h2><small>Ochiq rasmiy manbalardagi ma’lumotlar</small></div>
+        <article>
+          <div class="section-title"><h2>HALLAYM EDU</h2><small>White-label o‘rnatish modeli</small></div>
           <div class="uni-people">
-            <div><b>Sh.Q. Nematov</b><span>Universitet rektori</span></div>
-            <div><b>J.R. Norchayev</b><span>Transport va qurilish muhandisligi</span></div>
-            <div><b>Sh.K. Yaxshiboyev</b><span>Energetika muhandisligi</span></div>
-            <div><b>A.N. Shodiyev</b><span>Neft-gaz va geologiya</span></div>
-            <div><b>S.A. Norqobilov</b><span>Raqamli texnologiyalar va sun’iy intellekt</span></div>
-            <div><b>A.T. Norqobilov</b><span>Shahrisabz oziq-ovqat muhandisligi</span></div>
-            <div><b>Sh.V. Nasimov</b><span>Iqtisodiyot va boshqaruv</span></div>
-            <div><b>A.I. Qurbonov</b><span>Irrigatsiya muhandisligi</span></div>
+            <div><b>Bir kod bazasi</b><span>Har bir OTM uchun alohida nom va profil</span></div>
+            <div><b>Admin orqali sozlash</b><span>Kodni tahrirlash shart emas</span></div>
+            <div><b>OTM tuzilmasi</b><span>Fakultet → kafedra → guruh</span></div>
+            <div><b>Importga tayyor</b><span>HEMIS/Excel/CSV ma’lumotlari bilan tez ishga tushirish</span></div>
           </div>
         </article>
       </div>
-      <article><div class="section-title"><div><h2>7 ta fakultet</h2><small>QarDTU masofaviy ta’lim tizimida ko‘rsatilgan amaldagi kategoriyalar</small></div></div>
-        <div class="faculty-showcase">
-          <div><b>Transport va qurilish muhandisligi</b><span>Transport, qurilish va muhandislik yo‘nalishlari</span></div>
-          <div><b>Energetika muhandisligi</b><span>Energetika, elektr ta’minoti va avtomatlashtirish</span></div>
-          <div><b>Neft-gaz va geologiya</b><span>Neft-gaz, geologiya, konchilik va texnologik mashinalar</span></div>
-          <div><b>Raqamli texnologiyalar va sun’iy intellekt</b><span>IT, dasturiy injiniring, kompyuter injiniringi va AI</span></div>
-          <div><b>Shahrisabz oziq-ovqat muhandisligi</b><span>Oziq-ovqat, kimyo va texnologik muhandislik</span></div>
-          <div><b>Iqtisodiyot va boshqaruv</b><span>Moliya, bank, hisob, statistika va boshqaruv</span></div>
-          <div><b>Irrigatsiya muhandisligi</b><span>Suv xo‘jaligi, melioratsiya, ekologiya va agrotexnologiyalar</span></div>
-        </div>
+
+      <article>
+        <div class="section-title"><div><h2>Fakultetlar</h2><small>Tuzilma modulidan avtomatik olinadi</small></div><span id="facultyCountBadge" class="badge">0 ta</span></div>
+        <div id="universityFaculties" class="faculty-showcase"></div>
       </article>
-      <article><div class="section-title"><div><h2>Masofaviy ta’lim yo‘nalishlari</h2><small>BMBA ochiq ma’lumotlarida “Masofaviy” shakli mavjud yo‘nalishlar</small></div><span class="badge">12 yo‘nalish</span></div>
-        <div class="program-grid">
-          <div><b>Axborot tizimlari va texnologiyalari</b><span>MT-AT-1-26</span></div>
-          <div><b>Dasturiy injiniring</b><span>MT-DI-1-26</span></div>
-          <div><b>Kompyuter injiniringi</b><span>MT-KI-1-26</span></div>
-          <div><b>Sun’iy intellekt</b><span>MT-SI-1-26</span></div>
-          <div><b>Bank ishi</b><span>MT-BI-1-26</span></div>
-          <div><b>Buxgalteriya hisobi</b><span>MT-BH-1-26</span></div>
-          <div><b>Iqtisodiyot</b><span>MT-IQ-1-26</span></div>
-          <div><b>Logistika</b><span>MT-LOG-1-26</span></div>
-          <div><b>Menejment</b><span>MT-MEN-1-26</span></div>
-          <div><b>Moliya va moliyaviy texnologiyalar</b><span>MT-MMT-1-26</span></div>
-          <div><b>Soliqlar va soliqqa tortish</b><span>MT-SST-1-26</span></div>
-          <div><b>Statistika</b><span>MT-STAT-1-26</span></div>
-        </div>
-        <div class="info-note"><b>Guruh ID izohi</b><span>MT-* kodlari 2026/27 taqdimot va platforma ichki rejalashtirish identifikatorlari. Universitetning HEMIS/rasmiy guruh ID fayli import qilinganda ular real ID bilan yangilanadi.</span></div>
+
+      <article>
+        <div class="section-title"><div><h2>Masofaviy guruhlar</h2><small>Faol guruhlar va ularning ichki ID raqamlari</small></div><span id="groupCountBadge" class="badge">0 ta</span></div>
+        <div id="universityGroups" class="program-grid"></div>
       </article>
-      <article class="uni-ecosystem"><div class="section-title"><div><h2>QarDTU raqamli ekotizimi</h2><small>Universitetning ochiq va amaldagi axborot tizimlari</small></div></div>
-        <div class="ecosystem-grid">
-          <a href="https://kstu.uz/" target="_blank" rel="noopener"><b>Rasmiy sayt</b><span>Yangiliklar, rahbariyat, fakultetlar va hujjatlar</span><small>kstu.uz ↗</small></a>
-          <a href="https://moodle.kstu.uz/" target="_blank" rel="noopener"><b>Masofaviy ta’lim</b><span>QarDTU Moodle kurs kategoriyalari va elektron ta’lim muhiti</span><small>moodle.kstu.uz ↗</small></a>
-          <a href="https://dspace.kstu.uz/" target="_blank" rel="noopener"><b>Ilmiy repozitoriy</b><span>Maqolalar, dissertatsiyalar va konferensiya materiallari</span><small>dspace.kstu.uz ↗</small></a>
-          <a href="https://portfel.kstu.uz/" target="_blank" rel="noopener"><b>Portfolio</b><span>Professor-o‘qituvchilar ilmiy va o‘quv faoliyati</span><small>portfel.kstu.uz ↗</small></a>
-          <a href="https://my.uzbmb.uz/university-about-direction/435" target="_blank" rel="noopener"><b>BMBA yo‘nalishlari</b><span>QarDTU ta’lim yo‘nalishlari va ta’lim shakllari</span><small>my.uzbmb.uz ↗</small></a>
-        </div>
+
+      <article class="uni-ecosystem">
+        <div class="section-title"><div><h2>Raqamli ekotizim</h2><small>Admin kiritgan tashqi universitet tizimlari</small></div></div>
+        <div id="universityEcosystem" class="ecosystem-grid"></div>
       </article>
     </section>
     <section id="communications" class="page"><div class="page-head"><div><h1>Xabarlar va forum</h1><p>Doimiy ichki xabarlar, kurs forumi va elektron pochta integratsiyasi</p></div><button id="newInternalMessage" class="primary">+ Xabar</button></div><div class="grid"><article><div class="section-title"><h2>Kiruvchi xabarlar</h2><button id="refreshMessages">Yangilash</button></div><div id="inboxList" class="list"></div></article><article><h2>Yuborilgan</h2><div id="sentList" class="list"></div></article></div><article><h2>Kurs forumlari</h2><div id="forumCourseList" class="quick"></div><div id="forumPanel" class="list"></div></article></section>
@@ -248,6 +239,49 @@
       <div class="report-grid"><article><h2>Davomat jurnali</h2><div id="attendanceList" class="table-wrap inner-table"></div></article><article id="onlinePanel"><h2>Hozir onlayn</h2><div id="onlineUsers" class="online-list"></div></article></div>
       <article id="monitoringPanel" class="audit-card hidden"><div class="section-title"><div><h2>Davlat monitoring integratsiyasi</h2><small>VM 559, 29-band bo‘yicha readiness, eksport va rasmiy gateway qabul qaydlari</small></div><button id="refreshMonitoring" class="secondary">Tekshirish</button></div><div id="monitoringReadiness" class="list"></div></article>
       <article class="audit-card"><div class="section-title"><h2>Audit tarixi</h2><input id="auditSearch" class="control" placeholder="Login, amal yoki obyekt"></div><div id="auditList" class="timeline"></div></article>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="page-head">
+        <div><h1>Platforma sozlamalari</h1><p>HALLAYM EDU ni istalgan universitetga kodni o‘zgartirmasdan moslashtiring</p></div>
+        <span class="badge">White-label</span>
+      </div>
+      <div class="grid settings-grid">
+        <article>
+          <div class="section-title"><div><h2>Brend va OTM nomi</h2><small>Saqlangach login, header va universitet sahifasida darhol qo‘llanadi</small></div></div>
+          <div class="info-note"><b>Mahsulot nomi: HALLAYM EDU</b><span>Bu doimiy platforma brendi. Quyidagi maydonlar esa o‘rnatilgan universitetga tegishli.</span></div>
+          <form id="institutionSettingsForm" class="form-grid">
+            <label class="wide">Universitetning to‘liq nomi<input name="institutionName" required maxlength="240" placeholder="Masalan: Qarshi davlat texnika universiteti"></label>
+            <label>Qisqa nom<input name="shortName" maxlength="60" placeholder="Masalan: QarDTU"></label>
+            <label>Telefon<input name="phone" maxlength="80" placeholder="+998 ..."></label>
+            <label class="wide">Manzil<input name="address" maxlength="500" placeholder="Shahar, ko‘cha, uy"></label>
+            <label>Tashkil etilgan sana/yil<input name="founded" maxlength="120" placeholder="Masalan: 2024"></label>
+            <label>Huquqiy asos<input name="legalBasis" maxlength="240" placeholder="Masalan: PQ-428"></label>
+            <label class="wide">Universitet tavsifi<textarea name="description" rows="4" maxlength="2000" placeholder="Universitet va masofaviy ta’lim muhiti haqida qisqa tavsif"></textarea></label>
+            <label>Rasmiy sayt<input name="website" type="url" placeholder="https://..."></label>
+            <label>Logo URL<input name="logoUrl" type="url" placeholder="https://.../logo.png"></label>
+            <label>Moodle/LMS<input name="lmsUrl" type="url" placeholder="https://..."></label>
+            <label>Ilmiy repozitoriy<input name="repositoryUrl" type="url" placeholder="https://..."></label>
+            <label>Portfolio<input name="portfolioUrl" type="url" placeholder="https://..."></label>
+            <label>Qabul/yo‘nalishlar<input name="admissionsUrl" type="url" placeholder="https://..."></label>
+            <button class="primary wide">Saqlash va barcha sahifalarda qo‘llash</button>
+          </form>
+        </article>
+        <article>
+          <div class="section-title"><h2>Tez o‘rnatish</h2><small>Yangi OTM uchun tavsiya etilgan ketma-ketlik</small></div>
+          <div class="install-steps">
+            <div><b>1</b><span>OTM nomi va aloqa ma’lumotlarini kiriting</span></div>
+            <div><b>2</b><span>Fakultet, kafedra va guruhlarni yarating yoki import qiling</span></div>
+            <div><b>3</b><span>O‘qituvchi va talabalarni Excel/CSV orqali yuklang</span></div>
+            <div><b>4</b><span>Dars jadvalini teacher_login va group_id bilan import qiling</span></div>
+            <div><b>5</b><span>Domain, TURN va media serverni production muhitga ulang</span></div>
+          </div>
+          <div id="brandingPreview" class="branding-preview">
+            <span class="brand-mark">HE</span>
+            <div><b>HALLAYM EDU</b><small id="brandingPreviewInstitution">Universitet nomi</small></div>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section id="profile" class="page">
