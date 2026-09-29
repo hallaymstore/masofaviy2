@@ -78,3 +78,12 @@
 @media(max-width:1000px){.readiness-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:560px){.readiness-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .uni-ecosystem{margin-top:16px}.ecosystem-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.ecosystem-grid a{display:flex;flex-direction:column;min-height:108px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text);text-decoration:none;transition:transform .15s ease,border-color .15s ease}.ecosystem-grid a:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}.ecosystem-grid b{font-size:12px}.ecosystem-grid span{font-size:9px;color:var(--muted);line-height:1.45;margin:5px 0 auto}.ecosystem-grid small{font-size:9px;color:var(--accent);font-weight:800;margin-top:8px}@media(max-width:1050px){.ecosystem-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:680px){.ecosystem-grid{grid-template-columns:1fr}}
+
+/* HALLAYM EDU white-label settings */
+.brand-mark.has-logo{background-color:#fff;background-repeat:no-repeat;background-position:center;background-size:cover;border:1px solid var(--line);color:transparent}
+.brand-institution-sep{color:var(--muted)}
+.settings-grid{grid-template-columns:minmax(0,1.45fr) minmax(280px,.7fr)}
+.install-steps{display:grid;gap:8px;margin-top:8px}.install-steps>div{display:grid;grid-template-columns:32px 1fr;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}.install-steps b{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;font-size:12px}.install-steps span{font-size:11px;line-height:1.4}
+.branding-preview{display:flex;align-items:center;gap:10px;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}.branding-preview b,.branding-preview small{display:block}.branding-preview small{color:var(--muted);margin-top:2px}
+#universityFaculties>.empty,#universityGroups>.empty,#universityEcosystem>.empty{grid-column:1/-1}
+@media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
