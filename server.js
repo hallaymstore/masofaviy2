@@ -182,7 +182,14 @@ const normalizeRow = row => Object.fromEntries(Object.entries(row).map(([k,v])=>
 const pick = (row,names) => { for (const n of names) { const v=row[normKey(n)]; if(v!==undefined && v!==null && String(v).trim()!=='') return v; } return ''; };
 const parseFileRows = async body => { const buffer=Buffer.from(body.contentBase64||'','base64'); if(!buffer.length || buffer.length>8*1024*1024) throw new Error('Fayl bo‘sh yoki 8 MB dan katta'); const filename=String(body.filename||'').toLowerCase(); let raw=[]; if(filename.endsWith('.csv')){ raw=parseCsv(buffer.toString('utf8').replace(/^\\uFEFF/,''),{columns:true,skip_empty_lines:true,relax_column_count:true,trim:true}); } else if(filename.endsWith('.xlsx')){ const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buffer); const ws=wb.worksheets[0]; if(!ws)throw new Error('Excel jadvali topilmadi'); const headers=(ws.getRow(1).values||[]).slice(1).map(v=>String(v??'').trim()); for(let r=2;r<=ws.rowCount;r++){const row={};let has=false;headers.forEach((h,i)=>{const cell=ws.getRow(r).getCell(i+1);const value=cell.text??'';row[h]=value;if(String(value).trim())has=true});if(has)raw.push(row);} } else throw new Error('Faqat .xlsx yoki .csv fayl qabul qilinadi'); const rows=raw.map(normalizeRow); if(!rows.length) throw new Error('Faylda ma’lumot qatori topilmadi'); return rows; };
 const resolveStructure = async (rawId,type) => { const value=String(rawId||'').trim(); if(!value) return null; const or=[{externalId:value},{code:value}]; if(mongoose.isValidObjectId(value)) or.unshift({_id:value}); return Structure.findOne({type,active:true,$or:or}).lean(); };
-const resolveUserGroupId = async user => user?.groupId || (user?.group ? (await resolveStructure(user.group,'group'))?._id : null);
+const resolveUserGroupId = async user => {
+  const raw=user?.groupId;
+  if(raw?._id&&mongoose.isValidObjectId(raw._id))return raw._id;
+  if(raw&&mongoose.isValidObjectId(raw))return raw;
+  if(raw){const g=await resolveStructure(raw?.externalId||raw?.code||raw,'group');if(g)return g._id}
+  if(user?.group){const g=await resolveStructure(user.group,'group');if(g)return g._id}
+  return null;
+};
 const normalizeWeekday = value => { if(Number(value)>=1&&Number(value)<=7) return Number(value); const v=normKey(value); return ({dushanba:1,monday:1,mon:1,seshanba:2,tuesday:2,tue:2,chorshanba:3,wednesday:3,wed:3,payshanba:4,thursday:4,thu:4,juma:5,friday:5,fri:5,shanba:6,saturday:6,sat:6,yakshanba:7,sunday:7,sun:7})[v]||0; };
 const normalizeKind = value => ({lecture:'lecture',maruza:'lecture',practice:'practice',amaliyot:'practice',seminar:'seminar',exam:'exam',imtihon:'exam',final_exam:'final_exam',yakuniy_nazorat:'final_exam'})[normKey(value)]||'lecture';
 const normalizeTime = value => { const s=String(value||'').trim(); const m=s.match(/(\d{1,2})[:.]?(\d{2})/); return m ? String(m[1]).padStart(2,'0')+':'+m[2] : s; };
