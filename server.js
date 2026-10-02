@@ -14,6 +14,7 @@ import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
+import { installCompliance } from './compliance.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -311,6 +312,7 @@ const auth = async (req, res, next) => { try {
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
+installCompliance(app,{mongoose,User,auth,audit});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString() }));
 app.get('/api/branding', async(_req,res)=>{
@@ -393,7 +395,7 @@ app.post('/api/auth/login', async (req,res) => {
     if(recoveryUsed)await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'TWO_FACTOR_RECOVERY_USE',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});
   }
   loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
-  await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user)});
+  await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user),faceDemoRequired:String(process.env.FACE_ID_MODE||'demo').toLowerCase()==='demo'});
 });
 app.post('/api/auth/logout',(req,res)=>{clearSession(res);res.json({ok:true})});
 app.post('/api/auth/2fa/setup',auth,async(req,res)=>{
