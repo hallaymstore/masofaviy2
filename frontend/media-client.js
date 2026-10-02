@@ -85,6 +85,13 @@ export class MediaRoomClient{
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
+    tile.title='Bosib kattalashtirish';
+    tile.addEventListener('click',()=>{
+      const focused=tile.classList.contains('focused');
+      for(const x of this.tiles.values())x.classList.remove('focused');
+      this.grid.classList.toggle('has-focus',!focused);
+      if(!focused)tile.classList.add('focused');
+    });
     tile.append(video,avatar,label,mic);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
   }
   async startMicrophone(){
