@@ -369,7 +369,7 @@ app.post('/api/auth/login', async (req,res) => {
   loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
   await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user)});
 });
-app.post('/api/auth/logout',auth,(req,res)=>{clearSession(res);res.json({ok:true})});
+app.post('/api/auth/logout',(req,res)=>{clearSession(res);res.json({ok:true})});
 app.post('/api/auth/2fa/setup',auth,async(req,res)=>{
   if(req.user._id==='demo')return res.status(400).json({message:'Demo akkauntda 2FA sozlanmaydi'});
   const currentPassword=String(req.body.currentPassword||''),user=await User.findById(req.user._id).select('+totpPendingSecretEncrypted');
