@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, captionRecognition=null, captionsEnabled=false, captionFinalWords=[], captionClearTimer=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
@@ -419,10 +419,57 @@ function showLessonSide(which){
   const p=which!=='chat';$('#participantsPanel')?.classList.toggle('hidden',!p);$('#lessonChatPanel')?.classList.toggle('hidden',p);$('#showParticipants')?.classList.toggle('active',p);$('#showLessonChat')?.classList.toggle('active',!p)
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+const NUMBER_WORDS={
+  'uz-UZ':{nol:0,bir:1,ikki:2,uch:3,to'rt:4,tort:4,besh:5,olti:6,yetti:7,sakkiz:8,to'qqiz:9,toqqiz:9,o'n:10,on:10,yigirma:20,o'ttiz:30,ottiz:30,qirq:40,ellik:50,oltmish:60,yetmish:70,sakson:80,to'qson:90,toqson:90,yuz:100,ming:1000},
+  'ru-RU':{ноль:0,один:1,одна:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10,одиннадцать:11,двенадцать:12,тринадцать:13,четырнадцать:14,пятнадцать:15,шестнадцать:16,семнадцать:17,восемнадцать:18,девятнадцать:19,двадцать:20,тридцать:30,сорок:40,пятьдесят:50,шестьдесят:60,семьдесят:70,восемьдесят:80,девяносто:90,сто:100,тысяча:1000,тысячи:1000,тысяч:1000},
+  'en-US':{zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000}
+};
+function parseSpokenNumber(words,map){
+  let total=0,current=0,used=0;
+  for(const raw of words){
+    const w=raw.toLowerCase().replace(/[.,!?;:]/g,'');
+    if(!(w in map))break;
+    const n=map[w];used++;
+    if(n===100){current=Math.max(1,current)*100}
+    else if(n===1000){total+=Math.max(1,current)*1000;current=0}
+    else current+=n;
+  }
+  return used?{value:total+current,used}:null;
+}
+function replaceNumberWords(text,lang){
+  const map=NUMBER_WORDS[lang]||NUMBER_WORDS['uz-UZ'],parts=String(text||'').split(/\s+/),out=[];
+  for(let i=0;i<parts.length;){
+    const parsed=parseSpokenNumber(parts.slice(i),map);
+    if(parsed&&parsed.used){out.push(String(parsed.value));i+=parsed.used}else{out.push(parts[i]);i++}
+  }
+  return out.join(' ');
+}
+function normalizeMathCaption(text,lang){
+  if(!captionMathEnabled)return text;
+  let s=' '+String(text||'').toLowerCase().replace(/\s+/g,' ').trim()+' ';
+  const rules=lang==='ru-RU'?[
+    [/\bплюс\b/g,' + '],[/\bминус\b/g,' − '],[/\bумножить на\b|\bумножить\b|\bпомножить на\b/g,' × '],[/\bразделить на\b|\bделить на\b/g,' ÷ '],
+    [/\bравно\b|\bравняется\b/g,' = '],[/\bпроцент(?:а|ов)?\b/g,' % '],[/\bкорень из\b/g,' √'],[/\bикс\b/g,' x'],[/\bигрек\b/g,' y'],
+    [/\bв квадрате\b/g,'²'],[/\bв кубе\b/g,'³'],[/\bбольше либо равно\b/g,' ≥ '],[/\bменьше либо равно\b/g,' ≤ ']
+  ]:lang==='en-US'?[
+    [/\bplus\b/g,' + '],[/\bminus\b/g,' − '],[/\btimes\b|\bmultiplied by\b|\bmultiply by\b/g,' × '],[/\bdivided by\b|\bdivide by\b/g,' ÷ '],
+    [/\bequals?\b|\bis equal to\b/g,' = '],[/\bpercent\b/g,' % '],[/\bsquare root of\b/g,' √'],[/\bx\b/g,' x'],[/\by\b/g,' y'],
+    [/\bsquared\b/g,'²'],[/\bcubed\b/g,'³'],[/\bgreater than or equal to\b/g,' ≥ '],[/\bless than or equal to\b/g,' ≤ ']
+  ]:[
+    [/\bplus\b|\bqo'shuv\b|\bqoshish\b|\bqo'shilgan\b/g,' + '],[/\bminus\b|\bayiruv\b|\bayirilgan\b/g,' − '],
+    [/\bko'paytir(?:uv|ish)?\b|\bkopaytir(?:uv|ish)?\b|\bkarra\b/g,' × '],[/\bbo'linadi\b|\bbo'lish\b|\bbolish\b|\btaqsim\b/g,' ÷ '],
+    [/\bteng\b|\btengdir\b/g,' = '],[/\bfoiz\b/g,' % '],[/\bkvadrat ildiz\b|\bildiz ostida\b/g,' √'],[/\biks\b/g,' x'],[/\bigrek\b/g,' y'],
+    [/\bkvadrat\b/g,'²'],[/\bkub\b/g,'³'],[/\bkatta yoki teng\b/g,' ≥ '],[/\bkichik yoki teng\b/g,' ≤ ']
+  ];
+  for(const [re,to] of rules)s=s.replace(re,to);
+  s=replaceNumberWords(s,lang);
+  s=s.replace(/\s+([%²³])/g,'$1').replace(/√\s+/g,'√').replace(/\s*([+−×÷=≥≤])\s*/g,' $1 ').replace(/\s+/g,' ').trim();
+  return s;
+}
 function trimCaptionWords(text){return String(text||'').trim().split(/\s+/).filter(Boolean).slice(-10).join(' ')}
 function showCaption(fullName,text){
   const box=$('#liveCaptions');if(!box)return;
-  const clean=trimCaptionWords(text);if(!clean)return;
+  const clean=trimCaptionWords(normalizeMathCaption(text,$('#captionLang')?.value||'uz-UZ'));if(!clean)return;
   $('#captionSpeaker').textContent=(fullName||'')+(fullName?' · ':'');
   $('#captionText').textContent=clean;box.classList.remove('hidden');
   clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent=''},5000);
@@ -451,8 +498,9 @@ function startCaptions(){
     const liveWords=interim.trim().split(/\s+/).filter(Boolean);
     const rolling=trimCaptionWords([...captionFinalWords,...liveWords].join(' '));
     if(rolling){
-      showCaption(user.fullName,rolling);
-      socket?.emit('lesson:caption',{lessonId:activeLessonId,text:rolling,lang:rec.lang,final:Boolean(newFinal)});
+      const normalized=normalizeMathCaption(rolling,rec.lang);
+      showCaption(user.fullName,normalized);
+      socket?.emit('lesson:caption',{lessonId:activeLessonId,text:normalized,lang:rec.lang,final:Boolean(newFinal)});
     }
   };
   rec.onerror=e=>{if(!['no-speech','aborted'].includes(e.error||''))toast('Subtitr: '+(e.error||'ovozni aniqlab bo‘lmadi'))};
@@ -485,6 +533,17 @@ $('#callCamera').onclick=async()=>{
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#callChat').onclick=()=>showLessonSide('chat');
+function applyInclusivePrefs(){
+  document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
+  document.documentElement.dataset.captionSize=String(captionSizeLevel);
+  $('#accessibilityMode')?.classList.toggle('active-control',accessibilityEnabled);
+  $('#captionMath')?.classList.toggle('active-control',captionMathEnabled);
+  const btn=$('#captionSize');if(btn)btn.querySelector('span').textContent=['A','A+','A++'][captionSizeLevel]||'A';
+}
+$('#captionMath')?.addEventListener('click',()=>{captionMathEnabled=!captionMathEnabled;applyInclusivePrefs();toast(captionMathEnabled?'Matematik subtitr yoqildi':'Matematik subtitr o‘chirildi')});
+$('#captionSize')?.addEventListener('click',()=>{captionSizeLevel=(captionSizeLevel+1)%3;localStorage.setItem('m2-caption-size',String(captionSizeLevel));applyInclusivePrefs()});
+$('#accessibilityMode')?.addEventListener('click',()=>{accessibilityEnabled=!accessibilityEnabled;localStorage.setItem('m2-accessibility',accessibilityEnabled?'1':'0');applyInclusivePrefs();toast(accessibilityEnabled?'Inklyuziv qulaylik rejimi yoqildi':'Qulaylik rejimi o‘chirildi')});
+applyInclusivePrefs();
 $('#callCaptions')?.addEventListener('click',()=>captionsEnabled?stopCaptions():startCaptions());
 $('#captionLang')?.addEventListener('change',()=>{if(captionsEnabled)startCaptions()});
 $('#callFullscreen')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('To‘liq ekran ochilmadi')}});
@@ -740,7 +799,7 @@ function connectSocket(){
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('live:changed',function(){if($('#live')?.classList.contains('active'))loadLiveRooms()});
   socket.on('lesson:chat',function(m){$('#messages').insertAdjacentHTML('beforeend','<p><b>'+esc(m.fullName)+'</b><br>'+esc(m.text)+'</p>');$('#messages').scrollTop=$('#messages').scrollHeight});
-  socket.on('lesson:caption',function(m){if(activeLessonId&&String(m.lessonId)===String(activeLessonId)&&String(m.userId)!==String(user?._id))showCaption(m.fullName,m.text)});
+  socket.on('lesson:caption',function(m){if(activeLessonId&&String(m.lessonId)===String(activeLessonId)&&String(m.userId)!==String(user?._id)){const current=$('#captionLang')?.value;const sel=$('#captionLang');if(sel&&m.lang)sel.dataset.remoteLang=m.lang;showCaption(m.fullName,normalizeMathCaption(m.text,m.lang||current||'uz-UZ'))}});
   $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');socket.emit('lesson:chat',{lessonId:activeLessonId,text:input.value});input.value=''};
 }
 window.addEventListener('popstate',async()=>{if(!user)return;const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep){try{await openVideoLesson(deep,false)}catch{go('videos')}}else if(activeVideoId){clearWatchPage();go('videos');loadVideoLessons()}});
