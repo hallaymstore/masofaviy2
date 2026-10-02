@@ -148,3 +148,9 @@ html.ultra-lite-device .conference-controls button,html.ultra-lite-device .confe
 html.ultra-lite-device img:not(.brand-mark){content-visibility:auto}
 .ultra-lite-media .ms-video{image-rendering:auto}
 @media(max-width:480px){html.ultra-lite-device .conference-shell{gap:6px!important}html.ultra-lite-device .lesson-side{min-height:220px!important}}
+
+.ms-tile.floating-pip{position:fixed!important;right:18px;bottom:82px;width:min(30vw,320px)!important;height:auto!important;aspect-ratio:16/9;z-index:1000;display:block!important;border:2px solid var(--surface);border-radius:12px!important;box-shadow:0 12px 36px rgba(0,0,0,.35)!important;background:#06152d;cursor:move}
+.ms-tile.floating-pip .ms-video{object-fit:cover}
+.ms-grid.has-floating-pip .ms-tile.local:not(.floating-pip){visibility:hidden}
+@media(max-width:680px){.ms-tile.floating-pip{right:8px;bottom:72px;width:42vw!important;max-width:210px;border-radius:9px!important}}
+html.ultra-lite-device .ms-tile.floating-pip{box-shadow:none!important;border-width:1px}
