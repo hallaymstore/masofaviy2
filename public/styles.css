@@ -133,3 +133,18 @@ html.inclusive-mode .participant-row{min-height:54px}
 html.inclusive-mode .video-stage .live-captions{background:#000;color:#fff;outline:2px solid #fff;text-shadow:0 1px 2px #000}
 html.inclusive-mode button:focus-visible,html.inclusive-mode select:focus-visible,html.inclusive-mode input:focus-visible{outline:3px solid currentColor;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+html.low-end-device *,html.ultra-lite-device *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html.ultra-lite-device *{animation:none!important;transition:none!important}
+html.ultra-lite-device .card,html.ultra-lite-device article,html.ultra-lite-device .lesson-side,html.ultra-lite-device .video-mount{box-shadow:none!important}
+html.ultra-lite-device .ms-grid{gap:4px!important;padding:4px!important}
+html.ultra-lite-device .ms-tile{border-radius:6px!important;min-height:0!important}
+html.ultra-lite-device .ms-tile:not(.has-video):not(.local){min-height:96px!important}
+html.ultra-lite-device .participant-list{max-height:44vh}
+html.ultra-lite-device .participant-row{padding:6px!important}
+html.ultra-lite-device .video-stage .live-captions{backdrop-filter:none!important;box-shadow:none!important}
+html.ultra-lite-device .conference-controls{overflow-x:auto;scrollbar-width:thin;flex-wrap:nowrap!important}
+html.ultra-lite-device .conference-controls button,html.ultra-lite-device .conference-controls select{flex:0 0 auto}
+html.ultra-lite-device img:not(.brand-mark){content-visibility:auto}
+.ultra-lite-media .ms-video{image-rendering:auto}
+@media(max-width:480px){html.ultra-lite-device .conference-shell{gap:6px!important}html.ultra-lite-device .lesson-side{min-height:220px!important}}
