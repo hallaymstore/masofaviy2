@@ -29,13 +29,14 @@ curl -fsS --max-time 8 http://127.0.0.1:10001/api/health >/dev/null && ok "App h
 curl -fsS --max-time 8 http://127.0.0.1:41000/health >/dev/null && ok "SFU health" || bad "SFU health"
 
 if command -v pm2 >/dev/null 2>&1; then
-  pm2 ls --no-color | grep -q 'masofaviy2.*online' && ok "PM2 app online" || bad "PM2 app"
-  pm2 ls --no-color | grep -q 'masofaviy2-sfu.*online' && ok "PM2 SFU online" || bad "PM2 SFU"
+  PM2_JSON="$(pm2 jlist 2>/dev/null || echo '[]')"
+  node -e "const a=JSON.parse(process.argv[1]);process.exit(a.some(p=>p.name==='masofaviy2'&&p.pm2_env?.status==='online')?0:1)" "$PM2_JSON" && ok "PM2 app online" || bad "PM2 app"
+  node -e "const a=JSON.parse(process.argv[1]);process.exit(a.some(p=>p.name==='masofaviy2-sfu'&&p.pm2_env?.status==='online')?0:1)" "$PM2_JSON" && ok "PM2 SFU online" || bad "PM2 SFU"
 else
   warn "pm2 PATH da topilmadi"
 fi
 
-if [[ -x /usr/local/sbin/masofaviy2-mongodb-backup ]]; then ok "DB backup script mavjud"; else warn "DB backup script hali o‘rnatilmagan"; fi
+if [[ -f /usr/local/sbin/masofaviy2-mongodb-backup ]]; then ok "DB backup script mavjud"; else warn "DB backup script hali o‘rnatilmagan"; fi
 if [[ -f /etc/cron.d/masofaviy2-mongodb-backup ]]; then ok "DB backup cron mavjud"; else warn "DB backup cron hali o‘rnatilmagan"; fi
 
 echo "----"
