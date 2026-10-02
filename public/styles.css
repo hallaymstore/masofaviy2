@@ -123,3 +123,13 @@
 .video-stage .live-captions{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:50;width:max-content;max-width:min(92%,900px);min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:10px;background:rgba(0,0,0,.78);color:#fff;font-size:17px;font-weight:800;line-height:1.35;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.3);pointer-events:none}
 .video-stage .live-captions.hidden{display:none!important}
 @media(max-width:680px){.video-stage .live-captions{bottom:10px;max-width:94%;font-size:13px;min-height:32px;padding:7px 10px}}
+
+html[data-caption-size="1"] .video-stage .live-captions{font-size:21px;padding:11px 16px}
+html[data-caption-size="2"] .video-stage .live-captions{font-size:26px;padding:13px 18px;line-height:1.45}
+html.inclusive-mode{scroll-behavior:auto}
+html.inclusive-mode *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+html.inclusive-mode .conference-controls button,html.inclusive-mode .conference-controls select{min-height:48px;font-size:15px;font-weight:800}
+html.inclusive-mode .participant-row{min-height:54px}
+html.inclusive-mode .video-stage .live-captions{background:#000;color:#fff;outline:2px solid #fff;text-shadow:0 1px 2px #000}
+html.inclusive-mode button:focus-visible,html.inclusive-mode select:focus-visible,html.inclusive-mode input:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
