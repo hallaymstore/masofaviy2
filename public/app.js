@@ -383,10 +383,14 @@ async function openConference(payload){
         if(state.mic!==undefined){micOn=Boolean(state.mic);$('#callMic').classList.toggle('active-control',state.mic)}
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);$('#callCamera').classList.toggle('active-control',state.camera)}
         if(state.screen!==undefined)$('#callScreen').classList.toggle('active-control',state.screen);
+        if(state.echoGuard!==undefined)$('#echoGuard')?.classList.toggle('active-control',state.echoGuard);
+        if(state.videoQuality&&$('#videoQuality'))$('#videoQuality').value=state.videoQuality;
       },
       onError:e=>toast(e.message||String(e))
     });
     await mediaRoomClient.connect();
+    if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||(lowEndUI?'240':'auto');
+    $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
     studentCameraGranted=user.role!=='student';studentMicGranted=user.role!=='student';showLessonSide('participants');await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
@@ -536,6 +540,8 @@ $('#callCamera').onclick=async()=>{
   }catch(e){toast(e.message)}
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
+$('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
+$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const enabled=!$('#echoGuard').classList.contains('active-control');mediaRoomClient.setEchoGuard(enabled);toast(enabled?'Echo himoya yoqildi':'Echo himoya o‘chirildi')});
 $('#callChat').onclick=()=>showLessonSide('chat');
 function applyInclusivePrefs(){
   document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
