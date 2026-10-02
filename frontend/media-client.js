@@ -55,7 +55,12 @@ export class MediaRoomClient{
     this.room=joined.room;this.mediaProfile=joined.mediaProfile||this.joinPayload.mediaProfile||'standard';this.device=new Device();await this.device.load({routerRtpCapabilities:joined.routerRtpCapabilities});
     this.renderShell();
     await this.createTransports();
-    if(!(this.mediaProfile==='lecture-lite'&&this.user.role==='student'))await this.startMicrophone();else this.onState({mic:false,lectureLite:true,audioSlots:joined.limits?.studentAudioSlots||4});
+    if(this.user.role==='student'){
+      this.onState({mic:false,camera:false,studentMediaLocked:true});
+    }else{
+      await this.startMicrophone();
+      if(this.user.role==='teacher')await this.toggleCamera();
+    }
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
     this.onState({connected:true,participants:joined.participants||[]});
@@ -144,10 +149,9 @@ export class MediaRoomClient{
   shouldConsume(meta){
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
-    if(this.mediaProfile==='lecture-lite')return tag==='screen'||role==='teacher'||(this.user.role==='teacher'&&role==='student');
     if(tag==='screen'||role==='teacher')return true;
-    if(this.user.role==='teacher')return this.studentVideoConsumers<(this.lowEnd?6:12);
-    return this.studentVideoConsumers<this.maxStudentVideos;
+    if(role==='student')return this.user.role==='teacher'||this.studentVideoConsumers<(this.lowEnd?4:8);
+    return true;
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
@@ -179,8 +183,13 @@ export class MediaRoomClient{
   }
   removePeerTile(peerId){const t=this.tiles.get(peerId);if(t){t.remove();this.tiles.delete(peerId)}}
   applyAudioLevels(levels){
-    this.tiles.forEach(t=>t.classList.remove('speaking'));
-    for(const x of levels){const t=this.tiles.get(x.peerId);if(t)t.classList.add('speaking')}
+    this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker'));
+    const strongest=(levels||[]).slice().sort((a,b)=>(b.volume||-100)-(a.volume||-100))[0];
+    for(const x of levels||[]){const t=this.tiles.get(x.peerId);if(t)t.classList.add('speaking')}
+    if(strongest){
+      const t=this.tiles.get(strongest.peerId);
+      if(t&&!t.classList.contains('local')&&!this.grid.classList.contains('has-focus'))t.classList.add('active-speaker');
+    }
   }
   async close(){
     if(this.closed)return;this.closed=true;
