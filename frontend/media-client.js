@@ -1,7 +1,17 @@
 import { Device } from 'mediasoup-client';
 
 const qs=(s,r=document)=>r.querySelector(s);
-const el=(tag,attrs={})=>Object.assign(document.createElement(tag),attrs);
+const el=(tag,attrs={})=>{
+  const node=document.createElement(tag);
+  for(const [key,value] of Object.entries(attrs||{})){
+    if(key==='dataset'&&value&&typeof value==='object'){
+      for(const [dataKey,dataValue] of Object.entries(value))node.dataset[dataKey]=String(dataValue);
+      continue;
+    }
+    try{node[key]=value}catch{if(value!==undefined&&value!==null)node.setAttribute(key,String(value))}
+  }
+  return node;
+};
 const safe=s=>String(s??'');
 
 export class MediaRoomClient{
