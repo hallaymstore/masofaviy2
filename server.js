@@ -882,16 +882,8 @@ async function bootstrap(){
     await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000});
     const login=(process.env.ADMIN_LOGIN||'admin').toLowerCase();
     const adminPassword=process.env.ADMIN_PASSWORD||'ChangeMe123!';
-    let admin=await User.findOne({login});
-    if(!admin){
-      admin=await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(adminPassword,11),mustChangePassword:false,active:true});
-    }else if(process.env.ADMIN_PASSWORD){
-      admin.passwordHash=await bcrypt.hash(adminPassword,11);
-      admin.role='superadmin';
-      admin.active=true;
-      admin.mustChangePassword=false;
-      admin.sessionVersion=(admin.sessionVersion||0)+1;
-      await admin.save();
+    if(!await User.exists({login})){
+      await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(adminPassword,11),mustChangePassword:false,active:true});
     }
     console.log('MongoDB ulandi');
   }catch(err){if(process.env.NODE_ENV==='production')throw err;console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
