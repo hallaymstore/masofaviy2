@@ -106,3 +106,5 @@
 #lesson:fullscreen{background:var(--bg);padding:12px;overflow:auto}#lesson:fullscreen .page-head{display:flex}#lesson:fullscreen .video-mount{height:calc(100vh - 150px);min-height:0}
 @media(max-width:1100px){.lesson-side{min-height:320px}.participant-list{max-height:40vh}}
 @media(max-width:680px){.participant-row{grid-template-columns:9px minmax(0,1fr)}.participant-actions{grid-column:2;justify-content:flex-start}.lesson-side{min-height:300px}}
+
+.ms-grid.has-focus{display:block;padding:8px}.ms-grid.has-focus .ms-tile{display:none}.ms-grid.has-focus .ms-tile.focused{display:block;width:100%;height:100%;min-height:0;aspect-ratio:auto;cursor:zoom-out}.ms-grid.has-focus .ms-tile.focused .ms-video{object-fit:contain}.ms-tile{cursor:zoom-in}
