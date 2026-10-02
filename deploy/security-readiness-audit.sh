@@ -29,9 +29,10 @@ curl -fsS --max-time 8 http://127.0.0.1:10001/api/health >/dev/null && ok "App h
 curl -fsS --max-time 8 http://127.0.0.1:41000/health >/dev/null && ok "SFU health" || bad "SFU health"
 
 if command -v pm2 >/dev/null 2>&1; then
-  PM2_JSON="$(pm2 jlist 2>/dev/null || echo '[]')"
-  node -e "const a=JSON.parse(process.argv[1]);process.exit(a.some(p=>p.name==='masofaviy2'&&p.pm2_env?.status==='online')?0:1)" "$PM2_JSON" && ok "PM2 app online" || bad "PM2 app"
-  node -e "const a=JSON.parse(process.argv[1]);process.exit(a.some(p=>p.name==='masofaviy2-sfu'&&p.pm2_env?.status==='online')?0:1)" "$PM2_JSON" && ok "PM2 SFU online" || bad "PM2 SFU"
+  APP_PID="$(pm2 pid masofaviy2 2>/dev/null | tail -1 | tr -dc '0-9')"
+  SFU_PID="$(pm2 pid masofaviy2-sfu 2>/dev/null | tail -1 | tr -dc '0-9')"
+  [[ -n "$APP_PID" && "$APP_PID" != "0" && -d "/proc/$APP_PID" ]] && ok "PM2 app online" || bad "PM2 app"
+  [[ -n "$SFU_PID" && "$SFU_PID" != "0" && -d "/proc/$SFU_PID" ]] && ok "PM2 SFU online" || bad "PM2 SFU"
 else
   warn "pm2 PATH da topilmadi"
 fi
