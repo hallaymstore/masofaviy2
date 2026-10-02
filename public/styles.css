@@ -87,3 +87,22 @@
 .branding-preview{display:flex;align-items:center;gap:10px;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}.branding-preview b,.branding-preview small{display:block}.branding-preview small{color:var(--muted);margin-top:2px}
 #universityFaculties>.empty,#universityGroups>.empty,#universityEcosystem>.empty{grid-column:1/-1}
 @media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
+
+.lesson-side{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-height:540px}
+.lesson-side-tabs{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}
+.lesson-side-tabs button{border:0;border-radius:0;background:transparent;padding:12px;color:var(--muted);font-weight:800}
+.lesson-side-tabs button.active{color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.participants-panel{display:flex;flex-direction:column;min-height:0}
+.participants-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border-bottom:1px solid var(--line)}
+.participants-head div{display:grid;gap:2px}.participants-head small{color:var(--muted)}
+.participant-list{padding:8px;display:grid;gap:5px;max-height:68vh;overflow:auto}
+.participant-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px;border:1px solid var(--line);border-radius:10px}
+.participant-row b,.participant-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.participant-row small{color:var(--muted);font-size:11px}
+.participant-dot{width:8px;height:8px;border-radius:50%;background:#9aa5b5}.participant-row.is-online .participant-dot{background:#21b37b;box-shadow:0 0 0 3px #21b37b22}
+.participant-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.camera-request-btn{font-size:10px;padding:5px 7px}
+.attendance-chip{font-size:10px;font-weight:800;padding:4px 7px;border-radius:999px;background:var(--bg);white-space:nowrap}
+.attendance-chip.present{color:#13795b;background:#e7f8f1}.attendance-chip.late{color:#9a6700;background:#fff4ce}.attendance-chip.absent{color:#b42318;background:#ffebe9}.attendance-chip.pending{color:var(--muted)}
+#lesson:fullscreen{background:var(--bg);padding:12px;overflow:auto}#lesson:fullscreen .page-head{display:flex}#lesson:fullscreen .video-mount{height:calc(100vh - 150px);min-height:0}
+@media(max-width:1100px){.lesson-side{min-height:320px}.participant-list{max-height:40vh}}
+@media(max-width:680px){.participant-row{grid-template-columns:9px minmax(0,1fr)}.participant-actions{grid-column:2;justify-content:flex-start}.lesson-side{min-height:300px}}
