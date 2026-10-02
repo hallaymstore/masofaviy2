@@ -28,13 +28,16 @@ origins="$(grep -m1 '^ALLOWED_ORIGINS=' .env 2>/dev/null | cut -d= -f2-)"
 curl -fsS --max-time 8 http://127.0.0.1:10001/api/health >/dev/null && ok "App health" || bad "App health"
 curl -fsS --max-time 8 http://127.0.0.1:41000/health >/dev/null && ok "SFU health" || bad "SFU health"
 
-if command -v pm2 >/dev/null 2>&1; then
-  APP_PID="$(pm2 pid masofaviy2 2>/dev/null | tail -1 | tr -dc '0-9')"
-  SFU_PID="$(pm2 pid masofaviy2-sfu 2>/dev/null | tail -1 | tr -dc '0-9')"
-  [[ -n "$APP_PID" && "$APP_PID" != "0" && -d "/proc/$APP_PID" ]] && ok "PM2 app online" || bad "PM2 app"
-  [[ -n "$SFU_PID" && "$SFU_PID" != "0" && -d "/proc/$SFU_PID" ]] && ok "PM2 SFU online" || bad "PM2 SFU"
+if pgrep -u "$(id -u)" -f '/home/hallaym/masofaviy2/server\.js' >/dev/null 2>&1; then
+  ok "App process online"
 else
-  warn "pm2 PATH da topilmadi"
+  bad "App process"
+fi
+
+if pgrep -u "$(id -u)" -f '/home/hallaym/masofaviy2/media-server/server\.js' >/dev/null 2>&1; then
+  ok "SFU process online"
+else
+  bad "SFU process"
 fi
 
 if [[ -f /usr/local/sbin/masofaviy2-mongodb-backup ]]; then ok "DB backup script mavjud"; else warn "DB backup script hali o‘rnatilmagan"; fi
