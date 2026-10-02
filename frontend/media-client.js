@@ -103,7 +103,6 @@ export class MediaRoomClient{
     p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.onState({mic:false});return false;
   }
   async toggleCamera(){
-    if(this.mediaProfile==='lecture-lite'&&this.user.role==='student'){this.onError(new Error('Yengil ma’ruza rejimida talabalar kamerasi o‘chiq'));return false}
     const p=this.producers.get('camera');
     if(p){
       if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:true});return true}
@@ -138,7 +137,7 @@ export class MediaRoomClient{
   shouldConsume(meta){
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
-    if(this.mediaProfile==='lecture-lite')return tag==='screen'||role==='teacher';
+    if(this.mediaProfile==='lecture-lite')return tag==='screen'||role==='teacher'||(this.user.role==='teacher'&&role==='student');
     if(tag==='screen'||role==='teacher')return true;
     if(this.user.role==='teacher')return this.studentVideoConsumers<(this.lowEnd?6:12);
     return this.studentVideoConsumers<this.maxStudentVideos;
