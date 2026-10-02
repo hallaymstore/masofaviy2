@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -48,11 +48,11 @@ export class MediaRoomClient{
   }
   getPreferredConstraints(kind){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=localStorage.getItem(key);
-    if(kind==='audio')return id?{deviceId:{exact:id},echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}}:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}};
+    if(kind==='audio'){const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16},latency:{ideal:0.02}};return id?{deviceId:{exact:id},...a}:a;}
     const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
     const video=this.ultraLite
       ?{width:{ideal:426,max:426},height:{ideal:240,max:240},frameRate:{ideal:12,max:12}}
-      :(lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}});
+      :(lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:24,max:30}});
     return id?{deviceId:{exact:id},...video}:video;
   }
   async connect(){
@@ -111,14 +111,14 @@ export class MediaRoomClient{
       const track=stream.getAudioTracks()[0];if(!track)return;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:16000},appData:{mediaTag:'mic',role:this.user.role}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.onState({mic:true});
+      this.refreshRemoteAudioVolume();this.onState({mic:true});
     }catch(e){this.onError(new Error('Mikrofon ochilmadi: '+e.message));this.onState({mic:false})}
   }
   async toggleMic(){
     const p=this.producers.get('mic');
     if(!p)return this.startMicrophone();
-    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.onState({mic:true});return true}
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.onState({mic:false});return false;
+    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.refreshRemoteAudioVolume();this.onState({mic:true});return true}
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.refreshRemoteAudioVolume();this.onState({mic:false});return false;
   }
   async toggleCamera(){
     const p=this.producers.get('camera');
@@ -128,7 +128,7 @@ export class MediaRoomClient{
     }
     try{
       const stream=await navigator.mediaDevices.getUserMedia({video:this.getPreferredConstraints('video'),audio:false}),track=stream.getVideoTracks()[0];
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=lite?[{maxBitrate:120000,scaleResolutionDownBy:4},{maxBitrate:350000,scaleResolutionDownBy:2},{maxBitrate:700000,scaleResolutionDownBy:1}]:[{maxBitrate:150000,scaleResolutionDownBy:4},{maxBitrate:500000,scaleResolutionDownBy:2},{maxBitrate:1200000,scaleResolutionDownBy:1}];
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=lite?[{maxBitrate:120000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:350000,scaleResolutionDownBy:2,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:1,maxFramerate:18}]:[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2500000,scaleResolutionDownBy:1,maxFramerate:30}];
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:lite?300:600},appData:{mediaTag:'camera',role:this.user.role}});
       this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){this.onError(new Error('Kamera ochilmadi: '+e.message));return false}
@@ -161,7 +161,7 @@ export class MediaRoomClient{
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
-    const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:this.lowEnd?'low':'auto'});
+    const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:this.receiveQuality==='auto'?(this.lowEnd?'240':'auto'):this.receiveQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
     this.attachRemote(consumer,meta);
@@ -171,7 +171,7 @@ export class MediaRoomClient{
   attachRemote(consumer,meta){
     const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},tile=this.ensureTile(meta.peerId,user,false);
     if(consumer.kind==='audio'){
-      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;this.audioBin.appendChild(audio);return;
+      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.volume=this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.45:0.72):1;this.audioBin.appendChild(audio);return;
     }
     const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
     if(meta.appData?.mediaTag==='screen')tile.classList.add('screen-share');
@@ -196,6 +196,18 @@ export class MediaRoomClient{
       const t=this.tiles.get(strongest.peerId);
       if(t&&!t.classList.contains('local')&&!this.grid.classList.contains('has-focus'))t.classList.add('active-speaker');
     }
+  }
+  refreshRemoteAudioVolume(){
+    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
+    this.audioBin?.querySelectorAll('audio').forEach(a=>a.volume=this.echoGuard?(active?0.45:0.72):1);
+  }
+  setEchoGuard(enabled){
+    this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
+  }
+  async setReceiveQuality(value){
+    const allowed=['auto','240','360','480','720','1080'];this.receiveQuality=allowed.includes(String(value))?String(value):'auto';localStorage.setItem('m2-video-quality',this.receiveQuality);
+    for(const c of this.consumers.values())if(c.kind==='video'){try{await this.request('setConsumerQuality',{consumerId:c.id,quality:this.receiveQuality})}catch{}}
+    this.onState({videoQuality:this.receiveQuality});
   }
   async close(){
     if(this.closed)return;this.closed=true;
