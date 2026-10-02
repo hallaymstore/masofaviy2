@@ -209,8 +209,33 @@ export class MediaRoomClient{
     for(const c of this.consumers.values())if(c.kind==='video'){try{await this.request('setConsumerQuality',{consumerId:c.id,quality:this.receiveQuality})}catch{}}
     this.onState({videoQuality:this.receiveQuality});
   }
+  async togglePiP(){
+    const tile=this.tiles.get('local');
+    const video=tile?qs('video',tile):null;
+    if(!video||!video.srcObject)return {active:false,reason:'camera-off'};
+    if(document.pictureInPictureElement){
+      try{await document.exitPictureInPicture();return {active:false,native:true}}catch{}
+    }
+    if(document.pictureInPictureEnabled&&typeof video.requestPictureInPicture==='function'){
+      try{
+        await video.play().catch(()=>{});
+        await video.requestPictureInPicture();
+        return {active:true,native:true};
+      }catch{}
+    }
+    const next=!tile.classList.contains('floating-pip');
+    tile.classList.toggle('floating-pip',next);
+    this.grid?.classList.toggle('has-floating-pip',next);
+    return {active:next,native:false};
+  }
+  disablePiP(){
+    const tile=this.tiles.get('local');
+    tile?.classList.remove('floating-pip');
+    this.grid?.classList.remove('has-floating-pip');
+    if(document.pictureInPictureElement)document.exitPictureInPicture().catch(()=>{});
+  }
   async close(){
-    if(this.closed)return;this.closed=true;
+    if(this.closed)return;this.disablePiP();this.closed=true;
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
