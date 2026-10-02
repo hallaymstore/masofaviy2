@@ -425,7 +425,7 @@ function showCaption(fullName,text){
   const clean=trimCaptionWords(text);if(!clean)return;
   $('#captionSpeaker').textContent=(fullName||'')+(fullName?' · ':'');
   $('#captionText').textContent=clean;box.classList.remove('hidden');
-  clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent=''},7000);
+  clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent=''},5000);
 }
 function stopCaptions(silent=false){
   captionsEnabled=false;captionFinalWords=[];
@@ -441,16 +441,23 @@ function startCaptions(){
   rec.onresult=e=>{
     let interim='',newFinal='';
     for(let i=e.resultIndex;i<e.results.length;i++){
-      const t=e.results[i][0]?.transcript||'';
+      const t=(e.results[i][0]?.transcript||'').trim();
+      if(!t)continue;
       if(e.results[i].isFinal)newFinal+=' '+t;else interim+=' '+t;
     }
-    if(newFinal){captionFinalWords=[...captionFinalWords,...newFinal.trim().split(/\s+/).filter(Boolean)].slice(-10)}
-    const rolling=trimCaptionWords([...captionFinalWords, ...interim.trim().split(/\s+/).filter(Boolean)].join(' '));
-    if(rolling){showCaption(user.fullName,rolling);socket?.emit('lesson:caption',{lessonId:activeLessonId,text:rolling,lang:rec.lang,final:Boolean(newFinal)})}
+    if(newFinal){
+      captionFinalWords=[...captionFinalWords,...newFinal.trim().split(/\s+/).filter(Boolean)].slice(-10);
+    }
+    const liveWords=interim.trim().split(/\s+/).filter(Boolean);
+    const rolling=trimCaptionWords([...captionFinalWords,...liveWords].join(' '));
+    if(rolling){
+      showCaption(user.fullName,rolling);
+      socket?.emit('lesson:caption',{lessonId:activeLessonId,text:rolling,lang:rec.lang,final:Boolean(newFinal)});
+    }
   };
   rec.onerror=e=>{if(!['no-speech','aborted'].includes(e.error||''))toast('Subtitr: '+(e.error||'ovozni aniqlab bo‘lmadi'))};
   rec.onend=()=>{if(captionsEnabled&&activeLessonId)setTimeout(()=>{try{rec.start()}catch{}},250)};
-  try{rec.start();$('#callCaptions')?.classList.add('active-control');toast('Jonli subtitr yoqildi')}catch{toast('Subtitrni ishga tushirib bo‘lmadi')}
+  try{rec.start();$('#callCaptions')?.classList.add('active-control');showCaption('', 'Subtitr tinglamoqda…');toast('Jonli subtitr yoqildi')}catch{toast('Subtitrni ishga tushirib bo‘lmadi')}
 }
 $('#showParticipants')?.addEventListener('click',()=>showLessonSide('participants'));
 $('#showLessonChat')?.addEventListener('click',()=>showLessonSide('chat'));
