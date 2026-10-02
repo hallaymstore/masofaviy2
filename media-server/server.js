@@ -131,8 +131,6 @@ async function handleRequest(ws,msg){
     if(method==='produce'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
       const appData={...(data.appData||{}),peerId:peer.id,role:peer.user.role};
-      if(peer.room.profile==='lecture-lite'&&peer.user.role==='student'&&data.kind==='video')throw new Error('Yengil ma’ruza rejimida talaba kamerasi o‘chiq');
-      if(peer.room.profile==='lecture-lite'&&peer.user.role==='student'&&data.kind==='audio'&&studentAudioCount(peer.room)>=LECTURE_MAX_STUDENT_AUDIO)throw new Error('Hozir faol talaba mikrofonlari limiti band');
       const producer=await t.produce({kind:data.kind,rtpParameters:data.rtpParameters,appData});
       peer.producers.set(producer.id,producer);
       if(producer.kind==='audio')try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}
