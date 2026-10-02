@@ -225,7 +225,7 @@
           <div class="conference-controls">
             <button id="callMic"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
             <button id="callCamera"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
-            <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button>
+            <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select><button id="echoGuard" title="Yonma-yon qurilmalarda shovqinni kamaytiradi"><span>🔇</span><span>Echo himoya</span></button>
             <button id="callChat"><span data-ico="message" data-fallback="✉"></span><span>Chat</span></button><button id="callCaptions"><span>CC</span><span>Subtitr</span></button><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select><button id="captionMath" title="Son va matematik amallarni formulaga aylantirish"><span>∑</span><span>Matematika</span></button><button id="captionSize" title="Subtitr o‘lchami"><span>A+</span></button><button id="accessibilityMode" title="Inklyuziv qulaylik rejimi"><span>◐</span><span>Qulaylik</span></button><button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
             <button id="callHangup" class="danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
           </div>
@@ -300,5 +300,5 @@
 
 <dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-6"></script><script type="module" src="/app.js?v=20261002-6"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-7"></script><script type="module" src="/app.js?v=20261002-7"></script>
 </body></html>
