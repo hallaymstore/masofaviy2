@@ -145,9 +145,20 @@ async function handleRequest(ws,msg){
       if(!peer.room.router.canConsume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities}))throw new Error('Brauzer bu media formatini qabul qila olmaydi');
       const consumer=await t.consume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities,paused:true,appData:{meta:serializeProducer(found.producer,found.owner)}});
       peer.consumers.set(consumer.id,consumer);
-      if(consumer.kind==='video'&&consumer.type==='simulcast')try{const preferred=data.quality==='low'?0:(peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'?1:2);await consumer.setPreferredLayers({spatialLayer:preferred})}catch{}
+      if(consumer.kind==='video'&&consumer.type==='simulcast')try{
+        const q=String(data.quality||'auto'),map={240:[0,0],360:[0,2],480:[1,0],720:[1,2],1080:[2,2]};
+        const pair=map[q]||(peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'?[1,1]:[2,2]);
+        await consumer.setPreferredLayers({spatialLayer:pair[0],temporalLayer:pair[1]});
+      }catch{}
       consumer.on('transportclose',()=>peer.consumers.delete(consumer.id));consumer.on('producerclose',()=>peer.consumers.delete(consumer.id));
       reply(ws,clientId,id,true,{id:consumer.id,producerId:found.producer.id,kind:consumer.kind,rtpParameters:consumer.rtpParameters,type:consumer.type,producerPaused:consumer.producerPaused,appData:consumer.appData});return;
+    }
+    if(method==='setConsumerQuality'){
+      const c=peer.consumers.get(data.consumerId);if(c&&c.kind==='video'&&c.type==='simulcast')try{
+        const q=String(data.quality||'auto'),map={240:[0,0],360:[0,2],480:[1,0],720:[1,2],1080:[2,2]},pair=map[q]||[2,2];
+        await c.setPreferredLayers({spatialLayer:pair[0],temporalLayer:pair[1]});
+      }catch{}
+      reply(ws,clientId,id,true,{ok:true});return;
     }
     if(method==='resumeConsumer'){const c=peer.consumers.get(data.consumerId);if(c)await c.resume();reply(ws,clientId,id,true,{ok:true});return}
     if(method==='pauseConsumer'){const c=peer.consumers.get(data.consumerId);if(c)await c.pause();reply(ws,clientId,id,true,{ok:true});return}
