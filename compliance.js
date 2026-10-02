@@ -154,5 +154,23 @@ export function installCompliance(app,{mongoose,User,auth,audit}){
     res.json({url:u.toString(),state});
   });
 
+  app.get('/api/admin/privacy-requests',auth,async(req,res)=>{
+    if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+    const status=String(req.query.status||'');
+    const filter=status?{status}:{};
+    res.json(await PrivacyRequest.find(filter).populate('userId','fullName login role').sort({createdAt:-1}).limit(500).lean());
+  });
+
+  app.patch('/api/admin/privacy-requests/:id',auth,async(req,res)=>{
+    if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+    const status=String(req.body.status||'');
+    if(!['reviewing','completed','rejected'].includes(status))return res.status(400).json({message:'Status noto‘g‘ri'});
+    const row=await PrivacyRequest.findById(req.params.id);
+    if(!row)return res.status(404).json({message:'So‘rov topilmadi'});
+    row.status=status;row.responseNote=String(req.body.responseNote||'').slice(0,2000);row.reviewedBy=req.user._id;row.reviewedAt=new Date();await row.save();
+    await audit(req,'PRIVACY_REQUEST_REVIEW','PrivacyRequest',row.id,{status});
+    res.json(row);
+  });
+
   return {Consent,PrivacyRequest,IdentityEvent};
 }
