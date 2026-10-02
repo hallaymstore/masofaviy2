@@ -934,7 +934,39 @@ app.get('/api/media/status',auth,async(req,res)=>{
 });
 
 io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active||data.id!=='demo'&&Number(data.sv||0)!==Number(socket.user.sessionVersion||0)) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
-io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:sfuBridge?.readyState===WebSocket.OPEN});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||'');if(!sfuSend({clientId:socket.id,id,method,data:msg?.data||{}}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet mediaserveri hozir ulanmagan'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('camera:permission-request',async({lessonId})=>{
+io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:sfuBridge?.readyState===WebSocket.OPEN});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||'');if(!sfuSend({clientId:socket.id,id,method,data:msg?.data||{}}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet mediaserveri hozir ulanmagan'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,status:late?'late':'present',minutes:0});else{row.leftAt=null;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
+  try{
+    if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    for(const s of lessonRoomSockets(lessonId)){
+      if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('mic:permission-request',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,login:socket.user.login});
+    }
+  }catch{}
+});
+socket.on('mic:permission-response',async({lessonId,userId,approved})=>{
+  try{
+    if(!mongoose.isValidObjectId(lessonId)||!mongoose.isValidObjectId(userId)||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
+    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId))s.emit('mic:permission-result',{lessonId,approved:Boolean(approved),teacherName:socket.user.fullName});
+  }catch{}
+});
+socket.on('mic:request-enable',async({lessonId,userId})=>{
+  try{
+    if(!mongoose.isValidObjectId(lessonId)||!mongoose.isValidObjectId(userId)||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
+    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId))s.emit('mic:enable-request',{lessonId,teacherName:socket.user.fullName});
+  }catch{}
+});
+socket.on('mic:enable-result',async({lessonId,accepted})=>{
+  try{
+    if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('mic:student-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,accepted:Boolean(accepted)});
+  }catch{}
+});
+socket.on('camera:permission-request',async({lessonId})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
