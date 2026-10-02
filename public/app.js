@@ -556,6 +556,13 @@ $('#accessibilityMode')?.addEventListener('click',()=>{accessibilityEnabled=!acc
 applyInclusivePrefs();
 $('#callCaptions')?.addEventListener('click',()=>captionsEnabled?stopCaptions():startCaptions());
 $('#captionLang')?.addEventListener('change',()=>{if(captionsEnabled)startCaptions()});
+$('#callPiP')?.addEventListener('click',async()=>{
+  if(!mediaRoomClient)return toast('Avval darsga kiring');
+  const r=await mediaRoomClient.togglePiP();
+  if(r.reason==='camera-off')return toast('PiP uchun kamerani yoqing');
+  $('#callPiP')?.classList.toggle('active-control',Boolean(r.active));
+  toast(r.active?'PiP kamera yoqildi':'PiP kamera o‘chirildi');
+});
 $('#callFullscreen')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('To‘liq ekran ochilmadi')}});
 $('#callHangup').onclick=()=>leaveConference(true);
 
