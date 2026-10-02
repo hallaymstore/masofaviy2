@@ -183,8 +183,7 @@ $('#userSearch').addEventListener('keydown',function(e){if(e.key==='Enter')loadU
 async function editUser(id){
   try{
     const [x,structures]=await Promise.all([api('/users/'+id),api('/structure')]),u=x.user;
-    const faculties=structures.filter(v=>v.type==='faculty'&&v.active),departments=structures.filter(v=>v.type==='department'&&v.active),groups=structures.filter(v=>v.type==='group'&&v.active);
-    const ext=v=>v?.externalId||v?.code||v?._id||'';
+    const faculties=structures.filter(v=>v.type==='faculty'&&v.active),ext=v=>v?.externalId||v?.code||v?._id||'';
     const currentFaculty=ext(u.facultyId)||u.faculty||'',currentDepartment=ext(u.departmentId)||u.department||'',currentGroup=ext(u.groupId)||u.group||'';
     const roles=['student','teacher','tutor','department','dean','rectorate','tech','admin'].concat(user.role==='superadmin'?['superadmin']:[]);
     modal('Akkauntni tahrirlash',
@@ -192,11 +191,12 @@ async function editUser(id){
       '<label>Rol<select name="role">'+roles.map(r=>'<option value="'+r+'" '+(u.role===r?'selected':'')+'>'+esc(roleName[r]||r)+'</option>').join('')+'</select></label>'+
       '<label>Email<input name="email" type="email" value="'+esc(u.email||'')+'"></label>'+
       '<label>Telefon<input name="phone" value="'+esc(u.phone||'')+'"></label>'+
-      '<label>Fakultet ID<select name="facultyId"><option value="">—</option>'+faculties.map(v=>'<option value="'+esc(ext(v))+'" '+(currentFaculty===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>'+
-      '<label>Kafedra ID<select name="departmentId"><option value="">—</option>'+departments.map(v=>'<option value="'+esc(ext(v))+'" '+(currentDepartment===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>'+
-      '<label>Guruh ID<select name="groupId"><option value="">—</option>'+groups.map(v=>'<option value="'+esc(ext(v))+'" '+(currentGroup===ext(v)?'selected':'')+'>'+esc(v.name)+' — '+esc(ext(v))+'</option>').join('')+'</select></label>',
+      '<label>Fakultet<select name="facultyId"><option value="">Fakultetni tanlang</option>'+faculties.map(v=>'<option value="'+esc(ext(v))+'" '+(currentFaculty===ext(v)?'selected':'')+'>'+esc(v.name)+'</option>').join('')+'</select></label>'+
+      '<label>Kafedra<select name="departmentId"><option value="">—</option></select></label>'+
+      '<label>Guruh<select name="groupId"><option value="">—</option></select></label>',
       async d=>{await api('/users/'+id,{method:'PATCH',body:JSON.stringify(d)});loadUsers()}
     );
+    setupOrgCascade(structures,{facultyValue:currentFaculty,departmentValue:currentDepartment,groupValue:currentGroup});
   }catch(e){toast(e.message)}
 }
 async function editUserPermissions(id){
@@ -227,16 +227,53 @@ async function openUserProfile(id){
     );$('#modalSave').classList.add('hidden')
   }catch(e){toast(e.message)}
 }
+function setupOrgCascade(structures,{facultyValue='',departmentValue='',groupValue=''}={}){
+  const ext=x=>x?.externalId||x?.code||x?._id||'', faculties=structures.filter(x=>x.type==='faculty'&&x.active),departments=structures.filter(x=>x.type==='department'&&x.active),groups=structures.filter(x=>x.type==='group'&&x.active);
+  const byId=new Map(structures.map(x=>[String(x._id),x])),facultySelect=$('#modalForm [name="facultyId"]'),departmentSelect=$('#modalForm [name="departmentId"]'),groupSelect=$('#modalForm [name="groupId"]');
+  if(!facultySelect||!departmentSelect||!groupSelect)return;
+  const facultyOfDepartment=d=>d?.parentId?byId.get(String(d.parentId)):null;
+  const departmentOfGroup=g=>g?.parentId?byId.get(String(g.parentId)):null;
+  const facultyOfGroup=g=>facultyOfDepartment(departmentOfGroup(g));
+  const renderDepartments=(selected='')=>{
+    const fv=facultySelect.value;
+    const rows=departments.filter(d=>!fv||ext(facultyOfDepartment(d))===fv);
+    departmentSelect.innerHTML='<option value="">—</option>'+rows.map(d=>'<option value="'+esc(ext(d))+'" '+(ext(d)===selected?'selected':'')+'>'+esc(d.name)+'</option>').join('');
+  };
+  const renderGroups=(selected='')=>{
+    const fv=facultySelect.value,dv=departmentSelect.value;
+    const rows=groups.filter(g=>{
+      const dep=departmentOfGroup(g),fac=facultyOfGroup(g);
+      if(dv)return ext(dep)===dv;
+      if(fv)return ext(fac)===fv;
+      return false;
+    });
+    groupSelect.innerHTML='<option value="">Biriktirilmagan</option>'+rows.map(g=>'<option value="'+esc(ext(g))+'" '+(ext(g)===selected?'selected':'')+'>'+esc(g.name)+' — '+esc(ext(g))+'</option>').join('');
+  };
+  facultySelect.onchange=()=>{renderDepartments('');renderGroups('')};
+  departmentSelect.onchange=()=>renderGroups('');
+  groupSelect.onchange=()=>{
+    const g=groups.find(x=>ext(x)===groupSelect.value);if(!g)return;
+    const dep=departmentOfGroup(g),fac=facultyOfGroup(g);
+    if(fac){facultySelect.value=ext(fac);renderDepartments(ext(dep))}
+    if(dep)departmentSelect.value=ext(dep);
+  };
+  facultySelect.value=facultyValue||'';
+  renderDepartments(departmentValue||'');
+  departmentSelect.value=departmentValue||'';
+  renderGroups(groupValue||'');
+  groupSelect.value=groupValue||'';
+}
 $('#addUser').onclick=async()=>{
-  const structures=await api('/structure').catch(()=>[]),faculties=structures.filter(x=>x.type==='faculty'&&x.active),departments=structures.filter(x=>x.type==='department'&&x.active),groups=structures.filter(x=>x.type==='group'&&x.active),ext=x=>x.externalId||x.code||x._id;
+  const structures=await api('/structure').catch(()=>[]),faculties=structures.filter(x=>x.type==='faculty'&&x.active),ext=x=>x.externalId||x.code||x._id;
   modal('Akkaunt yaratish',
     '<label>F.I.Sh.<input name="fullName" required></label><label>Login<input name="login" required></label><label>Vaqtinchalik parol<input name="password" placeholder="Bo‘sh qoldirilsa avtomatik"></label><label>Telefon<input name="phone" placeholder="+998..."></label><label>Email<input name="email" type="email"></label>'+
     '<label>Rol<select name="role">'+['student','teacher','tutor','department','dean','rectorate','tech','admin'].map(x=>'<option value="'+x+'">'+esc(roleName[x]||x)+'</option>').join('')+'</select></label>'+
-    '<label>Fakultet ID<select name="facultyId"><option value="">—</option>'+faculties.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label>'+
-    '<label>Kafedra ID<select name="departmentId"><option value="">—</option>'+departments.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label>'+
-    '<label>Guruh ID<select name="groupId"><option value="">Biriktirilmagan</option>'+groups.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+' — '+esc(ext(x))+'</option>').join('')+'</select></label><label>Kurs<select name="courseYear"><option value="">—</option>'+[1,2,3,4,5,6].map(x=>'<option value="'+x+'">'+x+'-kurs</option>').join('')+'</select></label><label>Yo‘nalish<input name="direction" placeholder="Masalan: Dasturiy injiniring"></label>',
+    '<label>Fakultet<select name="facultyId"><option value="">Fakultetni tanlang</option>'+faculties.map(x=>'<option value="'+esc(ext(x))+'">'+esc(x.name)+'</option>').join('')+'</select></label>'+
+    '<label>Kafedra<select name="departmentId"><option value="">Avval fakultetni tanlang</option></select></label>'+
+    '<label>Guruh<select name="groupId"><option value="">Avval fakultetni tanlang</option></select></label><label>Kurs<select name="courseYear"><option value="">—</option>'+[1,2,3,4,5,6].map(x=>'<option value="'+x+'">'+x+'-kurs</option>').join('')+'</select></label><label>Yo‘nalish<input name="direction" placeholder="Masalan: Dasturiy injiniring"></label>',
     async d=>{const x=await api('/users',{method:'POST',body:JSON.stringify(d)});alert('Yangi akkaunt yaratildi.\nVaqtinchalik parol: '+x.temporaryPassword);loadUsers()}
-  )
+  );
+  setupOrgCascade(structures);
 };
 
 function chooseFile(){return new Promise(resolve=>{const input=document.createElement('input');input.type='file';input.accept='.xlsx,.csv';input.onchange=()=>resolve(input.files?.[0]||null);input.click()})}
