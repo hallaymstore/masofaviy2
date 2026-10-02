@@ -18,9 +18,11 @@ export class MediaRoomClient{
   constructor({socket,joinPayload,mount,user,lowEnd=false,onState=()=>{},onError=()=>{}}){
     this.socket=socket;this.joinPayload=joinPayload;this.mount=mount;this.user=user;this.onState=onState;this.onError=onError;
     const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection,weakNet=Boolean(conn?.saveData)||/2g|3g/.test(String(conn?.effectiveType||''));
-    this.lowEnd=Boolean(lowEnd||weakNet||(navigator.deviceMemory&&navigator.deviceMemory<=4)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=4));
+    const mem=Number(navigator.deviceMemory||0),cores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
+    this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
+    this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.lowEnd?2:6;this.studentVideoConsumers=0;this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -47,13 +49,17 @@ export class MediaRoomClient{
   getPreferredConstraints(kind){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=localStorage.getItem(key);
     if(kind==='audio')return id?{deviceId:{exact:id},echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}}:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:{ideal:1}};
-    const lite=this.lowEnd||this.mediaProfile==='lecture-lite',video=lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}};
+    const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
+    const video=this.ultraLite
+      ?{width:{ideal:426,max:426},height:{ideal:240,max:240},frameRate:{ideal:12,max:12}}
+      :(lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30}});
     return id?{deviceId:{exact:id},...video}:video;
   }
   async connect(){
     const joined=await this.request('join',{ticket:this.joinPayload.mediaTicket});
     this.room=joined.room;this.mediaProfile=joined.mediaProfile||this.joinPayload.mediaProfile||'standard';this.device=new Device();await this.device.load({routerRtpCapabilities:joined.routerRtpCapabilities});
     this.renderShell();
+    this.mount.classList.toggle('ultra-lite-media',this.ultraLite);this.mount.classList.toggle('low-end-media',this.lowEnd);
     await this.createTransports();
     if(this.user.role==='student'){
       this.onState({mic:false,camera:false,studentMediaLocked:true});
