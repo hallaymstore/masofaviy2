@@ -1,6 +1,10 @@
 const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
-const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
+const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
+const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
+const lowEndUI=Boolean(ultraLiteUI||(deviceMem&&deviceMem<=4)||(deviceCores&&deviceCores<=4)||!window.SVGSVGElement);
+document.documentElement.classList.toggle('low-end-device',lowEndUI);
+document.documentElement.classList.toggle('ultra-lite-device',ultraLiteUI);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
 const csrf=()=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('m2_csrf='))?.slice('m2_csrf='.length)||'';
@@ -370,7 +374,7 @@ async function openConference(payload){
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
   $('#endLiveLesson').classList.toggle('hidden',!(String(s.teacherId?._id||s.teacherId)===String(user._id)||can('live.manage')));
-  const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>Mediasoup · kamera o‘chiq · mikrofon ochiq</small></div>';
+  const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · kamera OFF · mikrofon OFF':(ultraLiteUI?'Lite rejim · 240p':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
     mediaRoomClient=new window.MasofaviyMediaClientBundle.MediaRoomClient({
