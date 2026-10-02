@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, studentCameraGranted=false, videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, studentCameraGranted=false, captionRecognition=null, captionsEnabled=false, captionFinalWords=[], captionClearTimer=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
@@ -393,6 +393,7 @@ async function openConference(payload){
   hydrateIcons($('#lesson'));
 }
 async function leaveConference(back=true){
+  stopCaptions(true);
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
   activeLessonId='';activeLiveSession=null;cameraOn=false;studentCameraGranted=false;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
@@ -416,6 +417,40 @@ async function loadLessonParticipants(){
 function showLessonSide(which){
   const p=which!=='chat';$('#participantsPanel')?.classList.toggle('hidden',!p);$('#lessonChatPanel')?.classList.toggle('hidden',p);$('#showParticipants')?.classList.toggle('active',p);$('#showLessonChat')?.classList.toggle('active',!p)
 }
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+function trimCaptionWords(text){return String(text||'').trim().split(/\s+/).filter(Boolean).slice(-10).join(' ')}
+function showCaption(fullName,text){
+  const box=$('#liveCaptions');if(!box)return;
+  const clean=trimCaptionWords(text);if(!clean)return;
+  $('#captionSpeaker').textContent=(fullName||'')+(fullName?' · ':'');
+  $('#captionText').textContent=clean;box.classList.remove('hidden');
+  clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent=''},7000);
+}
+function stopCaptions(silent=false){
+  captionsEnabled=false;captionFinalWords=[];
+  if(captionRecognition){try{captionRecognition.onend=null;captionRecognition.stop()}catch{}captionRecognition=null}
+  $('#callCaptions')?.classList.remove('active-control');
+  if(!silent)toast('Subtitr o‘chirildi');
+}
+function startCaptions(){
+  if(!SpeechRecognition)return toast('Bu brauzer jonli subtitrni qo‘llamaydi. Android Chrome yoki Edge ishlating.');
+  if(!activeLessonId)return toast('Avval darsga kiring');
+  stopCaptions(true);captionsEnabled=true;captionFinalWords=[];
+  const rec=new SpeechRecognition();captionRecognition=rec;rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=1;rec.lang=$('#captionLang')?.value||'uz-UZ';
+  rec.onresult=e=>{
+    let interim='',newFinal='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0]?.transcript||'';
+      if(e.results[i].isFinal)newFinal+=' '+t;else interim+=' '+t;
+    }
+    if(newFinal){captionFinalWords=[...captionFinalWords,...newFinal.trim().split(/\s+/).filter(Boolean)].slice(-10)}
+    const rolling=trimCaptionWords([...captionFinalWords, ...interim.trim().split(/\s+/).filter(Boolean)].join(' '));
+    if(rolling){showCaption(user.fullName,rolling);socket?.emit('lesson:caption',{lessonId:activeLessonId,text:rolling,lang:rec.lang,final:Boolean(newFinal)})}
+  };
+  rec.onerror=e=>{if(!['no-speech','aborted'].includes(e.error||''))toast('Subtitr: '+(e.error||'ovozni aniqlab bo‘lmadi'))};
+  rec.onend=()=>{if(captionsEnabled&&activeLessonId)setTimeout(()=>{try{rec.start()}catch{}},250)};
+  try{rec.start();$('#callCaptions')?.classList.add('active-control');toast('Jonli subtitr yoqildi')}catch{toast('Subtitrni ishga tushirib bo‘lmadi')}
+}
 $('#showParticipants')?.addEventListener('click',()=>showLessonSide('participants'));
 $('#showLessonChat')?.addEventListener('click',()=>showLessonSide('chat'));
 $('#callMic').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleMic()}catch(e){toast(e.message)}};
@@ -432,6 +467,8 @@ $('#callCamera').onclick=async()=>{
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#callChat').onclick=()=>showLessonSide('chat');
+$('#callCaptions')?.addEventListener('click',()=>captionsEnabled?stopCaptions():startCaptions());
+$('#captionLang')?.addEventListener('change',()=>{if(captionsEnabled)startCaptions()});
 $('#callFullscreen')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('To‘liq ekran ochilmadi')}});
 $('#callHangup').onclick=()=>leaveConference(true);
 
@@ -662,6 +699,7 @@ function connectSocket(){
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('live:changed',function(){if($('#live')?.classList.contains('active'))loadLiveRooms()});
   socket.on('lesson:chat',function(m){$('#messages').insertAdjacentHTML('beforeend','<p><b>'+esc(m.fullName)+'</b><br>'+esc(m.text)+'</p>');$('#messages').scrollTop=$('#messages').scrollHeight});
+  socket.on('lesson:caption',function(m){if(activeLessonId&&String(m.lessonId)===String(activeLessonId)&&String(m.userId)!==String(user?._id))showCaption(m.fullName,m.text)});
   $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');socket.emit('lesson:chat',{lessonId:activeLessonId,text:input.value});input.value=''};
 }
 window.addEventListener('popstate',async()=>{if(!user)return;const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep){try{await openVideoLesson(deep,false)}catch{go('videos')}}else if(activeVideoId){clearWatchPage();go('videos');loadVideoLessons()}});
