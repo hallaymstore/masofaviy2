@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, studentCameraGranted=false, videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const lowEndUI=Boolean((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||!window.SVGSVGElement);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
@@ -377,13 +377,14 @@ async function openConference(payload){
       socket,joinPayload:join,mount,user,lowEnd:lowEndUI,
       onState:state=>{
         if(state.mic!==undefined)$('#callMic').classList.toggle('active-control',state.mic);
-        if(state.camera!==undefined)$('#callCamera').classList.toggle('active-control',state.camera);
+        if(state.camera!==undefined){cameraOn=Boolean(state.camera);$('#callCamera').classList.toggle('active-control',state.camera)}
         if(state.screen!==undefined)$('#callScreen').classList.toggle('active-control',state.screen);
       },
       onError:e=>toast(e.message||String(e))
     });
     await mediaRoomClient.connect();
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
+    studentCameraGranted=user.role!=='student';showLessonSide('participants');await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
     mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Media serverga ulanib bo‘lmadi</b><small>'+esc(e.message)+'</small><button id="retryMediaRoom" class="primary">Qayta ulanish</button></div>';
@@ -394,7 +395,7 @@ async function openConference(payload){
 async function leaveConference(back=true){
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
-  activeLessonId='';activeLiveSession=null;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+  activeLessonId='';activeLiveSession=null;cameraOn=false;studentCameraGranted=false;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
@@ -403,10 +404,35 @@ async function endLiveRoom(id,fromCall=true){
 $('#refreshLiveRooms').onclick=loadLiveRooms;
 $('#backToLive').onclick=()=>leaveConference(true);
 $('#endLiveLesson').onclick=()=>activeLessonId&&endLiveRoom(activeLessonId,true);
+async function loadLessonParticipants(){
+  if(!activeLessonId)return;
+  try{
+    const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
+    $('#lessonParticipants').innerHTML=rows.map(r=>'<div class="participant-row '+(r.online?'is-online':'')+'"><span class="participant-dot"></span><div><b>'+esc(r.fullName)+'</b><small>@'+esc(r.login)+' · '+esc(label[r.status]||r.status)+'</small></div><div class="participant-actions"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(user.role==='teacher'&&r.online?'<button class="ghost camera-request-btn" data-camera-request="'+esc(r._id)+'">Kamera so‘ra</button>':'')+'</div></div>').join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
+    const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
+    all('[data-camera-request]').forEach(b=>b.onclick=()=>{socket?.emit('camera:request-enable',{lessonId:activeLessonId,userId:b.dataset.cameraRequest});toast('Talabaga kamera so‘rovi yuborildi')});
+  }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
+}
+function showLessonSide(which){
+  const p=which!=='chat';$('#participantsPanel')?.classList.toggle('hidden',!p);$('#lessonChatPanel')?.classList.toggle('hidden',p);$('#showParticipants')?.classList.toggle('active',p);$('#showLessonChat')?.classList.toggle('active',!p)
+}
+$('#showParticipants')?.addEventListener('click',()=>showLessonSide('participants'));
+$('#showLessonChat')?.addEventListener('click',()=>showLessonSide('chat'));
 $('#callMic').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleMic()}catch(e){toast(e.message)}};
-$('#callCamera').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleCamera()}catch(e){toast(e.message)}};
+$('#callCamera').onclick=async()=>{
+  if(!mediaRoomClient)return toast('Avval video xonaga kiring');
+  try{
+    if(user.role==='student'&&!cameraOn&&!studentCameraGranted){
+      socket?.emit('camera:permission-request',{lessonId:activeLessonId});
+      toast('O‘qituvchidan kamera uchun ruxsat so‘raldi');
+      return;
+    }
+    await mediaRoomClient.toggleCamera();
+  }catch(e){toast(e.message)}
+};
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
-$('#callChat').onclick=()=>{$('.conference-shell .chat')?.classList.toggle('chat-collapsed')};
+$('#callChat').onclick=()=>showLessonSide('chat');
+$('#callFullscreen')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('To‘liq ekran ochilmadi')}});
 $('#callHangup').onclick=()=>leaveConference(true);
 
 function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{6,})/);return m?.[1]||''}
@@ -609,7 +635,31 @@ function connectSocket(){
   socket.on('disconnect',function(){$('#onlineBadge').textContent='● Ulanish yo‘q'});
   socket.on('presence:count',function(x){$('#onlineBadge').textContent='● '+(x.online||0)+' onlayn'});
   socket.on('lesson:error',function(x){toast(x.message||'Darsga kirib bo‘lmadi')});
-  socket.on('lesson:presence',function(x){if(x.userId===user?._id||x.fullName===user?.fullName)toast(x.status==='late'?'Darsga kirdingiz · kechikish qayd etildi':'Darsga kirdingiz · davomat qayd etildi')});
+  socket.on('lesson:presence',function(x){if(activeLessonId)loadLessonParticipants();if(x.userId===user?._id||x.fullName===user?.fullName)toast(x.status==='late'?'Darsga kirdingiz · kechikish qayd etildi':'Darsga kirdingiz · davomat qayd etildi')});
+  socket.on('attendance:checkpoint',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){loadLessonParticipants();toast('Avtomatik davomat: '+x.checkpointMinute+'-daqiqa')}});
+  socket.on('camera:permission-request',function(x){
+    if(!activeLessonId||user.role!=='teacher')return;
+    const approved=confirm((x.fullName||'Talaba')+' kamerani yoqishga ruxsat so‘radi. Ruxsat berasizmi?');
+    socket.emit('camera:permission-response',{lessonId:activeLessonId,userId:x.userId,approved});
+  });
+  socket.on('camera:permission-result',async function(x){
+    if(!activeLessonId||user.role!=='student')return;
+    studentCameraGranted=Boolean(x.approved);
+    if(!x.approved)return toast('O‘qituvchi kamera ruxsatini bermadi');
+    if(confirm((x.teacherName||'O‘qituvchi')+' kamera uchun ruxsat berdi. Hozir kamerani yoqasizmi?')){
+      try{await mediaRoomClient?.toggleCamera()}catch(e){toast(e.message)}
+    }
+  });
+  socket.on('camera:enable-request',async function(x){
+    if(!activeLessonId||user.role!=='student')return;
+    const accepted=confirm((x.teacherName||'O‘qituvchi')+' kamerani yoqishni so‘radi. Kamerani yoqasizmi?');
+    if(accepted){
+      studentCameraGranted=true;
+      try{await mediaRoomClient?.toggleCamera()}catch(e){toast(e.message)}
+    }
+    socket.emit('camera:enable-result',{lessonId:activeLessonId,accepted});
+  });
+  socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('live:changed',function(){if($('#live')?.classList.contains('active'))loadLiveRooms()});
   socket.on('lesson:chat',function(m){$('#messages').insertAdjacentHTML('beforeend','<p><b>'+esc(m.fullName)+'</b><br>'+esc(m.text)+'</p>');$('#messages').scrollTop=$('#messages').scrollHeight});
   $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');socket.emit('lesson:chat',{lessonId:activeLessonId,text:input.value});input.value=''};
