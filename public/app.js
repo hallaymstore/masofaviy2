@@ -420,7 +420,7 @@ function showLessonSide(which){
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 const NUMBER_WORDS={
-  'uz-UZ':{nol:0,bir:1,ikki:2,uch:3,to'rt:4,tort:4,besh:5,olti:6,yetti:7,sakkiz:8,to'qqiz:9,toqqiz:9,o'n:10,on:10,yigirma:20,o'ttiz:30,ottiz:30,qirq:40,ellik:50,oltmish:60,yetmish:70,sakson:80,to'qson:90,toqson:90,yuz:100,ming:1000},
+  'uz-UZ':{'nol':0,'bir':1,'ikki':2,'uch':3,"to'rt":4,'tort':4,'besh':5,'olti':6,'yetti':7,'sakkiz':8,"to'qqiz":9,'toqqiz':9,"o'n":10,'on':10,'yigirma':20,"o'ttiz":30,'ottiz':30,'qirq':40,'ellik':50,'oltmish':60,'yetmish':70,'sakson':80,"to'qson":90,'toqson':90,'yuz':100,'ming':1000},
   'ru-RU':{ноль:0,один:1,одна:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10,одиннадцать:11,двенадцать:12,тринадцать:13,четырнадцать:14,пятнадцать:15,шестнадцать:16,семнадцать:17,восемнадцать:18,девятнадцать:19,двадцать:20,тридцать:30,сорок:40,пятьдесят:50,шестьдесят:60,семьдесят:70,восемьдесят:80,девяносто:90,сто:100,тысяча:1000,тысячи:1000,тысяч:1000},
   'en-US':{zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000}
 };
