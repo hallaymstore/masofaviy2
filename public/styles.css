@@ -154,3 +154,11 @@ html.ultra-lite-device img:not(.brand-mark){content-visibility:auto}
 .ms-grid.has-floating-pip .ms-tile.local:not(.floating-pip){visibility:hidden}
 @media(max-width:680px){.ms-tile.floating-pip{right:8px;bottom:72px;width:42vw!important;max-width:210px;border-radius:9px!important}}
 html.ultra-lite-device .ms-tile.floating-pip{box-shadow:none!important;border-width:1px}
+
+.face-demo-dialog{padding:0;border:0;border-radius:16px;width:min(94vw,460px)}
+.face-demo-dialog::backdrop{background:rgba(2,8,23,.78)}
+.face-demo-card{padding:18px;background:var(--surface);color:var(--text)}
+.face-demo-card video{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#06152d;border-radius:12px;margin:12px 0}
+.consent-check{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-weight:700}
+.consent-check input{margin-top:4px}
+.info-note.warning{border-color:#f59e0b;background:#fff7ed}
