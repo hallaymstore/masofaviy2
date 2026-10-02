@@ -966,6 +966,12 @@ socket.on('camera:enable-result',async({lessonId,accepted})=>{
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('camera:student-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,accepted:Boolean(accepted)});
   }catch{}
 });
+socket.on('lesson:caption',({lessonId,text,lang,final})=>{
+  const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
+  if(clean&&mongoose.isValidObjectId(lessonId)&&socket.rooms.has('lesson:'+lessonId)){
+    io.to('lesson:'+lessonId).emit('lesson:caption',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,text:clean,lang:language,final:Boolean(final),at:Date.now()});
+  }
+});
 socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId)socket.leave('lesson:'+lessonId);if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId)io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}catch{} });
 socket.on('disconnect', async()=>{sfuSend({clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
