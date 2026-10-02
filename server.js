@@ -16,6 +16,7 @@ import { installLms } from './lms.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', 1);
 const server = http.createServer(app);
 const allowedOrigins = String(process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -58,11 +59,28 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy:false,
-  referrerPolicy:{policy:'strict-origin-when-cross-origin'}
+  referrerPolicy:{policy:'strict-origin-when-cross-origin'},
+  strictTransportSecurity: process.env.NODE_ENV==='production'?{maxAge:31536000,includeSubDomains:true,preload:false}:false,
+  permissionsPolicy:{features:{camera:["'self'"],microphone:["'self'"],geolocation:[],payment:[],usb:[],serial:[],bluetooth:[]}}
 }));
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '12mb' }));
+const API_RATE_WINDOW_MS=Math.max(60000,Number(process.env.API_RATE_WINDOW_MS||5*60*1000));
+const API_RATE_MAX=Math.max(100,Number(process.env.API_RATE_MAX||600));
+const apiRate=new Map();
+app.use('/api',(req,res,next)=>{
+  if(req.path==='/health')return next();
+  const now=Date.now(),key=String(req.ip||'unknown');
+  let row=apiRate.get(key);
+  if(!row||now-row.start>API_RATE_WINDOW_MS)row={start:now,count:0};
+  row.count++;apiRate.set(key,row);
+  res.setHeader('X-RateLimit-Limit',String(API_RATE_MAX));
+  res.setHeader('X-RateLimit-Remaining',String(Math.max(0,API_RATE_MAX-row.count)));
+  if(row.count>API_RATE_MAX)return res.status(429).json({message:'Juda ko‘p so‘rov. Birozdan keyin qayta urinib ko‘ring.'});
+  if(apiRate.size>5000)for(const [k,v] of apiRate)if(now-v.start>API_RATE_WINDOW_MS)apiRate.delete(k);
+  next();
+});
 app.use('/vendor/face-detection',express.static('node_modules/@mediapipe/face_detection',{maxAge:'1y',immutable:true,index:false}));
 app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
 
