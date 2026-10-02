@@ -108,3 +108,9 @@
 @media(max-width:680px){.participant-row{grid-template-columns:9px minmax(0,1fr)}.participant-actions{grid-column:2;justify-content:flex-start}.lesson-side{min-height:300px}}
 
 .ms-grid.has-focus{display:block;padding:8px}.ms-grid.has-focus .ms-tile{display:none}.ms-grid.has-focus .ms-tile.focused{display:block;width:100%;height:100%;min-height:0;aspect-ratio:auto;cursor:zoom-out}.ms-grid.has-focus .ms-tile.focused .ms-video{object-fit:contain}.ms-tile{cursor:zoom-in}
+
+.video-mount{position:relative}
+.live-captions{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:12;max-width:min(92%,860px);display:flex;gap:6px;align-items:center;justify-content:center;padding:8px 12px;border-radius:10px;background:#000c;color:#fff;backdrop-filter:blur(6px);font-size:16px;font-weight:700;text-align:center;pointer-events:none}
+.live-captions b{color:#9ed0ff;white-space:nowrap}.live-captions span{display:inline}
+.caption-lang{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:9px 8px;font-weight:800}
+@media(max-width:680px){.live-captions{bottom:10px;font-size:13px;max-width:94%;padding:7px 9px}.live-captions b{display:none}.caption-lang{padding:8px 6px}}
