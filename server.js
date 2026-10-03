@@ -704,6 +704,20 @@ app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ 
 }catch(err){res.status(400).json({message:err.message})} });
 
 app.patch('/api/users/:id/status', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(String(target._id)===String(req.user._id)&&req.body.active===false)return res.status(400).json({message:'O‘zingizni bloklay olmaysiz'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt holatini o‘zgartirish uchun ruxsat yo‘q'});target.active=Boolean(req.body.active);target.statusNote=String(req.body.statusNote||'').trim();if(!target.active)target.sessionVersion=(target.sessionVersion||0)+1;await target.save();if(!target.active)disconnectUserSockets(target._id);audit(req,target.active?'UNBLOCK':'BLOCK','User',target.id,{note:target.statusNote,sessionsRevoked:!target.active});res.json({ok:true,active:target.active})});
+app.post('/api/users/bulk-student-password',auth,can('users.control'),async(req,res)=>{
+  const password=String(req.body.password||'').trim();
+  if(password.length<8)return res.status(400).json({message:'Yangi parol kamida 8 ta belgidan iborat bo‘lsin'});
+  const filter={role:'student',active:true};
+  if(req.body.groupId){const g=await resolveStructure(req.body.groupId,'group');if(!g)return res.status(400).json({message:'Guruh topilmadi'});filter.groupId=g._id}
+  const rows=await User.find(filter).select('_id login').lean();
+  if(!rows.length)return res.status(404).json({message:'Talaba topilmadi'});
+  const hash=await bcrypt.hash(password,11);
+  await User.updateMany({_id:{$in:rows.map(x=>x._id)}},{$set:{passwordHash:hash,mustChangePassword:false},$inc:{sessionVersion:1}});
+  for(const row of rows)disconnectUserSockets(row._id);
+  audit(req,'BULK_STUDENT_PASSWORD','User','student',{count:rows.length,groupId:req.body.groupId||null,sessionsRevoked:true});
+  res.json({ok:true,count:rows.length});
+});
+
 app.post('/api/users/:id/reset-password', auth, can('users.control'), async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt parolini tiklash uchun ruxsat yo‘q'});const password=String(req.body.password||'').trim()||crypto.randomBytes(7).toString('base64url');if(password.length<8)return res.status(400).json({message:'Parol kamida 8 belgi bo‘lsin'});target.passwordHash=await bcrypt.hash(password,11);target.mustChangePassword=true;target.sessionVersion=(target.sessionVersion||0)+1;await target.save();disconnectUserSockets(target._id);audit(req,'PASSWORD_RESET','User',target.id,{sessionsRevoked:true});res.json({temporaryPassword:password})});
 
 app.post('/api/users/:id/revoke-sessions',auth,can('users.control'),async(req,res)=>{const target=await User.findById(req.params.id);if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(!canAssignRole(req.user.role,target.role))return res.status(403).json({message:'Bu akkaunt sessiyalarini bekor qilish uchun ruxsat yo‘q'});target.sessionVersion=(target.sessionVersion||0)+1;await target.save();disconnectUserSockets(target._id);audit(req,'ADMIN_SESSIONS_REVOKE','User',target.id);res.json({ok:true})});
@@ -942,6 +956,13 @@ app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
   const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:new Date(),endedAt:null,lastAttendanceCheckpointMinute:0,lastAttendanceCheckpointAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
   audit(req,'LIVE_START','LiveSession',session.id,{scheduleId:String(lesson._id),roomName});
   io.emit('live:changed',{scheduleId:String(lesson._id),status:'active'});
+  const populatedLesson=await Schedule.findById(lesson._id).populate('groupId','name externalId code').populate('teacherId','fullName login').lean();
+  for(const studentSocket of io.sockets.sockets.values()){
+    if(studentSocket.user?.role!=='student')continue;
+    const gid=studentSocket.user?.groupId||await resolveUserGroupId(studentSocket.user);
+    if(String(gid||'')!==String(lesson.groupId))continue;
+    studentSocket.emit('lesson:started',{scheduleId:String(lesson._id),title:lesson.title,subject:lesson.subject||'',teacherName:populatedLesson?.teacherId?.fullName||req.user.fullName,groupName:populatedLesson?.groupId?.name||'',startedAt:session.startedAt});
+  }
   res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,roomName,lesson)});
 });
 app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
