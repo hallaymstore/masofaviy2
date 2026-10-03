@@ -41,28 +41,36 @@ $('#installPwaBtn')?.addEventListener('click',async()=>{if(!deferredInstallPromp
 window.addEventListener('appinstalled',()=>{$('#installPwaBtn')?.classList.add('hidden');toast('HALLAYM EDU ilovasi o‘rnatildi')});
 async function start(){try{await loadBranding();const x=await api('/me');user=x.user;effectivePermissions=x.effectivePermissions||[];$('#login').classList.add('hidden');$('#shell').classList.remove('hidden');configureRoleUI();hydrateIcons();await loadDashboard();connectSocket();const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep&&!user.mustChangePassword){await loadVideoLessons();await openVideoLesson(deep,false)}if(user.mustChangePassword&&user._id!=='demo')setTimeout(()=>{go('profile');toast('Xavfsizlik uchun vaqtinchalik parolni almashtiring')},250)}catch{logout()}}
 async function runDemoFaceGate(){
-  const dlg=$('#faceDemoDialog'),video=$('#faceDemoVideo'),status=$('#faceDemoStatus'),consent=$('#faceDemoConsent'),confirm=$('#faceDemoConfirm');
+  const dlg=$('#faceDemoDialog'),video=$('#faceDemoVideo'),status=$('#faceDemoStatus'),count=$('#faceCountdown'),retry=$('#faceDemoRetry');
   if(!dlg||!video)return true;
-  let stream=null,cameraReady=false;
-  dlg.showModal();
-  status.textContent='Kamera tayyorlanmoqda…';confirm.disabled=true;consent.checked=false;
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320,max:640},height:{ideal:240,max:480},facingMode:'user'},audio:false});
-    video.srcObject=stream;await video.play().catch(()=>{});
-    cameraReady=true;status.textContent='Kamera tayyor. Demo rejim istalgan yuzni qabul qiladi.';
-  }catch(e){
-    status.textContent='Kamera ochilmadi. Brauzer ruxsatini tekshiring.';
-  }
-  const refresh=()=>confirm.disabled=!(cameraReady&&consent.checked);
-  consent.onchange=refresh;refresh();
+  let stream=null,timer=null,resolved=false;
+  const stop=()=>{if(timer)clearInterval(timer);stream?.getTracks().forEach(t=>t.stop());video.srcObject=null};
+  const finish=async(resolve)=>{
+    if(resolved)return;resolved=true;
+    try{
+      await api('/compliance/consent',{method:'POST',body:JSON.stringify({type:'demo_face',granted:true})});
+      await api('/identity/demo-face',{method:'POST',body:JSON.stringify({cameraReady:true})});
+      status.textContent='Tekshiruv yakunlandi. Tizim ochilmoqda…';
+      setTimeout(()=>{stop();dlg.close();resolve(true)},350);
+    }catch(e){resolved=false;status.textContent=e.message;retry?.classList.remove('hidden')}
+  };
+  const openCamera=async(resolve)=>{
+    retry?.classList.add('hidden');resolved=false;if(count)count.textContent='5';status.textContent='Kamera ochilmoqda…';
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:480,max:720},height:{ideal:360,max:540},facingMode:'user'},audio:false});
+      video.srcObject=stream;await video.play().catch(()=>{});
+      status.textContent='Yuzingizni kameraga qarating';
+      let left=5;if(count)count.textContent=String(left);
+      timer=setInterval(()=>{left-=1;if(count)count.textContent=String(Math.max(0,left));status.textContent=left>0?('Tekshiruv: '+left+' soniya'):'Tekshiruv yakunlanmoqda…';if(left<=0){clearInterval(timer);timer=null;finish(resolve)}},1000);
+    }catch(e){
+      status.textContent='Kamera ochilmadi. Brauzerda kamera ruxsatini bering.';
+      retry?.classList.remove('hidden');
+    }
+  };
+  if(!dlg.open)dlg.showModal();
   return await new Promise(resolve=>{
-    confirm.onclick=async()=>{
-      try{
-        await api('/compliance/consent',{method:'POST',body:JSON.stringify({type:'demo_face',granted:true})});
-        await api('/identity/demo-face',{method:'POST',body:JSON.stringify({cameraReady:true})});
-        stream?.getTracks().forEach(t=>t.stop());video.srcObject=null;dlg.close();resolve(true);
-      }catch(e){status.textContent=e.message}
-    };
+    retry.onclick=()=>{stop();openCamera(resolve)};
+    openCamera(resolve);
   });
 }
 $('#loginForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const result=await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(f))});if(result.twoFactorRequired){$('#loginOtpWrap').classList.remove('hidden');$('#loginError').textContent=result.message||'2 bosqichli kodni kiriting';e.target.elements.otp.focus();return}$('#loginOtpWrap').classList.add('hidden');$('#loginError').textContent='';if(result.faceDemoRequired)await runDemoFaceGate();start()}catch(err){$('#loginError').textContent=err.message}};
@@ -367,14 +375,14 @@ async function loadPrivacyStatus(){
     const x=await api('/compliance/me');
     const privacyGranted=(x.consents||[]).some(c=>c.type==='privacy'&&c.granted&&!c.revokedAt);
     const face=x.identity?.last;
-    box.innerHTML='<b>Identifikatsiya: '+esc(x.identity?.mode||'—')+'</b><span>'+(x.identity?.mode==='demo'?'Demo Face ID — huquqiy identifikatsiya emas. Yuz rasmi/shabloni saqlanmaydi.':(x.identity?.oneIdConfigured?'OneID konfiguratsiyasi tayyor':'OneID hali ulanmagan'))+'</span><span>Maxfiylik roziligi: '+(privacyGranted?'berilgan':'berilmagan')+'</span>'+(face?'<span>Oxirgi identity hodisasi: '+esc(face.status)+' · '+new Date(face.createdAt).toLocaleString()+'</span>':'');
+    box.innerHTML='<b>Identifikatsiya: '+esc(x.identity?.mode||'—')+'</b><span>'+(x.identity?.mode==='demo'?'Demo Face ID — huquqiy identifikatsiya emas. Yuz rasmi/shabloni saqlanmaydi.':(x.identity?.oneIdConfigured?'OneID konfiguratsiyasi tayyor':'OneID hali ulanmagan'))+'</span><span>Maxfiylik roziligi: '+(privacyGranted?'berilgan':'berilmagan')+'</span>'+(face?'<span>Oxirgi identity hodisasi: '+esc(face.status)+' · '+new Date(face.createdAt).toLocaleString()+'</span>':'')+'<span><a href="/privacy.html" target="_blank" rel="noopener">Maxfiylik siyosatini ochish</a></span>';
     $('#acceptPrivacy')?.classList.toggle('active-control',privacyGranted);
   }catch(e){box.textContent=e.message}
 }
 $('#acceptPrivacy')?.addEventListener('click',async()=>{try{await api('/compliance/consent',{method:'POST',body:JSON.stringify({type:'privacy',granted:true})});toast('Maxfiylik roziligi saqlandi');loadPrivacyStatus()}catch(e){toast(e.message)}});
 $('#privacyRequestBtn')?.addEventListener('click',()=>modal('Shaxsga doir ma’lumot bo‘yicha so‘rov','<label>So‘rov turi<select name="type"><option value="access">Ma’lumotlarim bilan tanishish</option><option value="correction">Tuzatish</option><option value="restriction">Ishlovni cheklash</option><option value="deletion">O‘chirish so‘rovi</option></select></label><label>Izoh<textarea name="note" rows="4" maxlength="1000"></textarea></label>',async d=>{await api('/compliance/privacy-request',{method:'POST',body:JSON.stringify(d)});toast('So‘rov yuborildi');loadPrivacyStatus()}));
 $('#oneIdStatusBtn')?.addEventListener('click',async()=>{try{const x=await fetch('/api/auth/oneid/readiness',{cache:'no-store'}).then(r=>r.json());modal('OneID integratsiya holati','<div class="info-note"><b>'+(x.configured?'OneID texnik konfiguratsiyasi tayyor':'OneID hali productionga ulanmagan')+'</b><span>Shartnoma: talab qilinadi</span><span>Client ID: '+(x.clientIdConfigured?'bor':'yo‘q')+'</span><span>Client secret: '+(x.clientSecretConfigured?'bor':'yo‘q')+'</span><span>Redirect URI: '+(x.redirectUriConfigured?'bor':'yo‘q')+'</span></div>',async()=>{})}catch(e){toast(e.message)}});
-async function loadProfile(){try{const x=await api('/profile'),u=x.user,initials=(u.fullName||u.login||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();$('#profileCard').innerHTML='<div class="avatar big">'+esc(initials)+'</div><div><h2>'+esc(u.fullName)+'</h2><p>@'+esc(u.login)+' · '+esc(roleName[u.role]||u.role)+'</p><span class="role-chip">'+esc(roleName[u.role]||u.role)+'</span></div>';const form=$('#profileForm');form.fullName.value=u.fullName||'';form.email.value=u.email||'';form.phone.value=u.phone||'';form.avatarUrl.value=u.avatarUrl||'';form.direction.value=u.direction||'';form.courseYear.value=u.courseYear||'';form.bio.value=u.bio||'';$('#profileOrg').innerHTML='<p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Kurs / yo‘nalish:</b> '+esc(u.courseYear?u.courseYear+'-kurs':'—')+' · '+esc(u.direction||'—')+'</p>';const base=location.origin+'/timetable.html?';let link='';if(u.role==='teacher')link=base+'teacher='+encodeURIComponent(u.login);if(u.role==='student'){const gid=u.groupId?.externalId||u.groupId?.code||u.group;if(gid)link=base+'group='+encodeURIComponent(gid)}$('#profileTimetable').innerHTML=link?linkBox('Shaxsiy jadval havolasi',link):'';renderSecurityStatus(u);await loadDevicePrefs()}catch(e){toast(e.message)}}
+async function loadProfile(){try{const x=await api('/profile'),u=x.user,initials=(u.fullName||u.login||'?').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();$('#profileCard').innerHTML='<div class="avatar big">'+esc(initials)+'</div><div><h2>'+esc(u.fullName)+'</h2><p>@'+esc(u.login)+' · '+esc(roleName[u.role]||u.role)+'</p><span class="role-chip">'+esc(roleName[u.role]||u.role)+'</span></div>';const form=$('#profileForm');form.fullName.value=u.fullName||'';form.email.value=u.email||'';form.phone.value=u.phone||'';form.avatarUrl.value=u.avatarUrl||'';form.direction.value=u.direction||'';form.courseYear.value=u.courseYear||'';form.bio.value=u.bio||'';$('#profileOrg').innerHTML='<p><b>Fakultet:</b> '+esc(u.facultyId?.name||u.faculty||'—')+'</p><p><b>Kafedra:</b> '+esc(u.departmentId?.name||u.department||'—')+'</p><p><b>Guruh:</b> '+esc(u.groupId?.name||u.group||'—')+'</p><p><b>Kurs / yo‘nalish:</b> '+esc(u.courseYear?u.courseYear+'-kurs':'—')+' · '+esc(u.direction||'—')+'</p>';const base=location.origin+'/timetable.html?';let link='';if(u.role==='teacher')link=base+'teacher='+encodeURIComponent(u.login);if(u.role==='student'){const gid=u.groupId?.externalId||u.groupId?.code||u.group;if(gid)link=base+'group='+encodeURIComponent(gid)}$('#profileTimetable').innerHTML=link?linkBox('Shaxsiy jadval havolasi',link):'';renderSecurityStatus(u);await Promise.all([loadDevicePrefs(),loadPrivacyStatus()])}catch(e){toast(e.message)}}
 $('#profileForm').onsubmit=async e=>{e.preventDefault();try{await api('/profile',{method:'PATCH',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});toast('Profil yangilandi');const me=await api('/me');user=me.user;configureRoleUI();loadProfile()}catch(err){toast(err.message)}};
 $('#passwordForm').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.newPassword!==d.confirmPassword)return toast('Yangi parollar bir xil emas');try{await api('/profile/password',{method:'PATCH',body:JSON.stringify({currentPassword:d.currentPassword,newPassword:d.newPassword})});e.target.reset();toast('Parol yangilandi')}catch(err){toast(err.message)}};
 function renderSecurityStatus(u=user){
