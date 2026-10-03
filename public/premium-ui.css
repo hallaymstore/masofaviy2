@@ -963,3 +963,24 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     line-height:1!important;
   }
 }
+
+
+/* Zoom-like one-tap media feedback */
+.conference-controls button.is-busy{
+  opacity:.72!important;
+  cursor:progress!important;
+  pointer-events:none!important;
+}
+.conference-controls button.is-busy::before{
+  content:"";
+  position:absolute;
+  inset:3px;
+  border:2px solid color-mix(in srgb,currentColor 24%,transparent);
+  border-top-color:currentColor;
+  border-radius:10px;
+  animation:m2-control-spin .8s linear infinite;
+}
+@keyframes m2-control-spin{to{transform:rotate(360deg)}}
+@media(max-width:680px){
+  .conference-controls button.is-busy::before{inset:2px;border-radius:8px}
+}
