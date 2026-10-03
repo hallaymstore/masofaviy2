@@ -20,7 +20,7 @@ const MAX_ACTIVE_ROOMS=Math.max(1,Number(process.env.MAX_ACTIVE_ROOMS||60));
 const TARGET_PARALLEL_ROOMS=Math.max(1,Number(process.env.TARGET_PARALLEL_ROOMS||50));
 const SFU_NODE_ID=String(process.env.SFU_NODE_ID||os.hostname());
 const MAX_ROOMS_PER_WORKER=Math.max(2,Number(process.env.MAX_ROOMS_PER_WORKER||8));
-const TARGET_MIN_WORKERS=Math.max(4,Math.min(16,Number(process.env.TARGET_MIN_WORKERS||Math.ceil(TARGET_PARALLEL_ROOMS/7))));
+const TARGET_MIN_WORKERS=Math.max(1,Math.min(16,Number(process.env.TARGET_MIN_WORKERS||Math.ceil(TARGET_PARALLEL_ROOMS/7))));
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
 const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
