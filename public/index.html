@@ -8,7 +8,7 @@
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261003-9">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-11">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -190,7 +190,7 @@
     </section>
 
     <section id="users" class="page">
-      <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Talaba, o‘qituvchi va xodim akkauntlarini shu yerdan boshqarasiz.</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="secondary danger-soft" id="resetTestStudents">40 test talaba</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
+      <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Talaba, o‘qituvchi va xodim akkauntlarini shu yerdan boshqarasiz.</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="secondary" id="bulkStudentPassword">Talabalar paroli</button><button class="secondary danger-soft" id="resetTestStudents">40 test talaba</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
       <div class="guide warning"><b><span data-ico="lock" data-fallback="🔐"></span> Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi. Bloklash va parolni tiklash harakati audit tarixiga yoziladi.</div>
       <div class="toolbar"><input id="userSearch" placeholder="F.I.Sh., login yoki telefon"><select id="userRoleFilter"><option value="">Barcha rollar</option><option value="student">Talaba</option><option value="teacher">O‘qituvchi</option><option value="tutor">Tyutor</option><option value="department">Kafedra</option><option value="dean">Dekan</option><option value="rectorate">Rektorat</option><option value="tech">Texnik</option><option value="admin">Admin</option></select><select id="userStatusFilter"><option value="">Barcha holat</option><option value="true">Faol</option><option value="false">Bloklangan</option></select><button id="applyUserFilter" class="secondary">Qidirish</button></div>
       <div id="usersList" class="table-wrap"></div>
@@ -360,5 +360,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-9"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261003-11"></script><script type="module" src="/app.js?v=20261003-11"></script>
 </body></html>
