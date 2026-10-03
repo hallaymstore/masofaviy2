@@ -376,3 +376,59 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
 [data-theme="dark"] .user-card.user-unverified[open] .user-card-details{
   background:#271e0b!important;
 }
+
+
+/* Live screen-share focus: screen fills stage, teacher camera remains visible */
+#videoMount .ms-grid.screen-layout{
+  position:relative;
+  display:block!important;
+  overflow:hidden!important;
+  padding:8px!important;
+}
+#videoMount .ms-grid.screen-layout .ms-tile{
+  display:none;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-share{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:420px;
+  aspect-ratio:auto!important;
+  border-radius:12px;
+  cursor:default;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-share .ms-video{
+  object-fit:contain!important;
+  background:#050b14;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip{
+  display:block!important;
+  position:absolute!important;
+  right:18px;
+  bottom:18px;
+  z-index:25;
+  width:min(24%,280px)!important;
+  min-width:180px;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:16/9!important;
+  border:2px solid rgba(255,255,255,.9);
+  border-radius:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.42);
+  cursor:zoom-in;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip .ms-video{
+  object-fit:cover!important;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip .ms-label{
+  padding:4px 6px;
+  left:5px;right:5px;bottom:5px;
+}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip .ms-label span{display:none}
+#videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip .ms-mic{transform:scale(.8);transform-origin:top right}
+@media(max-width:680px){
+  #videoMount .ms-grid.screen-layout .ms-tile.screen-share{min-height:240px}
+  #videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip{
+    right:8px;bottom:8px;width:34%!important;min-width:112px;border-radius:8px;
+  }
+}
