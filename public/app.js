@@ -492,8 +492,15 @@ async function loadLiveRooms(){
     const finished=rooms.filter(r=>!current.includes(r)&&!later.includes(r));
 
     const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],distance=d=>((Number(d)-today)+7)%7;
-    const upcoming=(scheduleRows||[]).filter(s=>Number(s.weekday)!==today&&s.kind!=='final_exam'&&s.liveEnabled!==false)
-      .sort((a,b)=>distance(a.weekday)-distance(b.weekday)||String(a.start).localeCompare(String(b.start))).slice(0,16);
+    const ownGroupId=String(user?.groupId?._id||user?.groupId?.externalId||user?.groupId?.code||user?.groupId||'');
+    const upcoming=(scheduleRows||[]).filter(s=>{
+      if(Number(s.weekday)===today||s.kind==='final_exam'||s.liveEnabled===false)return false;
+      if(user?.role==='student'){
+        const sg=String(s.groupId?._id||s.groupId?.externalId||s.groupId?.code||s.groupId||'');
+        return Boolean(ownGroupId)&&sg===ownGroupId;
+      }
+      return true;
+    }).sort((a,b)=>distance(a.weekday)-distance(b.weekday)||String(a.start).localeCompare(String(b.start))).slice(0,16);
 
     const upcomingCard=s=>'<article class="live-upcoming-row"><div><b>'+esc(days[Number(s.weekday)]||'Kun')+' · '+esc(s.start)+'–'+esc(s.end)+'</b><span>'+esc(s.title)+' · '+esc(s.subject||'')+'</span><small>'+esc(s.groupId?.name||s.group||'Guruh')+' · '+esc(s.teacherId?.fullName||s.teacher||'O‘qituvchi')+'</small></div></article>';
 
