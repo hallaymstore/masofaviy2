@@ -114,7 +114,7 @@ const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['facu
 structureSchema.index({ type: 1, externalId: 1 }, { unique: true, sparse: true });
 const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam','final_exam'], default: 'lecture' }, recurring: { type: Boolean, default: true }, liveEnabled:{type:Boolean,default:true}, maxParticipants:{type:Number,default:100,min:2,max:500} }, { timestamps: true });
 const auditSchema = new mongoose.Schema({ actorId: mongoose.Schema.Types.ObjectId, actorLogin: String, actorName: String, action: String, entity: String, entityId: String, ip: String, meta: mongoose.Schema.Types.Mixed }, { timestamps: true });
-const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, status: { type: String, enum: ['present','late','absent','excused'] }, lastCheckedAt:Date, checkpoints:[{minute:Number,at:Date,state:{type:String,enum:['present','late','absent']}}] }, { timestamps: true });
+const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, status: { type: String, enum: ['present','late','absent','excused'] }, lastCheckedAt:Date, manualMarkedAt:Date, manualMarkedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}, manualNote:{type:String,trim:true,maxlength:300}, checkpoints:[{minute:Number,at:Date,state:{type:String,enum:['present','late','absent']}}] }, { timestamps: true });
 const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0},lastAttendanceCheckpointMinute:{type:Number,default:0},lastAttendanceCheckpointAt:Date}, {timestamps:true});
 liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
 const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
@@ -814,7 +814,7 @@ async function participantSnapshot(scheduleId){
   const dateKey=localDateKey(),students=await User.find({role:'student',active:true,groupId:lesson.groupId}).select('_id fullName login').sort({fullName:1}).lean();
   const online=onlineStudentIds(scheduleId),rows=await Attendance.find({lessonId:String(scheduleId),dateKey,userId:{$in:students.map(s=>s._id)}}).lean(),by=new Map(rows.map(r=>[String(r.userId),r]));
   const session=await LiveSession.findOne({scheduleId:lesson._id,dateKey}).lean();
-  return {session:session?{startedAt:session.startedAt,lastAttendanceCheckpointMinute:session.lastAttendanceCheckpointMinute||0,lastAttendanceCheckpointAt:session.lastAttendanceCheckpointAt}:null,students:students.map(s=>{const r=by.get(String(s._id));return {_id:s._id,fullName:s.fullName,login:s.login,online:online.has(String(s._id)),status:r?.status||'pending',joinedAt:r?.joinedAt||null,lastCheckedAt:r?.lastCheckedAt||null}})};
+  return {session:session?{startedAt:session.startedAt,lastAttendanceCheckpointMinute:session.lastAttendanceCheckpointMinute||0,lastAttendanceCheckpointAt:session.lastAttendanceCheckpointAt}:null,students:students.map(s=>{const r=by.get(String(s._id));return {_id:s._id,attendanceId:r?._id||null,fullName:s.fullName,login:s.login,online:online.has(String(s._id)),status:r?.status||'pending',joinedAt:r?.joinedAt||null,lastCheckedAt:r?.lastCheckedAt||null,manualMarkedAt:r?.manualMarkedAt||null}})};
 }
 const mediaJoinPayload=(user,roomName,lesson)=>({provider:'mediasoup',roomName,mediaProfile:mediaProfileFor(lesson),mediaTicket:mediaTicketFor(user,roomName,lesson),iceServers:mediaIceServers(user)});
 app.post('/api/media/verify',async(req,res)=>{try{
@@ -850,6 +850,43 @@ app.get('/api/live/rooms/:scheduleId/participants',auth,async(req,res)=>{
   const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
   if(!(await scheduleAccess(req.user,lesson)))return res.status(403).json({message:'Ruxsat yo‘q'});
   res.json(await participantSnapshot(lesson._id));
+});
+app.post('/api/live/rooms/:scheduleId/attendance',auth,async(req,res)=>{
+  if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
+  const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
+  const isTeacher=String(lesson.teacherId)===String(req.user._id);
+  const canManage=hasPermission(req.user,'attendance.manage');
+  if(!isTeacher&&!canManage)return res.status(403).json({message:'Davomatni belgilash huquqi yo‘q'});
+  if(!isTeacher&&!GLOBAL_SCOPE_ROLES.has(req.user.role)){
+    try{const scope=await resolveScope(req.user,{});if(!scope.groupIds.some(id=>String(id)===String(lesson.groupId)))return res.status(403).json({message:'Bu guruh davomatini o‘zgartirish huquqi yo‘q'})}
+    catch{return res.status(403).json({message:'Ruxsat yo‘q'})}
+  }
+  const records=Array.isArray(req.body.records)?req.body.records:[];
+  if(!records.length||records.length>300)return res.status(400).json({message:'Davomat ro‘yxati bo‘sh yoki juda katta'});
+  const allowedStatuses=new Set(['present','late','absent','excused']);
+  const ids=records.map(x=>String(x.studentId||'')).filter(mongoose.isValidObjectId).map(x=>new mongoose.Types.ObjectId(x));
+  const students=await User.find({_id:{$in:ids},role:'student',active:true,groupId:lesson.groupId}).select('_id').lean();
+  const allowedIds=new Set(students.map(x=>String(x._id)));
+  const dateKey=localDateKey(),now=new Date();
+  let present=0,late=0,absent=0,excused=0,saved=0;
+  for(const item of records){
+    const sid=String(item.studentId||''),status=String(item.status||'');
+    if(!allowedIds.has(sid)||!allowedStatuses.has(status))continue;
+    let row=await Attendance.findOne({lessonId:String(lesson._id),userId:sid,dateKey}).sort({createdAt:1});
+    if(!row)row=new Attendance({lessonId:String(lesson._id),userId:sid,dateKey,minutes:0,checkpoints:[]});
+    row.status=status;
+    if((status==='present'||status==='late')&&!row.joinedAt)row.joinedAt=now;
+    if(status==='absent'&&!row.leftAt)row.leftAt=now;
+    row.manualMarkedAt=now;
+    row.manualMarkedBy=mongoose.isValidObjectId(req.user._id)?req.user._id:undefined;
+    row.manualNote=String(req.body.note||'').slice(0,300);
+    await row.save();saved++;
+    if(status==='present')present++; else if(status==='late')late++; else if(status==='absent')absent++; else if(status==='excused')excused++;
+  }
+  audit(req,'ATTENDANCE_MANUAL_SAVE','Attendance',String(lesson._id),{dateKey,groupId:String(lesson.groupId),saved,present,late,absent,excused});
+  const payload={scheduleId:String(lesson._id),manual:true,saved,present,late,absent,excused,at:now.toISOString()};
+  io.to('lesson:'+String(lesson._id)).emit('attendance:manual-saved',payload);
+  res.json({ok:true,...payload});
 });
 app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
