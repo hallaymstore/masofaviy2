@@ -498,12 +498,42 @@ async function endLiveRoom(id,fromCall=true){
 $('#refreshLiveRooms').onclick=loadLiveRooms;
 $('#backToLive').onclick=()=>leaveConference(true);
 $('#endLiveLesson').onclick=()=>activeLessonId&&endLiveRoom(activeLessonId,true);
+async function saveManualAttendance(){
+  if(!activeLessonId)return;
+  const rows=all('#lessonParticipants [data-attendance-student]');
+  const records=rows.map(row=>{
+    const checked=row.querySelector('[data-attendance-check]')?.checked;
+    const special=row.querySelector('[data-attendance-status]')?.value||'';
+    return {studentId:row.dataset.attendanceStudent,status:special|| (checked?'present':'absent')};
+  });
+  if(!records.length)return toast('Guruhda talaba topilmadi');
+  try{
+    const out=await api('/live/rooms/'+activeLessonId+'/attendance',{method:'POST',body:JSON.stringify({records})});
+    toast('Davomat saqlandi · '+out.saved+' talaba');
+    await loadLessonParticipants();
+  }catch(e){toast(e.message)}
+}
 async function loadLessonParticipants(){
   if(!activeLessonId)return;
   try{
     const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
-    $('#lessonParticipants').innerHTML=rows.map(r=>'<div class="participant-row '+(r.online?'is-online':'')+'"><span class="participant-dot"></span><div><b>'+esc(r.fullName)+'</b><small>@'+esc(r.login)+' · '+esc(label[r.status]||r.status)+'</small></div><div class="participant-actions"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(user.role==='teacher'&&r.online?'<button class="ghost camera-request-btn" data-camera-request="'+esc(r._id)+'">Kamera so‘ra</button><button class="ghost mic-request-btn" data-mic-request="'+esc(r._id)+'">Gapirtirish</button>':'')+'</div></div>').join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
+    const editable=user.role==='teacher'||can('attendance.manage');
+    const toolbar=editable?'<div class="attendance-manual-toolbar"><div><b>Qo‘lda davomat</b><small>Ro‘yxat aynan shu guruhdan olinadi</small></div><div><button class="ghost" id="attendanceMarkAll" type="button">Barchasini belgilash</button><button class="primary" id="attendanceSave" type="button">Davomatni saqlash</button></div></div>':'';
+    $('#lessonParticipants').innerHTML=toolbar+rows.map(r=>{
+      const checked=['present','late'].includes(r.status)||r.online;
+      const manual=Boolean(r.manualMarkedAt);
+      return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'">'+
+        '<span class="participant-dot"></span>'+
+        '<div class="participant-name"><b>'+esc(r.fullName)+'</b><small>@'+esc(r.login)+' · '+esc(label[r.status]||r.status)+(manual?' · qo‘lda belgilangan':'')+'</small></div>'+
+        '<div class="participant-actions">'+
+          (editable?'<label class="attendance-check"><input type="checkbox" data-attendance-check '+(checked?'checked':'')+'><span>✓ Bor</span></label><select data-attendance-status class="attendance-status"><option value="">Oddiy</option><option value="late" '+(r.status==='late'?'selected':'')+'>Kechikdi</option><option value="excused" '+(r.status==='excused'?'selected':'')+'>Sababli</option></select>':'')+
+          '<span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+
+          (user.role==='teacher'&&r.online?'<button class="ghost camera-request-btn" data-camera-request="'+esc(r._id)+'">Kamera so‘ra</button><button class="ghost mic-request-btn" data-mic-request="'+esc(r._id)+'">Gapirtirish</button>':'')+
+        '</div></div>';
+    }).join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
     const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
+    $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true)});
+    $('#attendanceSave')?.addEventListener('click',saveManualAttendance);
     all('[data-camera-request]').forEach(b=>b.onclick=()=>{socket?.emit('camera:request-enable',{lessonId:activeLessonId,userId:b.dataset.cameraRequest});toast('Talabaga kamera so‘rovi yuborildi')});
     all('[data-mic-request]').forEach(b=>b.onclick=()=>{socket?.emit('mic:request-enable',{lessonId:activeLessonId,userId:b.dataset.micRequest});toast('Talabaga gapirish so‘rovi yuborildi')});
   }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
@@ -853,6 +883,7 @@ function connectSocket(){
   socket.on('lesson:error',function(x){toast(x.message||'Darsga kirib bo‘lmadi')});
   socket.on('lesson:presence',function(x){if(activeLessonId)loadLessonParticipants();if(x.userId===user?._id||x.fullName===user?.fullName)toast(x.status==='late'?'Darsga kirdingiz · kechikish qayd etildi':'Darsga kirdingiz · davomat qayd etildi')});
   socket.on('attendance:checkpoint',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){loadLessonParticipants();toast('Avtomatik davomat: '+x.checkpointMinute+'-daqiqa')}});
+  socket.on('attendance:manual-saved',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){loadLessonParticipants();if(user.role!=='teacher')toast('Davomat o‘qituvchi tomonidan yangilandi')}});
   socket.on('mic:permission-request',function(x){
     if(!activeLessonId||user.role!=='teacher')return;
     const approved=confirm((x.fullName||'Talaba')+' gapirishga ruxsat so‘radi. Ruxsat berasizmi?');
