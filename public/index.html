@@ -8,7 +8,7 @@
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261003-1">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-2">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -330,10 +330,24 @@
 </div>
 </article></div>
     </section>
+    <section id="editor" class="page editor-page">
+      <div class="editor-page-head">
+        <button id="editorBack" class="secondary editor-back" type="button">← Orqaga</button>
+        <div><span class="editor-kicker">Tahrirlash</span><h1 id="modalTitle">Ma’lumot</h1><p>Kerakli maydonlarni to‘ldiring. Saqlagandan keyin avvalgi sahifaga qaytasiz.</p></div>
+      </div>
+      <article class="editor-card">
+        <form id="modalForm" novalidate>
+          <div id="modalFields" class="editor-fields"></div>
+          <div class="editor-actions">
+            <button id="editorCancel" type="button" class="secondary">Bekor qilish</button>
+            <button type="submit" id="modalSave" class="primary">Saqlash</button>
+          </div>
+        </form>
+      </article>
+    </section>
   </main>
 </div>
 
-<dialog id="modal"><form method="dialog" id="modalForm"><div class="modal-head"><h2 id="modalTitle"></h2><button value="cancel" class="icon-btn">×</button></div><div id="modalFields"></div><div class="modal-actions"><button value="cancel">Bekor qilish</button><button value="default" id="modalSave" class="primary">Saqlash</button></div></form></dialog>
 <dialog id="faceDemoDialog" class="face-demo-dialog">
   <div class="face-demo-card">
     <div class="modal-head"><div><h2>Demo Face ID</h2><small>Vaqtinchalik sinov rejimi</small></div></div>
@@ -345,5 +359,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-1"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-2"></script>
 </body></html>
