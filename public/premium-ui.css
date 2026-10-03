@@ -329,3 +329,50 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
 }
 [data-theme="dark"] .identity-status-box.unverified small{color:#d8b86a!important}
 [data-theme="dark"] .identity-status-box.unverified b{color:#ffd77a!important}
+
+
+/* Entire user card indicates identity verification at a glance */
+.user-card.user-verified{
+  background:#eefaf2!important;
+  border-color:#bfe8cb!important;
+  box-shadow:inset 4px 0 0 #2aa65a;
+}
+.user-card.user-verified>summary{
+  background:#eefaf2!important;
+}
+.user-card.user-unverified{
+  background:#fffaf0!important;
+  border-color:#efd9ad!important;
+  box-shadow:inset 4px 0 0 #d6a12a;
+}
+.user-card.user-unverified>summary{
+  background:#fffaf0!important;
+}
+.user-card.user-verified[open] .user-card-details{
+  background:#f6fcf8!important;
+}
+.user-card.user-unverified[open] .user-card-details{
+  background:#fffdf7!important;
+}
+[data-theme="dark"] .user-card.user-verified{
+  background:#0f2d20!important;
+  border-color:#255b3b!important;
+  box-shadow:inset 4px 0 0 #4bd07b;
+}
+[data-theme="dark"] .user-card.user-verified>summary{
+  background:#0f2d20!important;
+}
+[data-theme="dark"] .user-card.user-unverified{
+  background:#30250f!important;
+  border-color:#6c5220!important;
+  box-shadow:inset 4px 0 0 #d8a631;
+}
+[data-theme="dark"] .user-card.user-unverified>summary{
+  background:#30250f!important;
+}
+[data-theme="dark"] .user-card.user-verified[open] .user-card-details{
+  background:#0b2419!important;
+}
+[data-theme="dark"] .user-card.user-unverified[open] .user-card-details{
+  background:#271e0b!important;
+}
