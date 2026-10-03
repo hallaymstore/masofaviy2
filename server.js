@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -531,6 +533,26 @@ app.get('/api/analytics/group/:groupId/students', auth, can('analytics.view'), a
 }catch(err){res.status(400).json({message:err.message})}});
 
 app.get('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.json({user:sanitizeUser(req.user)}); const current=await User.findById(req.user._id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); res.json({user:current}); });
+app.post('/api/profile/avatar', auth, async(req,res)=>{
+  if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'});
+  try{
+    const dataUrl=String(req.body.dataUrl||'');
+    const match=dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if(!match)return res.status(400).json({message:'Faqat JPG, PNG yoki WEBP rasm yuklang'});
+    const buf=Buffer.from(match[2],'base64');
+    if(!buf.length||buf.length>3*1024*1024)return res.status(400).json({message:'Rasm hajmi 3 MB dan oshmasin'});
+    const ext=match[1]==='jpeg'?'jpg':match[1];
+    const dir=path.join(process.cwd(),'public','uploads','avatars');
+    fs.mkdirSync(dir,{recursive:true});
+    const filename=String(req.user._id)+'-'+Date.now()+'.'+ext;
+    fs.writeFileSync(path.join(dir,filename),buf,{mode:0o600});
+    const avatarUrl='/uploads/avatars/'+filename;
+    const u=await User.findByIdAndUpdate(req.user._id,{$set:{avatarUrl}},{new:true}).select('-passwordHash');
+    audit(req,'PROFILE_AVATAR_UPLOAD','User',req.user._id,{avatarUrl});
+    res.json({ok:true,avatarUrl,user:u});
+  }catch(err){res.status(400).json({message:'Rasmni yuklashda xatolik'})}
+});
+
 app.patch('/api/profile', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator profili o‘zgartirilmaydi'}); const allowed=['fullName','email','phone','avatarUrl','bio','direction']; const patch=Object.fromEntries(allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,String(req.body[k]??'').trim()])); const update={$set:patch}; if(req.body.courseYear!==undefined){const cy=Number(req.body.courseYear);if(cy>=1&&cy<=6)patch.courseYear=cy;else update.$unset={courseYear:1}} const u=await User.findByIdAndUpdate(req.user._id,update,{new:true}).select('-passwordHash'); audit(req,'PROFILE_UPDATE','User',req.user._id,patch); res.json({user:u}); });
 app.patch('/api/profile/password', auth, async(req,res)=>{ if(req.user._id==='demo')return res.status(400).json({message:'Demo administrator paroli Render sozlamalaridan boshqariladi'}); const currentPassword=String(req.body.currentPassword||''),newPassword=String(req.body.newPassword||''); if(newPassword.length<8)return res.status(400).json({message:'Yangi parol kamida 8 ta belgidan iborat bo‘lsin'}); const u=await User.findById(req.user._id); if(!u||!(await bcrypt.compare(currentPassword,u.passwordHash)))return res.status(400).json({message:'Joriy parol noto‘g‘ri'}); u.passwordHash=await bcrypt.hash(newPassword,11);u.mustChangePassword=false;u.sessionVersion=(u.sessionVersion||0)+1;await u.save();setSession(res,u);audit(req,'PASSWORD_CHANGE','User',u.id,{sessionsRevoked:true});res.json({ok:true});const timer=setTimeout(()=>disconnectUserSockets(u._id),150);timer.unref?.(); });
 
