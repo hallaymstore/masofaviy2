@@ -432,7 +432,7 @@ app.post('/api/auth/login', async (req,res) => {
     if(recoveryUsed)await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'TWO_FACTOR_RECOVERY_USE',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});
   }
   loginAttempts.delete(key);user.lastLoginAt=new Date();user.lastSeenAt=new Date();user.lastLoginIp=req.ip;user.loginCount=(user.loginCount||0)+1;await user.save();
-  await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user),faceDemoRequired:String(process.env.FACE_ID_MODE||'demo').toLowerCase()==='demo'});
+  await audit({user,ip:req.ip},'LOGIN','User',user.id,{twoFactor:Boolean(user.totpEnabled)});setSession(res,user);res.json({user:sanitizeUser(user),faceDemoRequired:user.role!=='student'&&String(process.env.FACE_ID_MODE||'demo').toLowerCase()==='demo'});
 });
 app.post('/api/auth/logout',(req,res)=>{clearSession(res);res.json({ok:true})});
 app.post('/api/auth/2fa/setup',auth,async(req,res)=>{
@@ -630,6 +630,29 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   await target.save();
   audit(req,'USER_UPDATE','User',target.id,{role:target.role,facultyId:target.faculty,departmentId:target.department,groupId:target.group});
   res.json({user:sanitizeUser(target)});
+});
+
+app.post('/api/users/test-students/reset',auth,can('users.manage'),async(req,res)=>{
+  if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+  const password='student00';
+  const groups=await Structure.find({type:'group',active:true,externalId:{$in:['QDTU-MT-2026-DI-01','QDTU-MT-2026-SI-01']}}).lean();
+  if(groups.length!==2)return res.status(400).json({message:'DI va SI test guruhlari topilmadi'});
+  const by=Object.fromEntries(groups.map(g=>[g.externalId,g]));
+  const oldStudents=await User.find({role:'student'}).select('_id').lean();
+  const oldIds=oldStudents.map(x=>x._id);
+  for(const id of oldIds)disconnectUserSockets(id);
+  if(oldIds.length)await Attendance.deleteMany({userId:{$in:oldIds}});
+  await User.deleteMany({role:'student'});
+  const first=['Azizbek','Diyorbek','Jasurbek','Sherzod','Bekzod','Sardor','Asadbek','Shoxrux','Umid','Akmal','Mohira','Madina','Nilufar','Shahnoza','Dilnoza','Malika','Sevara','Zarina','Gulnoza','Nodira'];
+  const hash=await bcrypt.hash(password,11),created=[];
+  for(let i=1;i<=40;i++){
+    const isA=i<=20,g=isA?by['QDTU-MT-2026-DI-01']:by['QDTU-MT-2026-SI-01'],surname=isA?'Rahmonov':'Usmonov',firstName=first[(i-1)%20],seq=String(i).padStart(3,'0');
+    const dep=g.parentId?await Structure.findById(g.parentId).lean():null,fac=dep?.parentId?await Structure.findById(dep.parentId).lean():null;
+    const user=await User.create({login:'student'+seq,passwordHash:hash,fullName:firstName+' '+surname,externalId:'TEST-STUDENT-'+seq,role:'student',permissions:[],deniedPermissions:[],active:true,mustChangePassword:false,sessionVersion:0,totpEnabled:false,faculty:fac?.name||'',department:dep?.name||'',group:g.name,facultyId:fac?._id,departmentId:dep?._id,groupId:g._id,direction:String(g.name||'').replace(/\s+—\s+.*$/,''),courseYear:1});
+    created.push({login:user.login,fullName:user.fullName,group:g.externalId});
+  }
+  audit(req,'TEST_STUDENTS_RESET','User','student',{deleted:oldIds.length,created:created.length,groups:['QDTU-MT-2026-DI-01','QDTU-MT-2026-SI-01']});
+  res.json({ok:true,deleted:oldIds.length,created:created.length,password,students:created});
 });
 
 app.post('/api/users/bulk-import', auth, can('users.manage'), async(req,res)=>{ try{
