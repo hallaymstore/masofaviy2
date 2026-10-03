@@ -179,10 +179,11 @@ $('#editorCancel')?.addEventListener('click',closeEditor);
 $('#addStructure').onclick=async()=>{if(!cache.structure.length)cache.structure=await api('/structure');const parents=cache.structure.filter(x=>x.active&&(structureType==='department'?x.type==='faculty':structureType==='group'?x.type==='department':false));modal('Yangi '+({faculty:'fakultet',department:'kafedra',group:'guruh'}[structureType]),`<label>Nomi<input name="name" required></label><label>ID<input name="externalId" ${structureType==='group'?'required':''} placeholder="Masalan: ATT-101"></label>${structureType==='faculty'?'':`<label>Yuqori bo‘lim<select name="parentId" required><option value="">Tanlang</option>${parents.map(x=>`<option value="${x._id}">${esc(x.name)}</option>`)}</select></label>`}`,async d=>{await api('/structure',{method:'POST',body:JSON.stringify({...d,type:structureType})});loadStructure()})};
 function renderScheduleBoard(rows){
   if(!rows.length)return '<div class="empty"><b>Dars jadvali hali kiritilmagan</b><p>Jadval qo‘lda yoki Excel/CSV orqali qo‘shiladi.</p></div>';
-  const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'];
+  const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],today=(new Date().getDay()||7);
   const grouped=new Map();
   for(const row of rows){const key=Number(row.weekday)||0;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)}
-  return [...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([day,list])=>'<section class="schedule-day"><div class="schedule-day-head"><div><b>'+esc(days[day]||list[0]?.date||'Sana')+'</b><span>'+list.length+' ta dars</span></div></div><div class="schedule-day-list">'+list.sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(scheduleRow).join('')+'</div></section>').join('');
+  const distance=d=>((d-today)+7)%7;
+  return [...grouped.entries()].sort((a,b)=>distance(a[0])-distance(b[0])).map(([day,list])=>'<section class="schedule-day '+(day===today?'is-today':'')+'"><div class="schedule-day-head"><div><b>'+(day===today?'<span class="today-dot"></span>Bugun · ':'')+esc(days[day]||list[0]?.date||'Sana')+'</b><span>'+list.length+' ta dars</span></div></div><div class="schedule-day-list">'+list.sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(scheduleRow).join('')+'</div></section>').join('');
 }
 async function loadSchedules(){
   try{
@@ -469,22 +470,41 @@ function liveStatusLabel(room){
 }
 async function loadLiveRooms(){
   try{
-    const x=await api('/live/rooms'),rooms=x.rooms||[];
+    const [x,scheduleRows]=await Promise.all([api('/live/rooms'),api('/schedules')]);
+    const rooms=x.rooms||[],now=Number(x.nowMinute??((new Date().getHours()*60)+new Date().getMinutes())),today=(new Date().getDay()||7);
     $('#liveTodayCount').textContent=rooms.length;
     $('#liveActiveCount').textContent=rooms.filter(r=>r.session?.status==='active').length;
     $('#livePeopleCount').textContent=rooms.reduce((n,r)=>n+(r.session?.currentParticipants||0),0);
-    $('#liveRooms').innerHTML=rooms.map(function(r){
-      const s=r.schedule,g=s.groupId,t=s.teacherId,active=r.session?.status==='active',ended=r.session?.status==='ended';
+
+    const card=r=>{
+      const s=r.schedule,g=s.groupId,t=s.teacherId,active=r.session?.status==='active',ended=r.session?.status==='ended',startMinute=Number(r.startMinute??0),endMinute=Number(r.endMinute??1440),isNow=now>=startMinute&&now<endMinute;
       let actions='';
-      if(r.canStart&&!active&&!ended)actions+='<button class="primary" data-live-start="'+esc(s._id)+'">'+icon('video','▶')+' Boshlash</button>';
       if(active&&r.canJoin)actions+='<button class="primary" data-live-join="'+esc(s._id)+'">'+icon('external','↗')+' Kirish</button>';
-      if(active&&r.canStart)actions+='<button class="ghost danger-text" data-live-end="'+esc(s._id)+'">'+icon('phoneOff','×')+' Yakunlash</button>';
-      if(!actions)actions='<span class="room-note">'+(ended?'Dars yakunlangan':'O‘qituvchi boshlashini kuting')+'</span>';
-      return '<article class="live-room-card '+(active?'is-live':'')+'"><div class="live-room-top">'+liveStatusLabel(r)+'<span class="room-time">'+esc(s.start)+'–'+esc(s.end)+'</span></div><h2>'+esc(s.title)+'</h2><p class="room-subject">'+esc(s.subject||'')+'</p><div class="room-meta"><span>'+icon('users','♙')+' '+esc(g?.name||'Guruh')+' <b>'+esc(g?.externalId||g?.code||'')+'</b></span><span>'+icon('user','◎')+' '+esc(t?.fullName||'O‘qituvchi')+'</span><span>'+icon('users','•')+' '+esc(r.session?.currentParticipants||0)+' xonada</span></div><div class="room-actions">'+actions+'</div></article>';
-    }).join('')||'<div class="empty"><b>Bugun jonli dars yo‘q</b><p>Jadvaldagi bugungi guruh darslari shu yerda ko‘rinadi.</p></div>';
+      else if(r.canStart&&isNow)actions+='<button class="primary" data-live-start="'+esc(s._id)+'">'+icon('video','▶')+' '+(ended?'Qayta boshlash':'Boshlash')+'</button>';
+      else if(now<startMinute)actions+='<span class="room-note">Boshlanishi '+esc(s.start)+'</span>';
+      else actions+='<span class="room-note">'+(ended||now>=endMinute?'Vaqti tugagan':'O‘qituvchi boshlashini kuting')+'</span>';
+      const state=active?'is-live':(isNow?'is-current':(now<startMinute?'is-upcoming':'is-finished'));
+      return '<article class="live-room-card '+state+'"><div class="live-room-top">'+liveStatusLabel(r)+'<span class="room-time">'+esc(s.start)+'–'+esc(s.end)+'</span></div><h2>'+esc(s.title)+'</h2><p class="room-subject">'+esc(s.subject||'')+'</p><div class="room-meta"><span>'+icon('users','♙')+' '+esc(g?.name||'Guruh')+' <b>'+esc(g?.externalId||g?.code||'')+'</b></span><span>'+icon('user','◎')+' '+esc(t?.fullName||'O‘qituvchi')+'</span><span>'+icon('users','•')+' '+esc(r.session?.currentParticipants||0)+' xonada</span></div><div class="room-actions">'+actions+'</div></article>';
+    };
+
+    const current=rooms.filter(r=>r.session?.status==='active'||(now>=Number(r.startMinute||0)&&now<Number(r.endMinute||1440)));
+    const later=rooms.filter(r=>!current.includes(r)&&now<Number(r.startMinute||0));
+    const finished=rooms.filter(r=>!current.includes(r)&&!later.includes(r));
+
+    const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],distance=d=>((Number(d)-today)+7)%7;
+    const upcoming=(scheduleRows||[]).filter(s=>Number(s.weekday)!==today&&s.kind!=='final_exam'&&s.liveEnabled!==false)
+      .sort((a,b)=>distance(a.weekday)-distance(b.weekday)||String(a.start).localeCompare(String(b.start))).slice(0,16);
+
+    const upcomingCard=s=>'<article class="live-upcoming-row"><div><b>'+esc(days[Number(s.weekday)]||'Kun')+' · '+esc(s.start)+'–'+esc(s.end)+'</b><span>'+esc(s.title)+' · '+esc(s.subject||'')+'</span><small>'+esc(s.groupId?.name||s.group||'Guruh')+' · '+esc(s.teacherId?.fullName||s.teacher||'O‘qituvchi')+'</small></div></article>';
+
+    $('#liveRooms').innerHTML=
+      '<section class="live-section live-section-current"><div class="live-section-head"><div><b>Hozirgi darslar</b><small>Hozir davom etayotgan yoki ayni vaqt oralig‘idagi darslar</small></div><span>'+current.length+'</span></div><div class="live-scroll-list">'+(current.map(card).join('')||'<div class="empty compact"><b>Hozir faol dars yo‘q</b></div>')+'</div></section>'+
+      '<section class="live-section"><div class="live-section-head"><div><b>Bugun keyin</b><small>Bugunning navbatdagi darslari</small></div><span>'+later.length+'</span></div><div class="live-scroll-list">'+(later.map(card).join('')||'<div class="empty compact">Bugun boshqa dars yo‘q</div>')+'</div></section>'+
+      '<section class="live-section"><div class="live-section-head"><div><b>Keyingi kunlar</b><small>Haftalik jadval bo‘yicha keladigan darslar</small></div><span>'+upcoming.length+'</span></div><div class="live-upcoming-scroll">'+(upcoming.map(upcomingCard).join('')||'<div class="empty compact">Keladigan dars topilmadi</div>')+'</div></section>'+
+      (finished.length?'<details class="live-finished"><summary>Bugun tugagan darslar · '+finished.length+'</summary><div class="live-scroll-list">'+finished.map(card).join('')+'</div></details>':'');
+
     all('[data-live-start]').forEach(b=>b.onclick=()=>startLiveRoom(b.dataset.liveStart));
     all('[data-live-join]').forEach(b=>b.onclick=()=>enterLiveRoom(b.dataset.liveJoin));
-    all('[data-live-end]').forEach(b=>b.onclick=()=>endLiveRoom(b.dataset.liveEnd,false));
     hydrateIcons($('#liveRooms'));
   }catch(e){$('#liveRooms').innerHTML='<div class="empty"><b>Jonli xonalarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
@@ -500,7 +520,7 @@ async function openConference(payload){
   if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
-  $('#endLiveLesson').classList.toggle('hidden',!(String(s.teacherId?._id||s.teacherId)===String(user._id)||can('live.manage')));
+  $('#endLiveLesson').classList.add('hidden');
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · kamera OFF · mikrofon OFF':(ultraLiteUI?'Lite rejim · 240p':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
@@ -968,7 +988,8 @@ function connectSocket(){
     socket.emit('camera:enable-result',{lessonId:activeLessonId,accepted});
   });
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
-  socket.on('live:changed',function(){if($('#live')?.classList.contains('active'))loadLiveRooms()});
+  socket.on('live:changed',async function(x){if(x?.status==='ended'&&activeLessonId&&String(x.scheduleId)===String(activeLessonId)){toast('Dars vaqti tugadi · xona avtomatik yopildi');await leaveConference(true);return}if($('#live')?.classList.contains('active'))loadLiveRooms()});
+  socket.on('lesson:auto-ended',async function(x){if(activeLessonId&&String(x?.scheduleId)===String(activeLessonId)){toast('Dars vaqti tugadi');await leaveConference(true)}});
   socket.on('lesson:started',async function(x){
     if(user?.role!=='student'||!x?.scheduleId)return;
     toast('Dars boshlandi: '+(x.title||'Jonli dars')+' · avtomatik ulanmoqda');
