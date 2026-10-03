@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=localStorage.getItem('m2-view-mode')||'speaker';this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -54,8 +54,8 @@ export class MediaRoomClient{
     }
     const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
     const video=this.ultraLite
-      ?{width:{ideal:426,max:640},height:{ideal:240,max:360},frameRate:{ideal:12,max:15},facingMode:{ideal:'user'}}
-      :(lite?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:'user'}}:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},frameRate:{ideal:24,max:30},facingMode:{ideal:'user'}});
+      ?{width:{ideal:426,max:640},height:{ideal:240,max:360},frameRate:{ideal:12,max:15},facingMode:{ideal:this.facingMode}}
+      :(lite?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:this.facingMode}}:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},frameRate:{ideal:24,max:30},facingMode:{ideal:this.facingMode}});
     return id?{deviceId:{ideal:id},...video}:video;
   }
   async getMediaOnce(kind){
@@ -77,7 +77,9 @@ export class MediaRoomClient{
     this.renderShell();
     this.mount.classList.toggle('ultra-lite-media',this.ultraLite);this.mount.classList.toggle('low-end-media',this.lowEnd);
     await this.createTransports();
-    this.onState({mic:false,camera:false,studentMediaLocked:false});
+    this.onState({mic:false,camera:false,studentMediaLocked:false,viewMode:this.viewMode,lowBandwidth:this.lowBandwidthMode});
+    this.setViewMode(this.viewMode);
+    if(this.lowBandwidthMode)await this.setReceiveQuality('240');
     this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
@@ -89,11 +91,11 @@ export class MediaRoomClient{
     this.sendTransport=this.device.createSendTransport({...send,iceServers:this.joinPayload.iceServers||[]});
     this.sendTransport.on('connect',async({dtlsParameters},cb,eb)=>{try{await this.request('connectTransport',{transportId:this.sendTransport.id,dtlsParameters});cb()}catch(e){eb(e)}});
     this.sendTransport.on('produce',async({kind,rtpParameters,appData},cb,eb)=>{try{const x=await this.request('produce',{transportId:this.sendTransport.id,kind,rtpParameters,appData});cb({id:x.id})}catch(e){eb(e)}});
-    this.sendTransport.on('connectionstatechange',s=>{if(['failed','disconnected'].includes(s))this.onState({transport:'send',state:s})});
+    this.sendTransport.on('connectionstatechange',s=>{this.onState({transport:'send',state:s})});
     const recv=await this.request('createTransport',{direction:'recv'});
     this.recvTransport=this.device.createRecvTransport({...recv,iceServers:this.joinPayload.iceServers||[]});
     this.recvTransport.on('connect',async({dtlsParameters},cb,eb)=>{try{await this.request('connectTransport',{transportId:this.recvTransport.id,dtlsParameters});cb()}catch(e){eb(e)}});
-    this.recvTransport.on('connectionstatechange',s=>{if(['failed','disconnected'].includes(s))this.onState({transport:'recv',state:s})});
+    this.recvTransport.on('connectionstatechange',s=>{this.onState({transport:'recv',state:s})});
   }
   renderShell(){
     this.mount.innerHTML='';
@@ -103,19 +105,69 @@ export class MediaRoomClient{
   }
   ensureTile(peerId,user={},local=false){
     if(this.tiles.has(peerId))return this.tiles.get(peerId);
-    const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-student',user.role==='student');
+    const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||'',userId:user._id||user.id||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-student',user.role==='student');
     const video=el('video',{autoplay:true,playsInline:true,muted:local});video.className='ms-video';
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
     tile.title='Bosib kattalashtirish';
     tile.addEventListener('click',()=>{
+      if(this.viewMode==='gallery')return;
       const focused=tile.classList.contains('focused');
       for(const x of this.tiles.values())x.classList.remove('focused');
       this.grid.classList.toggle('has-focus',!focused);
       if(!focused)tile.classList.add('focused');
     });
+    tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
     tile.append(video,avatar,label,mic);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
+  }
+  setViewMode(mode){
+    this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
+    this.grid?.classList.toggle('gallery-view',this.viewMode==='gallery');
+    this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');
+    if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side')}
+    this.onState({viewMode:this.viewMode});return this.viewMode;
+  }
+  pinUser(userId='',peerId=''){
+    const target=[...this.tiles.values()].find(t=>(userId&&t.dataset.userId===String(userId))||(peerId&&t.dataset.peerId===String(peerId)));
+    for(const t of this.tiles.values())t.classList.remove('pinned','focused');
+    if(!target){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
+    const already=this.pinnedUserId&&(target.dataset.userId===this.pinnedUserId||target.dataset.peerId===this.pinnedUserId);
+    if(already){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
+    target.classList.add('pinned','focused');this.grid?.classList.add('has-focus');this.pinnedUserId=target.dataset.userId||target.dataset.peerId;this.onState({pinnedUserId:this.pinnedUserId});return true;
+  }
+  async listDevices(){
+    try{const rows=await navigator.mediaDevices.enumerateDevices();return {audio:rows.filter(x=>x.kind==='audioinput'),video:rows.filter(x=>x.kind==='videoinput')}}catch{return {audio:[],video:[]}}
+  }
+  async selectDevice(kind,id){
+    const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera';if(id)localStorage.setItem(key,id);else localStorage.removeItem(key);
+    if(kind==='audio'&&this.producers.get('mic')){await this.closeProducer('mic');await this.startMicrophone()}
+    if(kind==='video'&&this.producers.get('camera')){await this.closeProducer('camera');await this.toggleCamera()}
+    return true;
+  }
+  async switchCamera(){
+    this.facingMode=this.facingMode==='user'?'environment':'user';localStorage.setItem('m2-facing-mode',this.facingMode);
+    localStorage.removeItem('m2-preferred-camera');
+    if(this.producers.get('camera')){await this.closeProducer('camera');await this.toggleCamera()}
+    this.onState({facingMode:this.facingMode});return this.facingMode;
+  }
+  async setLowBandwidth(enabled){
+    this.lowBandwidthMode=Boolean(enabled);localStorage.setItem('m2-low-bandwidth',this.lowBandwidthMode?'1':'0');
+    await this.setReceiveQuality(this.lowBandwidthMode?'240':'auto');
+    this.mount?.classList.toggle('low-bandwidth-mode',this.lowBandwidthMode);
+    this.onState({lowBandwidth:this.lowBandwidthMode});return this.lowBandwidthMode;
+  }
+  async muteSelfIfNeeded(){
+    const p=this.producers.get('mic');if(p&&!p.paused)await this.toggleMic();
+  }
+  async cameraOffIfNeeded(){
+    const p=this.producers.get('camera');if(p&&!p.paused)await this.toggleCamera();
+  }
+  async requestBackgroundPiP(){
+    const tile=this.tiles.get('local'),video=tile?qs('video',tile):null;
+    if(!video||!video.srcObject||document.pictureInPictureElement)return false;
+    if(document.pictureInPictureEnabled&&typeof video.requestPictureInPicture==='function'){try{await video.play().catch(()=>{});await video.requestPictureInPicture();return true}catch{}}
+    return false;
   }
   async startMicrophone(){
     if(this.mediaBusy?.mic)return false;
@@ -211,7 +263,8 @@ export class MediaRoomClient{
   }
   async updateVisibility(){
     if(this.closed)return;const pause=document.hidden;
-    for(const c of this.consumers.values())if(c.kind==='video'){try{if(pause){await this.request('pauseConsumer',{consumerId:c.id});c.pause()}else{await this.request('resumeConsumer',{consumerId:c.id});c.resume()}}catch{}}
+    if(pause&&this.producers.get('camera'))this.requestBackgroundPiP().catch(()=>{});
+    for(const c of this.consumers.values())if(c.kind==='video'){try{if(pause&&!document.pictureInPictureElement){await this.request('pauseConsumer',{consumerId:c.id});c.pause()}else{await this.request('resumeConsumer',{consumerId:c.id});c.resume()}}catch{}}
     this.onState({background:pause});
   }
   closeConsumerByProducer(producerId){this.removeConsumer(producerId)}
@@ -234,7 +287,7 @@ export class MediaRoomClient{
     this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker','speaker-side'));
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
     for(const x of valid){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
-    if(this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
+    if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
     const strongest=valid[0],main=strongest?this.speakerTile(strongest.peerId):null;
     if(main){
       main.classList.add('active-speaker');
