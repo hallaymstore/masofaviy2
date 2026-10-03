@@ -1192,6 +1192,39 @@ socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   }
 });
 socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
+socket.on('lesson:raise-hand',({lessonId,raised=true})=>{
+  if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+  io.to('lesson:'+lessonId).emit('lesson:raise-hand',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,login:socket.user.login,raised:Boolean(raised),at:Date.now()});
+});
+socket.on('lesson:reaction',({lessonId,reaction})=>{
+  const allowed=new Set(['👍','👏','✋','❤️','😂']),r=String(reaction||'');
+  if(!lessonId||!allowed.has(r)||!socket.rooms.has('lesson:'+lessonId))return;
+  io.to('lesson:'+lessonId).emit('lesson:reaction',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,reaction:r,at:Date.now()});
+});
+socket.on('lesson:spotlight',async({lessonId,userId})=>{
+  try{
+    if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
+    io.to('lesson:'+lessonId).emit('lesson:spotlight',{lessonId,userId:String(userId||''),by:String(socket.user._id),at:Date.now()});
+  }catch{}
+});
+socket.on('lesson:mute-all',async({lessonId})=>{
+  try{
+    if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
+    for(const s of lessonRoomSockets(lessonId))if(s.user?.role==='student')s.emit('lesson:force-mute',{lessonId,by:socket.user.fullName});
+  }catch{}
+});
+socket.on('lesson:camera-off-all',async({lessonId})=>{
+  try{
+    if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
+    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
+    for(const s of lessonRoomSockets(lessonId))if(s.user?.role==='student')s.emit('lesson:force-camera-off',{lessonId,by:socket.user.fullName});
+  }catch{}
+});
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId)socket.leave('lesson:'+lessonId);if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId)io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}catch{} });
 socket.on('disconnect', async()=>{sfuSend({clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
 
