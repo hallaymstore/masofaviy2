@@ -10,7 +10,8 @@
     "test": "node --test tests/*.test.js",
     "prestart": "npm run build:media-client && npm run check",
     "build:media-client": "esbuild frontend/media-client.js --bundle --format=iife --global-name=MasofaviyMediaClientBundle --outfile=public/media-client.bundle.js --minify --target=es2020",
-    "capacity:check": "node scripts/live-capacity-check.mjs"
+    "capacity:check": "node scripts/live-capacity-check.mjs",
+    "cluster:check": "node scripts/cluster-capacity-check.mjs"
   },
   "engines": {
     "node": ">=22"
