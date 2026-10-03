@@ -10,14 +10,17 @@ const SIGNAL_IP=process.env.SIGNAL_IP||'127.0.0.1';
 const RTC_LISTEN_IP=process.env.RTC_LISTEN_IP||process.env.LISTEN_IP||'0.0.0.0';
 const ANNOUNCED_IP=process.env.ANNOUNCED_IP||'127.0.0.1';
 const RTC_BASE_PORT=Number(process.env.RTC_BASE_PORT||50000);
-const WORKERS=Math.max(1,Math.min(Number(process.env.MEDIASOUP_WORKERS||Math.max(1,Math.min(os.cpus().length,8))),32));
+const WORKERS=Math.max(1,Math.min(Number(process.env.MEDIASOUP_WORKERS||Math.max(1,Math.min(os.cpus().length,16))),32));
 const ENABLE_RTC_TCP=process.env.ENABLE_RTC_TCP==='true';
 const PLATFORM_VERIFY_URL=process.env.PLATFORM_VERIFY_URL||'http://127.0.0.1:3000/api/media/verify';
 const SFU_BRIDGE_SECRET=String(process.env.SFU_BRIDGE_SECRET||'');
 const MAX_PEERS_PER_ROOM=Math.max(2,Number(process.env.MAX_PEERS_PER_ROOM||120));
-const MAX_TOTAL_PEERS=Math.max(MAX_PEERS_PER_ROOM,Number(process.env.MAX_TOTAL_PEERS||500));
-const MAX_ACTIVE_ROOMS=Math.max(1,Number(process.env.MAX_ACTIVE_ROOMS||12));
-const TARGET_PARALLEL_ROOMS=Math.max(1,Number(process.env.TARGET_PARALLEL_ROOMS||10));
+const MAX_TOTAL_PEERS=Math.max(MAX_PEERS_PER_ROOM,Number(process.env.MAX_TOTAL_PEERS||1500));
+const MAX_ACTIVE_ROOMS=Math.max(1,Number(process.env.MAX_ACTIVE_ROOMS||60));
+const TARGET_PARALLEL_ROOMS=Math.max(1,Number(process.env.TARGET_PARALLEL_ROOMS||50));
+const SFU_NODE_ID=String(process.env.SFU_NODE_ID||os.hostname());
+const MAX_ROOMS_PER_WORKER=Math.max(2,Number(process.env.MAX_ROOMS_PER_WORKER||8));
+const TARGET_MIN_WORKERS=Math.max(4,Math.min(16,Number(process.env.TARGET_MIN_WORKERS||Math.ceil(TARGET_PARALLEL_ROOMS/7))));
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
 const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
@@ -53,11 +56,13 @@ async function verifyTicket(ticket){
 function workerPeerCount(slot){let n=0;for(const r of rooms.values())if(r.workerSlot===slot)n+=r.peers.size;return n}
 function chooseWorker(roomId){
   if(!workers.length)throw new Error('SFU worker mavjud emas');
+  const available=workers.filter(w=>w.rooms<MAX_ROOMS_PER_WORKER);
+  if(!available.length)throw new Error('SFU workerlar xona sig‘imiga yetdi');
   const seed=crypto.createHash('sha256').update(roomId).digest().readUInt32BE(0);
-  return workers.slice().sort((a,b)=>{
-    const ar=a.rooms*1000+workerPeerCount(a),br=b.rooms*1000+workerPeerCount(b);
+  return available.slice().sort((a,b)=>{
+    const ar=a.rooms*10000+workerPeerCount(a)*10,br=b.rooms*10000+workerPeerCount(b)*10;
     if(ar!==br)return ar-br;
-    return ((a.index-seed)%workers.length)-((b.index-seed)%workers.length);
+    return ((a.index-seed+workers.length)%workers.length)-((b.index-seed+workers.length)%workers.length);
   })[0];
 }
 async function getRoom(roomId,profile='standard',maxParticipants=MAX_PEERS_PER_ROOM){
@@ -212,9 +217,9 @@ async function boot(){
   const server=http.createServer((req,res)=>{
     if(req.url==='/health'){
       const workerStats=workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,peers:workerPeerCount(w),pid:w.worker.pid}));
-      const warnings=[];if(workers.length<4)warnings.push('10 parallel xona uchun 4+ worker tavsiya qilinadi');if(!ENABLE_RTC_TCP)warnings.push('RTC TCP fallback o‘chiq');if(rooms.size>=MAX_ACTIVE_ROOMS-1)warnings.push('Parallel xona limiti yaqin');
-      res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,workers:workers.length,rooms:rooms.size,peers:peers.size,lectureLite:LECTURE_LITE_ENABLED,studentAudioSlots:LECTURE_MAX_STUDENT_AUDIO,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS,readyForTarget:workers.length>=4&&MAX_ACTIVE_ROOMS>=TARGET_PARALLEL_ROOMS},workerStats,loadavg:os.loadavg().map(x=>Number(x.toFixed(2))),memory:{rss:process.memoryUsage().rss,heapUsed:process.memoryUsage().heapUsed},announcedIp:ANNOUNCED_IP,rtcPorts:workers.map(w=>w.port),rtcTcp:ENABLE_RTC_TCP,warnings}))}
-    if(req.url==='/metrics'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({workers:workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,peers:workerPeerCount(w),pid:w.worker.pid})),rooms:[...rooms.values()].map(r=>({id:r.id,profile:r.profile,peers:r.peers.size,studentAudioActive:studentAudioCount(r),workerPort:r.workerSlot.port,ageSeconds:Math.round((Date.now()-r.createdAt)/1000)})),peers:peers.size,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS},loadavg:os.loadavg(),memory:process.memoryUsage()}))}
+      const warnings=[];if(workers.length<TARGET_MIN_WORKERS)warnings.push(`${TARGET_PARALLEL_ROOMS} parallel xona uchun ${TARGET_MIN_WORKERS}+ worker tavsiya qilinadi`);if(!ENABLE_RTC_TCP)warnings.push('RTC TCP fallback o‘chiq');if(rooms.size>=MAX_ACTIVE_ROOMS-5)warnings.push('Parallel xona limiti yaqin');
+      res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,nodeId:SFU_NODE_ID,workers:workers.length,rooms:rooms.size,peers:peers.size,lectureLite:LECTURE_LITE_ENABLED,studentAudioSlots:LECTURE_MAX_STUDENT_AUDIO,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS,maxRoomsPerWorker:MAX_ROOMS_PER_WORKER,minRecommendedWorkers:TARGET_MIN_WORKERS,readyForTarget:workers.length>=TARGET_MIN_WORKERS&&MAX_ACTIVE_ROOMS>=TARGET_PARALLEL_ROOMS},workerStats,loadavg:os.loadavg().map(x=>Number(x.toFixed(2))),memory:{rss:process.memoryUsage().rss,heapUsed:process.memoryUsage().heapUsed},announcedIp:ANNOUNCED_IP,rtcPorts:workers.map(w=>w.port),rtcTcp:ENABLE_RTC_TCP,warnings}))}
+    if(req.url==='/metrics'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({nodeId:SFU_NODE_ID,workers:workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,peers:workerPeerCount(w),pid:w.worker.pid})),rooms:[...rooms.values()].map(r=>({id:r.id,profile:r.profile,peers:r.peers.size,studentAudioActive:studentAudioCount(r),workerPort:r.workerSlot.port,ageSeconds:Math.round((Date.now()-r.createdAt)/1000)})),peers:peers.size,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS,maxRoomsPerWorker:MAX_ROOMS_PER_WORKER,minRecommendedWorkers:TARGET_MIN_WORKERS},loadavg:os.loadavg(),memory:process.memoryUsage()}))}
     res.writeHead(404);res.end('not found');
   });
   const wss=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
