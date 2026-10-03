@@ -1008,6 +1008,15 @@ async function loadAudit(){try{const rows=await api('/audit');$('#auditList').in
 $('#callViewMode')?.addEventListener('click',()=>{if(!mediaRoomClient)return;const next=mediaRoomClient.viewMode==='gallery'?'speaker':'gallery';mediaRoomClient.setViewMode(next);toast(next==='gallery'?'Gallery view':'Speaker view')});
 $('#callRaiseHand')?.addEventListener('click',()=>{if(!activeLessonId)return;handRaised=!handRaised;socket?.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:handRaised});$('#callRaiseHand')?.classList.toggle('active-control',handRaised)});
 $('#callReaction')?.addEventListener('click',()=>$('#reactionPopover')?.classList.toggle('hidden'));
+$('#callMore')?.addEventListener('click',()=>{
+  $('#liveMorePanel')?.classList.toggle('hidden');
+  $('#callMore')?.classList.toggle('active-control',!$('#liveMorePanel')?.classList.contains('hidden'));
+  $('#reactionPopover')?.classList.add('hidden');
+  $('#devicePopover')?.classList.add('hidden');
+});
+document.addEventListener('pointerdown',e=>{
+  if(!e.target.closest('#liveMorePanel')&&!e.target.closest('#callMore')){$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control')}
+});
 all('[data-reaction]').forEach(b=>b.addEventListener('click',()=>{if(activeLessonId)socket?.emit('lesson:reaction',{lessonId:activeLessonId,reaction:b.dataset.reaction});$('#reactionPopover')?.classList.add('hidden')}));
 $('#callDevices')?.addEventListener('click',async()=>{await loadDeviceChoices();$('#devicePopover')?.classList.toggle('hidden')});
 $('#micDeviceSelect')?.addEventListener('change',e=>mediaRoomClient?.selectDevice('audio',e.target.value));
