@@ -119,6 +119,7 @@ export class MediaRoomClient{
       if(!focused)tile.classList.add('focused');
     });
     tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
+    this.installPinchZoom(tile,video);
     tile.append(video,avatar,label,mic);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
   }
   setViewMode(mode){
@@ -135,6 +136,34 @@ export class MediaRoomClient{
     const already=this.pinnedUserId&&(target.dataset.userId===this.pinnedUserId||target.dataset.peerId===this.pinnedUserId);
     if(already){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
     target.classList.add('pinned','focused');this.grid?.classList.add('has-focus');this.pinnedUserId=target.dataset.userId||target.dataset.peerId;this.onState({pinnedUserId:this.pinnedUserId});return true;
+  }
+  focusTeacherOrScreen(){
+    const tiles=[...this.tiles.values()];
+    const target=tiles.find(t=>t.classList.contains('screen-share'))||tiles.find(t=>t.classList.contains('role-teacher')&&t.classList.contains('has-video'));
+    if(!target)return false;
+    for(const t of tiles)t.classList.remove('focused');
+    target.classList.add('focused');this.grid?.classList.add('has-focus');this.resetZoom(target);return true;
+  }
+  resetZoom(tile=null){
+    const targets=tile?[tile]:[...this.tiles.values()];
+    for(const t of targets){
+      const v=qs('video',t);if(!v)continue;
+      v.dataset.zoom='1';v.dataset.panX='0';v.dataset.panY='0';v.style.transform='translate3d(0,0,0) scale(1)';
+    }
+  }
+  installPinchZoom(tile,video){
+    let startDist=0,startZoom=1,startX=0,startY=0,startPanX=0,startPanY=0;
+    const point=(a,b)=>({x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2,d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)});
+    const apply=(z,x,y)=>{z=Math.max(1,Math.min(5,z));const lim=(z-1)*220;x=Math.max(-lim,Math.min(lim,x));y=Math.max(-lim,Math.min(lim,y));video.dataset.zoom=String(z);video.dataset.panX=String(x);video.dataset.panY=String(y);video.style.transform='translate3d('+x+'px,'+y+'px,0) scale('+z+')'};
+    tile.addEventListener('touchstart',e=>{
+      if(e.touches.length===2){const p=point(e.touches[0],e.touches[1]);startDist=p.d;startZoom=Number(video.dataset.zoom||1);startX=p.x;startY=p.y;startPanX=Number(video.dataset.panX||0);startPanY=Number(video.dataset.panY||0);tile.classList.add('pinch-active')}
+    },{passive:true});
+    tile.addEventListener('touchmove',e=>{
+      if(e.touches.length!==2||!startDist)return;
+      e.preventDefault();const p=point(e.touches[0],e.touches[1]);const z=startZoom*(p.d/startDist);apply(z,startPanX+(p.x-startX),startPanY+(p.y-startY));
+    },{passive:false});
+    tile.addEventListener('touchend',()=>{startDist=0;tile.classList.remove('pinch-active')},{passive:true});
+    video.addEventListener('dblclick',e=>{e.stopPropagation();this.resetZoom(tile)});
   }
   async listDevices(){
     try{const rows=await navigator.mediaDevices.enumerateDevices();return {audio:rows.filter(x=>x.kind==='audioinput'),video:rows.filter(x=>x.kind==='videoinput')}}catch{return {audio:[],video:[]}}
