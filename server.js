@@ -1298,9 +1298,11 @@ socket.on('lesson:camera-off-all',async({lessonId})=>{
 });
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId)socket.leave('lesson:'+lessonId);if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId)io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}catch{} });
 socket.on('disconnect', async()=>{
-  const oldRoom=clientRoomMap.get(socket.id);
+  const oldNodeId=clientNodeMap.get(socket.id),oldRoom=clientRoomMap.get(socket.id);
+  const oldNode=oldNodeId?sfuNodes.get(oldNodeId):null;
+  if(oldNode)sfuSendTo(oldNode,{clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});
   clientNodeMap.delete(socket.id);clientRoomMap.delete(socket.id);
-  if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();sfuSend({clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
+  if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
 
 async function ensureQdtuTestAccounts(){
   const groups=await Structure.find({type:'group',active:true,externalId:/^QDTU-MT-2026-/}).sort({externalId:1}).lean();
