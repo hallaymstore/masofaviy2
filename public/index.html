@@ -8,7 +8,7 @@
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261003-16">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-17">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -248,14 +248,33 @@
             <button id="callMic"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
             <button id="callCamera"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
             <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select><button id="echoGuard" title="Yonma-yon qurilmalarda shovqinni kamaytiradi"><span>🔇</span><span>Echo himoya</span></button>
-            <button id="callAttendance"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span></button><button id="callChat"><span data-ico="message" data-fallback="✉"></span><span>Chat</span></button><button id="callCaptions"><span>CC</span><span>Subtitr</span></button><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select><button id="captionMath" title="Son va matematik amallarni formulaga aylantirish"><span>∑</span><span>Matematika</span></button><button id="captionSize" title="Subtitr o‘lchami"><span>A+</span></button><button id="accessibilityMode" title="Inklyuziv qulaylik rejimi"><span>◐</span><span>Qulaylik</span></button><button id="callPiP" title="Kamerani kichik suzuvchi oynada ko‘rsatish"><span>▣</span><span>PiP</span></button><button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
+            <button id="callAttendance"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
+            <button id="callChat"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
+            <button id="callViewMode" title="Speaker / Gallery"><span>▦</span><span>Ko‘rinish</span></button>
+            <button id="callRaiseHand" title="Qo‘l ko‘tarish"><span>✋</span><span>Qo‘l</span></button>
+            <button id="callReaction" title="Reaksiya"><span>👏</span><span>Reaksiya</span></button>
+            <button id="callDevices" title="Mic va kamera tanlash"><span>⌃</span><span>Qurilmalar</span></button>
+            <button id="callFlipCamera" title="Old/orqa kamera"><span>↻</span><span>Kamera aylantirish</span></button>
+            <button id="callLowBandwidth" title="Kam internet rejimi"><span>⇣</span><span>Lite</span></button>
+            <button id="callRejoin" class="hidden" title="Qayta ulanish"><span>↺</span><span>Qayta kirish</span></button>
+            <span id="networkQualityBadge" class="network-quality good" title="Tarmoq sifati">● Yaxshi</span>
+            <span id="lessonTimeLeft" class="lesson-time-left">--:--</span><button id="callCaptions"><span>CC</span><span>Subtitr</span></button><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select><button id="captionMath" title="Son va matematik amallarni formulaga aylantirish"><span>∑</span><span>Matematika</span></button><button id="captionSize" title="Subtitr o‘lchami"><span>A+</span></button><button id="accessibilityMode" title="Inklyuziv qulaylik rejimi"><span>◐</span><span>Qulaylik</span></button><button id="callPiP" title="Kamerani kichik suzuvchi oynada ko‘rsatish"><span>▣</span><span>PiP</span></button><button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
             <button id="callHangup" class="danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
           </div>
         </div>
+        <div id="reactionPopover" class="live-popover hidden"><button data-reaction="👍">👍</button><button data-reaction="👏">👏</button><button data-reaction="✋">✋</button><button data-reaction="❤️">❤️</button><button data-reaction="😂">😂</button></div>
+        <div id="devicePopover" class="live-popover device-popover hidden"><label>Mikrofon<select id="micDeviceSelect"></select></label><label>Kamera<select id="cameraDeviceSelect"></select></label></div>
+        <div id="reactionStage" class="reaction-stage" aria-live="polite"></div>
+        <div id="connectionBanner" class="connection-banner hidden">Internet uzildi · qayta ulanmoqda…</div>
         <button id="lessonDrawerBackdrop" class="lesson-drawer-backdrop" type="button" aria-label="Panelni yopish"></button>
         <aside class="lesson-side" id="lessonDrawer">
           <div class="lesson-drawer-head"><div><b>Dars boshqaruvi</b><small>Davomat · kamera · mikrofon · chat</small></div><button id="closeLessonDrawer" class="lesson-drawer-close" type="button" aria-label="Yopish">×</button></div>
           <div class="lesson-side-tabs"><button id="showParticipants" class="active">Davomat</button><button id="showLessonChat">Chat</button></div>
+          <div id="teacherQuickControls" class="teacher-quick-controls hidden">
+            <button id="muteAllStudents" type="button">🔇 Barchani mute</button>
+            <button id="cameraOffAllStudents" type="button">📷 Barcha kamerani o‘chir</button>
+            <button id="teacherSpotlightSelf" type="button">⭐ O‘qituvchini spotlight</button>
+          </div>
           <section id="participantsPanel" class="participants-panel">
             <div class="participants-head"><div><b>Qatnashuvchilar</b><small id="attendanceCheckpointInfo">Birinchi avtomatik davomat: 10-daqiqada</small></div></div>
             <div id="lessonParticipants" class="participant-list"></div>
@@ -362,5 +381,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261003-17"></script><script type="module" src="/app.js?v=20261003-17"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261003-18"></script><script type="module" src="/app.js?v=20261003-18"></script>
 </body></html>
