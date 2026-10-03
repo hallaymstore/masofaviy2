@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HALLAYM EDU — taqdimot</title>
+  <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml" />
+  <style>
+    :root{
+      --brand:#0b4fd8;--brand2:#18b8ff;--ink:#0c1d3a;--muted:#65758f;--soft:#f4f8ff;--line:#e1e9f5;--card:#fff;
+      --ok:#14a35c;--warn:#f3a61d;--dark:#06152f;--shadow:0 24px 70px rgba(16,39,82,.14);
+    }
+    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#f6f9ff,#edf3fb);color:var(--ink);overflow-x:hidden}
+    a{color:inherit;text-decoration:none} .wrap{width:min(1180px,calc(100% - 28px));margin:0 auto}.top{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);border-bottom:1px solid rgba(218,228,242,.85)}
+    .top-inner{height:68px;display:flex;align-items:center;gap:18px}.logo{display:flex;align-items:center;gap:12px;min-width:0}.mark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),#062463);color:#fff;font-weight:900;box-shadow:0 12px 30px rgba(11,79,216,.25)}.logo b,.logo small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.logo small{color:var(--muted);font-size:12px}.nav{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.nav a{padding:9px 12px;border-radius:999px;color:#40516e;font-size:13px;font-weight:750}.nav a:hover{background:#edf4ff;color:var(--brand)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;background:var(--brand);color:#fff;font-weight:850;padding:12px 16px;box-shadow:0 14px 30px rgba(11,79,216,.22)}.btn.alt{background:#fff;color:var(--brand);border:1px solid var(--line);box-shadow:none}.hero{position:relative;padding:72px 0 42px;overflow:hidden}.hero:before{content:"";position:absolute;inset:-160px -140px auto auto;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(24,184,255,.32),transparent 68%)}.hero-grid{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(380px,.94fr);gap:28px;align-items:center}.kicker{display:inline-flex;gap:8px;align-items:center;border:1px solid #d7e7ff;background:#fff;border-radius:999px;padding:8px 12px;color:var(--brand);font-size:13px;font-weight:850}.kicker:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 6px rgba(20,163,92,.12)}h1{font-size:clamp(42px,6vw,78px);line-height:.98;letter-spacing:-.06em;margin:18px 0 18px}.lead{font-size:clamp(17px,2vw,22px);line-height:1.55;color:#3d506e;max-width:740px}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.hero-note{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:26px}.mini{padding:13px;border:1px solid var(--line);background:rgba(255,255,255,.78);border-radius:16px}.mini b{display:block;font-size:19px}.mini span{font-size:12px;color:var(--muted)}.preview{position:relative;background:#fff;border:1px solid var(--line);border-radius:28px;padding:16px;box-shadow:var(--shadow);overflow:hidden}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}.dot{width:10px;height:10px;border-radius:50%;background:#d4dce9}.screen{border-radius:20px;background:#08162e;padding:18px;min-height:360px;color:#fff;display:grid;gap:12px}.screen-top{display:flex;justify-content:space-between;align-items:center}.pill{border-radius:999px;background:rgba(255,255,255,.1);padding:7px 10px;font-size:12px}.video-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:10px}.video{min-height:132px;border-radius:16px;background:linear-gradient(135deg,#11305f,#0d2244);border:1px solid rgba(255,255,255,.1);padding:12px;display:flex;align-items:end;justify-content:space-between}.video.big{min-height:190px}.avatar{font-size:34px;font-weight:900;opacity:.85}.name{font-size:12px;background:rgba(0,0,0,.28);padding:7px 10px;border-radius:9px}.panel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.panel{background:#fff;color:var(--ink);border-radius:14px;padding:12px}.panel b{display:block}.panel span{font-size:11px;color:var(--muted)}section{padding:56px 0}.section-head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:22px}.section-head h2{font-size:clamp(30px,4vw,48px);letter-spacing:-.045em;line-height:1.05;margin:0}.section-head p{color:var(--muted);max-width:620px;margin:0;line-height:1.55}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 10px 32px rgba(16,39,82,.06);min-width:0}.card:hover{transform:translateY(-2px);transition:.18s;box-shadow:var(--shadow)}.icon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,#eaf4ff,#fff);border:1px solid #dbe8fb;color:var(--brand);font-weight:900;font-size:20px}.card h3{font-size:20px;margin:14px 0 8px}.card p{color:#50617c;line-height:1.56;margin:0}.card ul{margin:14px 0 0;padding-left:18px;color:#52627c;line-height:1.65}.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.step{position:relative;background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;min-height:150px}.step:after{content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--brand);font-weight:900}.step:last-child:after{display:none}.step b{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:var(--brand);color:#fff;margin-bottom:12px}.split{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px;align-items:start}.dark{background:radial-gradient(circle at 80% 10%,rgba(24,184,255,.18),transparent 34%),linear-gradient(135deg,#06152f,#0a2a60);color:#fff;border-radius:32px;padding:36px;border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow)}.dark p,.dark li{color:rgba(255,255,255,.76)}.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px}.metric b{display:block;font-size:30px}.timeline{display:grid;gap:10px}.line{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px}.line i{font-style:normal;flex:0 0 auto;width:34px;height:34px;border-radius:12px;background:#edf4ff;color:var(--brand);display:grid;place-items:center;font-weight:900}.table{overflow:hidden;border:1px solid var(--line);border-radius:22px;background:#fff}.row{display:grid;grid-template-columns:1.2fr .9fr .9fr;gap:12px;padding:14px 18px;border-top:1px solid var(--line)}.row:first-child{border-top:0;background:#f6f9fd;font-weight:900}.row span{color:#53637e}.cta{padding:48px;border-radius:34px;background:linear-gradient(135deg,var(--brand),#061f51);color:#fff;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;box-shadow:var(--shadow)}.cta h2{margin:0;font-size:clamp(30px,4vw,50px);letter-spacing:-.04em}.cta p{margin:10px 0 0;color:rgba(255,255,255,.76);line-height:1.6}.foot{padding:30px 0 60px;color:var(--muted);font-size:13px}.print-controls{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;gap:8px}.print-controls button{cursor:pointer}.slides section{min-height:100vh;display:flex;align-items:center}.slides .wrap{width:min(1200px,calc(100% - 40px))}@media(max-width:960px){.hero-grid,.split,.cta{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.step:after{display:none}.hero-note{grid-template-columns:1fr}.nav a{display:none}.screen{min-height:300px}}@media(max-width:620px){.grid,.metric-grid{grid-template-columns:1fr}.video-grid,.panel-row{grid-template-columns:1fr}.hero{padding-top:40px}.top-inner{height:auto;padding:10px 0}.cta{padding:28px}.row{grid-template-columns:1fr}.print-controls{display:none}}
+    @media print{.top,.print-controls{display:none}.hero,section{page-break-after:always;min-height:100vh;padding:40px 0}.card,.preview,.dark,.cta{box-shadow:none}body{background:#fff}.wrap{width:100%}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="logo" href="/">
+        <span class="mark">HE</span><span><b>HALLAYM EDU</b><small id="instSmall">Qarshi davlat texnika universiteti</small></span>
+      </a>
+      <nav class="nav">
+        <a href="#muammo">Muammo</a><a href="#yechim">Yechim</a><a href="#funksiyalar">Funksiyalar</a><a href="#xavfsizlik">Xavfsizlik</a><a href="#test">Test</a><a class="btn" href="/">Platformaga kirish</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="print-controls"><button class="btn alt" onclick="document.body.classList.toggle('slides')">Slayd rejimi</button><button class="btn" onclick="print()">PDF/Print</button></div>
+
+  <main>
+    <section class="hero" id="home">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="kicker">Universitet uchun masofaviy ta’lim platformasi</span>
+          <h1>Dars, davomat, video va nazorat — bitta tizimda</h1>
+          <p class="lead">HALLAYM EDU universitetning masofaviy va aralash ta’lim jarayonini boshqarish uchun ishlab chiqilgan: jadvaldan boshlab jonli dars, avtomatik davomat, videodars, hisobot va xavfsizlikgacha.</p>
+          <div class="hero-actions"><a class="btn" href="#funksiyalar">Imkoniyatlarni ko‘rish</a><a class="btn alt" href="/terms.html" target="_blank">Shartlar va maxfiylik</a></div>
+          <div class="hero-note"><div class="mini"><b>10×</b><span>parallel guruhga tayyor arxitektura</span></div><div class="mini"><b>50+</b><span>talabali guruh uchun lecture rejim</span></div><div class="mini"><b>PWA</b><span>telefon va kompyuterda ilova kabi</span></div></div>
+        </div>
+        <div class="preview" aria-label="Platforma ko‘rinishi">
+          <div class="preview-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:auto;color:#6b7890;font-size:12px">Live dars xonasi</span></div>
+          <div class="screen">
+            <div class="screen-top"><b>Moliya asoslari</b><span class="pill">3 online</span></div>
+            <div class="video-grid"><div class="video big"><span class="name">O‘qituvchi</span><span class="avatar">AA</span></div><div class="video"><span class="name">Talaba</span><span class="avatar">AS</span></div></div>
+            <div class="panel-row"><div class="panel"><b>Davomat</b><span>auto + qo‘lda</span></div><div class="panel"><b>Subtitr</b><span>UZ/RU/EN</span></div><div class="panel"><b>Sifat</b><span>240p–1080p</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="muammo">
+      <div class="wrap">
+        <div class="section-head"><h2>Nega bunday platforma kerak?</h2><p>Masofaviy ta’limda eng katta muammo — darslar, davomat, video, resurs va hisobotlar turli joyda tarqoq yurishi. HALLAYM EDU shu jarayonni yagona boshqaruv tizimiga keltiradi.</p></div>
+        <div class="grid">
+          <article class="card"><div class="icon">1</div><h3>Jadval tarqoq</h3><p>Guruh, o‘qituvchi, xona va vaqt to‘qnashuvini qo‘lda yuritish xatoga olib keladi. Platforma jadvalni guruh va o‘qituvchiga bog‘lab beradi.</p></article>
+          <article class="card"><div class="icon">2</div><h3>Davomat isbotlanmaydi</h3><p>Talaba darsga kirganmi, kechikkanmi yoki chiqib ketganmi — tizim avtomatik checkpoint va o‘qituvchi tasdig‘i bilan saqlaydi.</p></article>
+          <article class="card"><div class="icon">3</div><h3>Video darslar noqulay</h3><p>Oddiy video call dars jarayoni uchun yetarli emas. O‘qituvchi boshqaruvi, ruxsat modeli, subtitr, past internet va eski telefonlar alohida yechim talab qiladi.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="yechim">
+      <div class="wrap split">
+        <div class="dark"><span class="kicker" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#fff">Yechim</span><h2 style="font-size:42px;letter-spacing:-.04em">Universitet ichki jarayoniga mos, rolda ishlaydigan LMS + Live dars</h2><p>Talaba, o‘qituvchi, admin, dekanat, rektorat va texnik xodim bir tizimda, lekin har biri faqat o‘ziga tegishli bo‘limni ko‘radi.</p><div class="metric-grid"><div class="metric"><b>3</b><span>asosiy rol: talaba, o‘qituvchi, admin</span></div><div class="metric"><b>6+</b><span>boshqaruv roli kengaytirish mumkin</span></div><div class="metric"><b>Auto</b><span>davomat va monitoring</span></div><div class="metric"><b>Local DB</b><span>ma’lumot server ichida</span></div></div></div>
+        <div class="timeline">
+          <div class="line"><i>01</i><div><b>Admin tuzilmani yaratadi</b><p>Fakultet, kafedra, yo‘nalish, guruh, o‘qituvchi va talabalar tizimga kiritiladi yoki Excel/CSV orqali import qilinadi.</p></div></div>
+          <div class="line"><i>02</i><div><b>Jadval shakllanadi</b><p>Har bir dars o‘qituvchi loginiga va guruh ID ga bog‘lanadi. To‘qnashuvlar avtomatik bloklanadi.</p></div></div>
+          <div class="line"><i>03</i><div><b>Dars jonli o‘tadi</b><p>O‘qituvchi doimiy asosiy ekran, talaba kamera/mikrofonni ruxsat asosida ochadi. Past internet uchun sifat tanlovi bor.</p></div></div>
+          <div class="line"><i>04</i><div><b>Hisobot rahbariyatga chiqadi</b><p>Davomat, kechikish, darslar, foydalanuvchilar va nazorat ko‘rsatkichlari admin va rahbariyat panelida ko‘rinadi.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="funksiyalar">
+      <div class="wrap"><div class="section-head"><h2>Asosiy funksiyalar</h2><p>Platforma faqat video aloqa emas — universitet masofaviy ta’limini boshqaradigan kompleks tizim.</p></div>
+        <div class="grid">
+          <article class="card"><div class="icon">📅</div><h3>Dars jadvali</h3><p>Guruh, o‘qituvchi, kun, vaqt va xona bo‘yicha reja. Import, filtr, public link va role-based ko‘rinish.</p></article>
+          <article class="card"><div class="icon">🎥</div><h3>Jonli videodars</h3><p>WebRTC/SFU asosida dars xonasi. O‘qituvchi boshqaruvi, talaba ruxsat modeli, audio/video nazorat.</p></article>
+          <article class="card"><div class="icon">✅</div><h3>Davomat</h3><p>10-daqiqadan keyin avtomatik davomat, keyingi checkpointlar, qo‘lda tick belgilash va rahbariyat hisobotlari.</p></article>
+          <article class="card"><div class="icon">📚</div><h3>Fanlar va vazifalar</h3><p>Fanlar, topshiriqlar, resurslar, o‘qituvchi materiallari, hujjat, video va linklarni joylash imkoniyati.</p></article>
+          <article class="card"><div class="icon">▶</div><h3>Videodarslar</h3><p>Video darslar sahifasi, tavsif, izoh, tavsiya, yo‘nalish va kurs bo‘yicha materiallar.</p></article>
+          <article class="card"><div class="icon">🧩</div><h3>SCORM va proktoring</h3><p>Masofaviy ta’lim talablariga yaqinlashish uchun SCORM sessiya, monitoring va proktoring modullari tayyorlangan.</p></article>
+          <article class="card"><div class="icon">CC</div><h3>Subtitr va inkluzivlik</h3><p>UZ/RU/EN subtitr, eski matnni tozalash, qisqa oqim, yengil interfeys va yordamchi funksiyalar.</p></article>
+          <article class="card"><div class="icon">📱</div><h3>PWA ilova</h3><p>Play Market shart emas. Sayt telefonga ilova kabi o‘rnatiladi, logo, nom va ranglar admin paneldan sozlanadi.</p></article>
+          <article class="card"><div class="icon">🛡</div><h3>Xavfsizlik</h3><p>Rollar, permission, audit log, 2FA, session revoke, maxfiylik sahifalari va lokal MongoDB.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="jarayon">
+      <div class="wrap"><div class="section-head"><h2>Dars jarayoni qanday ishlaydi?</h2><p>Talaba uchun oson, o‘qituvchi uchun boshqariladigan, rahbariyat uchun tekshiriladigan model.</p></div>
+        <div class="flow"><div class="step"><b>1</b><h3>Talaba jadvaldan kiradi</h3><p>Faqat o‘z guruhiga tegishli darslarni ko‘radi.</p></div><div class="step"><b>2</b><h3>O‘qituvchi darsni boshlaydi</h3><p>Kamera/mikrofon va ekran boshqaruvi o‘qituvchida.</p></div><div class="step"><b>3</b><h3>Davomat olinadi</h3><p>Auto checkpoint + o‘qituvchi tick orqali tasdiqlash.</p></div><div class="step"><b>4</b><h3>Resurslar beriladi</h3><p>Video, fayl, link, topshiriq va chat ishlaydi.</p></div><div class="step"><b>5</b><h3>Hisobot saqlanadi</h3><p>Rahbariyat va admin natijani ko‘radi.</p></div></div>
+      </div>
+    </section>
+
+    <section id="qulaylik">
+      <div class="wrap"><div class="section-head"><h2>Foydalanuvchilar uchun qulaylik</h2><p>Interfeys marketing uchun emas, real foydalanish uchun ixchamlashtirilgan.</p></div>
+        <div class="table"><div class="row"><b>Foydalanuvchi</b><b>Ko‘radigan qismi</b><b>Foydasi</b></div><div class="row"><span>Talaba</span><span>Dars jadvali, live dars, videodars, vazifa</span><span>Kerakli darsni tez topadi, ortiqcha panel ko‘rmaydi</span></div><div class="row"><span>O‘qituvchi</span><span>Guruh darslari, davomat, fan resurslari</span><span>Darsni boshqaradi, qatnashuvni tasdiqlaydi</span></div><div class="row"><span>Admin/Tech</span><span>Tuzilma, userlar, import, branding</span><span>Platformani kodsiz sozlaydi</span></div><div class="row"><span>Rahbariyat</span><span>Statistika, hisobot, nazorat</span><span>Jarayonni umumiy ko‘rsatkichlarda kuzatadi</span></div></div>
+      </div>
+    </section>
+
+    <section id="xavfsizlik">
+      <div class="wrap split"><div><div class="section-head" style="display:block"><h2>Xavfsizlik va huquqiy tayyorgarlik</h2><p>Platforma universitet ichki tizimi sifatida ma’lumot nazorati, audit va role-based access bilan qurilgan.</p></div><div class="grid" style="grid-template-columns:1fr 1fr"><article class="card"><h3>Lokal MongoDB</h3><p>Ma’lumotlar universitet serverida saqlanishi mumkin. Tashqi DB ga majburiy bog‘liqlik yo‘q.</p></article><article class="card"><h3>Audit log</h3><p>Davomat, login, parol, huquq va muhim amallar tarixda qoladi.</p></article><article class="card"><h3>Demo Face ID</h3><p>Hozirgi demo rejim kimlikni tekshirmaydi, yuz rasmi yoki biometrik shablon saqlamaydi.</p></article><article class="card"><h3>OneID tayyorgarligi</h3><p>Production identifikatsiya rasmiy shartnoma va credentialdan keyin ulanadi.</p></article></div></div><div class="dark"><h2 style="margin-top:0">Muvofiqlik uchun yondashuv</h2><ul><li>Foydalanish shartlari va maxfiylik siyosati alohida sahifa.</li><li>Shaxsiy ma’lumotlar bo‘yicha rozilik va so‘rovlar.</li><li>Rollar va permissionlar backendda tekshiriladi.</li><li>Backup va security readiness audit mavjud.</li><li>Production integratsiyalar demo funksiyalardan ajratiladi.</li></ul></div></div>
+    </section>
+
+    <section id="test">
+      <div class="wrap"><div class="section-head"><h2>Test ssenariysi</h2><p>Universitetda sharmanda bo‘lmaslik uchun ko‘rsatish tartibi bosqichma-bosqich bo‘lishi kerak.</p></div>
+        <div class="grid"><article class="card"><div class="icon">A</div><h3>1-o‘qituvchi + 5 talaba</h3><p>Login, Face ID demo, darsga kirish, kamera/mikrofon va chat tekshiriladi.</p></article><article class="card"><div class="icon">B</div><h3>1-o‘qituvchi + 20 talaba</h3><p>Davomat, ruxsat modeli, subtitr, sifat tanlash va rahbariyat hisobotlari ko‘rsatiladi.</p></article><article class="card"><div class="icon">C</div><h3>50 talaba lecture mode</h3><p>Talabalar mic/camera default off, teacher video asosiy, zarur talaba ruxsat bilan gapiradi.</p></article></div>
+      </div>
+    </section>
+
+    <section id="brending">
+      <div class="wrap"><div class="cta"><div><h2>Universitetga moslab tez sozlanadi</h2><p>Admin paneldan universitet nomi, qisqa nom, logo, PWA icon, ranglar, login sahifasi matni va linklar almashtiriladi. QDTU dan QDU yoki boshqa OTMga moslashtirish uchun kodga tegish shart emas.</p></div><a class="btn alt" href="/" style="background:#fff">Platformani ochish</a></div></div>
+    </section>
+  </main>
+  <footer class="foot"><div class="wrap">HALLAYM EDU · Masofaviy ta’lim, live dars, davomat va boshqaruv platformasi · <span id="instFoot">Qarshi davlat texnika universiteti</span></div></footer>
+  <script>
+    fetch('/api/branding',{cache:'no-store'}).then(r=>r.json()).then(b=>{if(b.institutionName){instSmall.textContent=b.institutionName;instFoot.textContent=b.institutionName}if(b.primaryColor)document.documentElement.style.setProperty('--brand',b.primaryColor);if(b.accentColor)document.documentElement.style.setProperty('--brand2',b.accentColor)}).catch(()=>{});
+  </script>
+</body>
+</html>
