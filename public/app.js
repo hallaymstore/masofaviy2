@@ -519,7 +519,7 @@ async function openConference(payload){
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||(lowEndUI?'240':'auto');
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
-    studentCameraGranted=user.role!=='student';studentMicGranted=user.role!=='student';showLessonSide('participants');await loadLessonParticipants();
+    studentCameraGranted=user.role!=='student';studentMicGranted=user.role!=='student';showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
     mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Media serverga ulanib bo‘lmadi</b><small>'+esc(e.message)+'</small><button id="retryMediaRoom" class="primary">Qayta ulanish</button></div>';
@@ -531,7 +531,7 @@ async function leaveConference(back=true){
   stopCaptions(true);
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
-  activeLessonId='';activeLiveSession=null;cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+  activeLessonId='';activeLiveSession=null;cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
@@ -580,8 +580,18 @@ async function loadLessonParticipants(){
     all('[data-mic-request]').forEach(b=>b.onclick=()=>{socket?.emit('mic:request-enable',{lessonId:activeLessonId,userId:b.dataset.micRequest});toast('Talabaga gapirish so‘rovi yuborildi')});
   }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
-function showLessonSide(which){
-  const p=which!=='chat';$('#participantsPanel')?.classList.toggle('hidden',!p);$('#lessonChatPanel')?.classList.toggle('hidden',p);$('#showParticipants')?.classList.toggle('active',p);$('#showLessonChat')?.classList.toggle('active',!p)
+function setLessonDrawer(open){
+  $('#lessonDrawer')?.classList.toggle('open',Boolean(open));
+  $('#lessonDrawerBackdrop')?.classList.toggle('show',Boolean(open));
+  document.documentElement.classList.toggle('lesson-drawer-open',Boolean(open));
+}
+function showLessonSide(which,openDrawer=true){
+  const p=which!=='chat';
+  $('#participantsPanel')?.classList.toggle('hidden',!p);
+  $('#lessonChatPanel')?.classList.toggle('hidden',p);
+  $('#showParticipants')?.classList.toggle('active',p);
+  $('#showLessonChat')?.classList.toggle('active',!p);
+  if(openDrawer)setLessonDrawer(true);
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 const NUMBER_WORDS={
@@ -674,6 +684,9 @@ function startCaptions(){
 }
 $('#showParticipants')?.addEventListener('click',()=>showLessonSide('participants'));
 $('#showLessonChat')?.addEventListener('click',()=>showLessonSide('chat'));
+$('#callAttendance')?.addEventListener('click',()=>showLessonSide('participants'));
+$('#closeLessonDrawer')?.addEventListener('click',()=>setLessonDrawer(false));
+$('#lessonDrawerBackdrop')?.addEventListener('click',()=>setLessonDrawer(false));
 $('#callMic').onclick=async()=>{
   if(!mediaRoomClient)return toast('Avval video xonaga kiring');
   try{
