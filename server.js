@@ -1343,7 +1343,7 @@ async function ensureQdtuTestAccounts(){
 async function bootstrap(){
   if(process.env.NODE_ENV==='production'&&!process.env.JWT_SECRET)throw new Error('Production uchun JWT_SECRET majburiy');
   if(process.env.NODE_ENV==='production'&&SFU_BRIDGE_URL&&SFU_BRIDGE_SECRET.length<32)throw new Error('SFU_BRIDGE_URL uchun 32+ belgili SFU_BRIDGE_SECRET majburiy');
-  connectSfuBridge();
+  initSfuCluster();
   if(process.env.NODE_ENV==='production'&&!process.env.ADMIN_PASSWORD)throw new Error('Production uchun ADMIN_PASSWORD majburiy');
   server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`));
   if(!process.env.MONGODB_URI){if(process.env.NODE_ENV==='production')throw new Error('Production uchun MONGODB_URI majburiy');console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return}
