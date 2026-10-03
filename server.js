@@ -419,7 +419,7 @@ app.post('/api/auth/login', async (req,res) => {
     noteLoginFailure(key);await Audit.create({actorLogin:login,action:'LOGIN_FAILED',entity:'Auth',ip:req.ip,meta:{attempts:loginAttempts.get(key)?.count||1}}).catch(()=>{});
     return res.status(401).json({message:'Login yoki parol noto‘g‘ri'});
   }
-  if(REQUIRE_IN_PERSON_IDENTITY&&IN_PERSON_IDENTITY_ROLES.has(user.role)&&String(user.citizenshipCountry||'UZ').toUpperCase()==='UZ'&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
+  if(REQUIRE_IN_PERSON_IDENTITY&&user.role!=='student'&&IN_PERSON_IDENTITY_ROLES.has(user.role)&&String(user.citizenshipCountry||'UZ').toUpperCase()==='UZ'&&!user.identityVerifiedAt){await Audit.create({actorId:user._id,actorLogin:user.login,actorName:user.fullName,action:'LOGIN_IDENTITY_NOT_VERIFIED',entity:'Auth',entityId:String(user._id),ip:req.ip}).catch(()=>{});return res.status(403).json({message:'Akkaunt OTMda shaxsan identifikatsiyadan o‘tmagan. Mas’ul xodimga murojaat qiling.'})}
   if(user.totpEnabled){
     const otp=String(req.body.otp||'').trim();
     if(!otp)return res.status(202).json({twoFactorRequired:true,message:'Authenticator kodi yoki recovery kodini kiriting'});
