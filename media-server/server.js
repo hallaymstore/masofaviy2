@@ -15,10 +15,13 @@ const ENABLE_RTC_TCP=process.env.ENABLE_RTC_TCP==='true';
 const PLATFORM_VERIFY_URL=process.env.PLATFORM_VERIFY_URL||'http://127.0.0.1:3000/api/media/verify';
 const SFU_BRIDGE_SECRET=String(process.env.SFU_BRIDGE_SECRET||'');
 const MAX_PEERS_PER_ROOM=Math.max(2,Number(process.env.MAX_PEERS_PER_ROOM||120));
-const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||2500000));
+const MAX_TOTAL_PEERS=Math.max(MAX_PEERS_PER_ROOM,Number(process.env.MAX_TOTAL_PEERS||500));
+const MAX_ACTIVE_ROOMS=Math.max(1,Number(process.env.MAX_ACTIVE_ROOMS||12));
+const TARGET_PARALLEL_ROOMS=Math.max(1,Number(process.env.TARGET_PARALLEL_ROOMS||10));
+const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
-const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||4),12));
-const LECTURE_INITIAL_OUTGOING_BITRATE=Math.max(400000,Number(process.env.LECTURE_INITIAL_OUTGOING_BITRATE||1200000));
+const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
+const LECTURE_INITIAL_OUTGOING_BITRATE=Math.max(400000,Number(process.env.LECTURE_INITIAL_OUTGOING_BITRATE||900000));
 
 const mediaCodecs=[
   {kind:'audio',mimeType:'audio/opus',clockRate:48000,channels:2,parameters:{useinbandfec:1,minptime:10}},
@@ -47,10 +50,20 @@ async function verifyTicket(ticket){
     return data.payload;
   }finally{clearTimeout(timer)}
 }
-function hashRoom(id){const h=crypto.createHash('sha256').update(id).digest();return h.readUInt32BE(0)%workers.length}
+function workerPeerCount(slot){let n=0;for(const r of rooms.values())if(r.workerSlot===slot)n+=r.peers.size;return n}
+function chooseWorker(roomId){
+  if(!workers.length)throw new Error('SFU worker mavjud emas');
+  const seed=crypto.createHash('sha256').update(roomId).digest().readUInt32BE(0);
+  return workers.slice().sort((a,b)=>{
+    const ar=a.rooms*1000+workerPeerCount(a),br=b.rooms*1000+workerPeerCount(b);
+    if(ar!==br)return ar-br;
+    return ((a.index-seed)%workers.length)-((b.index-seed)%workers.length);
+  })[0];
+}
 async function getRoom(roomId,profile='standard',maxParticipants=MAX_PEERS_PER_ROOM){
   let room=rooms.get(roomId);if(room)return room;
-  const workerSlot=workers[hashRoom(roomId)];
+  if(rooms.size>=MAX_ACTIVE_ROOMS)throw new Error('Parallel jonli xonalar limiti to‘lgan');
+  const workerSlot=chooseWorker(roomId);
   const router=await workerSlot.worker.createRouter({mediaCodecs});
   const audioObserver=await router.createAudioLevelObserver({maxEntries:8,threshold:-72,interval:800});
   room={id:roomId,profile:normalizeProfile(profile),maxParticipants:Math.min(MAX_PEERS_PER_ROOM,Math.max(2,Number(maxParticipants)||MAX_PEERS_PER_ROOM)),router,workerSlot,peers:new Map(),audioObserver,createdAt:new Date()};
@@ -112,6 +125,7 @@ async function handleRequest(ws,msg){
       if(!payload?.roomName||!payload?.sub)throw new Error('Media ticket noto‘g‘ri');
       const previous=peers.get(clientId);if(previous&&previous.bridge!==ws)throw new Error('Peer boshqa signaling ulanishiga tegishli');
       await closePeer(clientId,false);
+      if(peers.size>=MAX_TOTAL_PEERS)throw new Error('SFU umumiy ishtirokchilar limiti to‘lgan');
       const room=await getRoom(payload.roomName,payload.mediaProfile,payload.maxParticipants);
       if(room.peers.size>=room.maxParticipants)throw new Error('Bu xonada ishtirokchilar limiti to‘lgan');
       const peer={id:clientId,bridge:ws,room,user:{id:payload.sub,fullName:payload.fullName,login:payload.login,role:payload.role,avatarUrl:payload.avatarUrl||''},transports:new Map(),producers:new Map(),consumers:new Map(),joinedAt:new Date()};
@@ -191,13 +205,16 @@ async function boot(){
     const port=RTC_BASE_PORT+i,listenInfos=[{protocol:'udp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port,recvBufferSize:4*1024*1024,sendBufferSize:4*1024*1024}];
     if(ENABLE_RTC_TCP)listenInfos.push({protocol:'tcp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port});
     const webRtcServer=await worker.createWebRtcServer({listenInfos});
-    workers.push({worker,webRtcServer,port,rooms:0});
+    workers.push({index:i,worker,webRtcServer,port,rooms:0});
     console.log('worker',i,'RTC',port,ENABLE_RTC_TCP?'UDP/TCP':'UDP');
   }
 
   const server=http.createServer((req,res)=>{
-    if(req.url==='/health'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,workers:workers.length,rooms:rooms.size,peers:peers.size,lectureLite:LECTURE_LITE_ENABLED,studentAudioSlots:LECTURE_MAX_STUDENT_AUDIO,loadavg:os.loadavg().map(x=>Number(x.toFixed(2))),memory:{rss:process.memoryUsage().rss,heapUsed:process.memoryUsage().heapUsed},announcedIp:ANNOUNCED_IP,rtcPorts:workers.map(w=>w.port)}))}
-    if(req.url==='/metrics'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({workers:workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,pid:w.worker.pid})),rooms:[...rooms.values()].map(r=>({id:r.id,profile:r.profile,peers:r.peers.size,studentAudioActive:studentAudioCount(r),workerPort:r.workerSlot.port,ageSeconds:Math.round((Date.now()-r.createdAt)/1000)})),peers:peers.size,loadavg:os.loadavg(),memory:process.memoryUsage()}))}
+    if(req.url==='/health'){
+      const workerStats=workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,peers:workerPeerCount(w),pid:w.worker.pid}));
+      const warnings=[];if(workers.length<4)warnings.push('10 parallel xona uchun 4+ worker tavsiya qilinadi');if(!ENABLE_RTC_TCP)warnings.push('RTC TCP fallback o‘chiq');if(rooms.size>=MAX_ACTIVE_ROOMS-1)warnings.push('Parallel xona limiti yaqin');
+      res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,workers:workers.length,rooms:rooms.size,peers:peers.size,lectureLite:LECTURE_LITE_ENABLED,studentAudioSlots:LECTURE_MAX_STUDENT_AUDIO,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS,readyForTarget:workers.length>=4&&MAX_ACTIVE_ROOMS>=TARGET_PARALLEL_ROOMS},workerStats,loadavg:os.loadavg().map(x=>Number(x.toFixed(2))),memory:{rss:process.memoryUsage().rss,heapUsed:process.memoryUsage().heapUsed},announcedIp:ANNOUNCED_IP,rtcPorts:workers.map(w=>w.port),rtcTcp:ENABLE_RTC_TCP,warnings}))}
+    if(req.url==='/metrics'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({workers:workers.map((w,i)=>({index:i,port:w.port,rooms:w.rooms,peers:workerPeerCount(w),pid:w.worker.pid})),rooms:[...rooms.values()].map(r=>({id:r.id,profile:r.profile,peers:r.peers.size,studentAudioActive:studentAudioCount(r),workerPort:r.workerSlot.port,ageSeconds:Math.round((Date.now()-r.createdAt)/1000)})),peers:peers.size,capacity:{targetParallelRooms:TARGET_PARALLEL_ROOMS,maxActiveRooms:MAX_ACTIVE_ROOMS,maxPeersPerRoom:MAX_PEERS_PER_ROOM,maxTotalPeers:MAX_TOTAL_PEERS},loadavg:os.loadavg(),memory:process.memoryUsage()}))}
     res.writeHead(404);res.end('not found');
   });
   const wss=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
