@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,lastLessonPayload=null,autoRejoinTimer=null, captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -549,6 +549,10 @@ function startNetworkMonitor(){
     if(!navigator.onLine){quality='bad';label='Ulanish yo‘q'}
     else if(conn){const rtt=Number(conn.rtt||0),down=Number(conn.downlink||0),type=String(conn.effectiveType||'');if(/2g/.test(type)||rtt>500||(down&&down<0.8)){quality='bad';label='Yomon'}else if(/3g/.test(type)||rtt>250||(down&&down<2)){quality='mid';label='O‘rtacha'}}
     const b=$('#networkQualityBadge');if(b){b.className='network-quality '+quality;b.textContent='● '+label}
+    if(mediaRoomClient&&!mediaRoomClient.lowBandwidthMode){
+      const q=quality==='bad'?'240':quality==='mid'?'360':'auto';
+      if(lastAutoQuality!==q){lastAutoQuality=q;mediaRoomClient.setReceiveQuality(q).catch(()=>{})}
+    }
     $('#connectionBanner')?.classList.toggle('hidden',navigator.onLine&&socket?.connected!==false);
   };update();networkTimer=setInterval(update,3000)
 }
@@ -561,16 +565,25 @@ async function loadDeviceChoices(){
   if(mic)mic.innerHTML='<option value="">Default mikrofon</option>'+d.audio.map((x,i)=>'<option value="'+esc(x.deviceId)+'">'+esc(x.label||('Mikrofon '+(i+1)))+'</option>').join('');
   if(cam)cam.innerHTML='<option value="">Default kamera</option>'+d.video.map((x,i)=>'<option value="'+esc(x.deviceId)+'">'+esc(x.label||('Kamera '+(i+1)))+'</option>').join('');
 }
+async function rejoinActiveLesson(){
+  if(!activeLessonId)return false;
+  const id=String(activeLessonId);
+  try{
+    const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}'});
+    await openConference(x);
+    $('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');return true;
+  }catch(e){toast('Qayta ulanish: '+e.message);return false}
+}
 async function autoRejoinLesson(){
-  if(!activeLessonId||!lastLessonPayload||autoRejoinTimer)return;
+  if(!activeLessonId||autoRejoinTimer)return;
   $('#callRejoin')?.classList.remove('hidden');$('#connectionBanner')?.classList.remove('hidden');
-  autoRejoinTimer=setTimeout(async()=>{autoRejoinTimer=null;try{await openConference(lastLessonPayload);$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden')}catch{}},3000)
+  autoRejoinTimer=setTimeout(async()=>{autoRejoinTimer=null;await rejoinActiveLesson()},3000)
 }
 async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
   if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
-  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;
+  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;raisedHands.clear();
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
   $('#endLiveLesson').classList.add('hidden');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · kamera OFF · mikrofon OFF':(ultraLiteUI?'Lite rejim · 240p':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
@@ -610,7 +623,7 @@ async function leaveConference(back=true){
   stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
-  activeLessonId='';activeLiveSession=null;cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+  activeLessonId='';activeLiveSession=null;raisedHands.clear();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
@@ -645,14 +658,15 @@ async function loadLessonParticipants(){
       const manual=Boolean(r.manualMarkedAt);
       return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'">'+
         '<span class="participant-dot"></span>'+
-        '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
-        '<div class="participant-statusline"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(r.online?'<span class="online-chip">Onlayn</span>':'<span class="offline-chip">Oflayn</span>')+(manual?'<span class="manual-chip">Qo‘lda</span>':'')+'</div>'+
+        '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+(raisedHands.has(String(r._id))?'✋ ':'')+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
+        '<div class="participant-statusline"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(r.online?'<span class="online-chip">Onlayn</span>':'<span class="offline-chip">Oflayn</span>')+(manual?'<span class="manual-chip">Qo‘lda</span>':'')+(user.role==='teacher'&&r.online?'<button class="mini-spotlight" data-spotlight-user="'+esc(r._id)+'" title="Spotlight">⭐</button>':'')+'</div>'+
         (editable?'<div class="participant-actions"><label class="attendance-check"><input type="checkbox" data-attendance-check '+(checked?'checked':'')+'><span>Bor</span></label><select data-attendance-status class="attendance-status" aria-label="Davomat holati"><option value="">Oddiy</option><option value="late" '+(r.status==='late'?'selected':'')+'>Kechikdi</option><option value="excused" '+(r.status==='excused'?'selected':'')+'>Sababli</option></select></div>':'')+
         '</div>';
     }).join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
     const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
     $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true)});
     $('#attendanceSave')?.addEventListener('click',saveManualAttendance);
+    all('[data-spotlight-user]').forEach(b=>b.onclick=()=>{socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:b.dataset.spotlightUser});toast('Spotlight yuborildi')});
   }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
 function setLessonDrawer(open){
@@ -1000,7 +1014,7 @@ $('#micDeviceSelect')?.addEventListener('change',e=>mediaRoomClient?.selectDevic
 $('#cameraDeviceSelect')?.addEventListener('change',e=>mediaRoomClient?.selectDevice('video',e.target.value));
 $('#callFlipCamera')?.addEventListener('click',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.switchCamera();toast('Kamera almashtirildi')});
 $('#callLowBandwidth')?.addEventListener('click',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setLowBandwidth(!mediaRoomClient.lowBandwidthMode)});
-$('#callRejoin')?.addEventListener('click',()=>lastLessonPayload&&openConference(lastLessonPayload));
+$('#callRejoin')?.addEventListener('click',()=>rejoinActiveLesson());
 $('#muteAllStudents')?.addEventListener('click',()=>activeLessonId&&socket?.emit('lesson:mute-all',{lessonId:activeLessonId}));
 $('#cameraOffAllStudents')?.addEventListener('click',()=>activeLessonId&&socket?.emit('lesson:camera-off-all',{lessonId:activeLessonId}));
 $('#teacherSpotlightSelf')?.addEventListener('click',()=>activeLessonId&&socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:String(user?._id||'')}));
@@ -1060,7 +1074,7 @@ function connectSocket(){
     socket.emit('camera:enable-result',{lessonId:activeLessonId,accepted});
   });
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
-  socket.on('lesson:raise-hand',function(x){if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi ✋':' qo‘lini tushirdi'));loadLessonParticipants()});
+  socket.on('lesson:raise-hand',function(x){if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;if(x.raised)raisedHands.add(String(x.userId));else raisedHands.delete(String(x.userId));toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi ✋':' qo‘lini tushirdi'));loadLessonParticipants()});
   socket.on('lesson:reaction',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))showReaction(x)});
   socket.on('lesson:spotlight',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))mediaRoomClient?.pinUser(String(x.userId||''))});
   socket.on('lesson:force-mute',async function(x){if(activeLessonId){await mediaRoomClient?.muteSelfIfNeeded();toast((x.by||'O‘qituvchi')+' mikrofonni o‘chirdi')}});
