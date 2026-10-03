@@ -302,3 +302,30 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
   .user-card summary{grid-template-columns:34px minmax(0,1fr) auto 14px}
   .user-meta-direction{max-width:220px}
 }
+
+
+/* Identity verification status emphasis */
+.identity-status-box.verified{
+  background:#eaf8ef!important;
+  border-color:#bfe8cb!important;
+}
+.identity-status-box.verified small{color:#3e7f54!important}
+.identity-status-box.verified b{color:#147a35!important}
+.identity-status-box.unverified{
+  background:#fff6e8!important;
+  border-color:#f0d9a9!important;
+}
+.identity-status-box.unverified small{color:#9b762c!important}
+.identity-status-box.unverified b{color:#9a6500!important}
+[data-theme="dark"] .identity-status-box.verified{
+  background:#103422!important;
+  border-color:#24573a!important;
+}
+[data-theme="dark"] .identity-status-box.verified small{color:#88c89d!important}
+[data-theme="dark"] .identity-status-box.verified b{color:#a8efbd!important}
+[data-theme="dark"] .identity-status-box.unverified{
+  background:#3b2b0f!important;
+  border-color:#6b5120!important;
+}
+[data-theme="dark"] .identity-status-box.unverified small{color:#d8b86a!important}
+[data-theme="dark"] .identity-status-box.unverified b{color:#ffd77a!important}
