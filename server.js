@@ -128,6 +128,11 @@ const institutionSettingsSchema = new mongoose.Schema({
   shortName:{type:String,trim:true,maxlength:60,default:'QarDTU'},
   website:{type:String,trim:true,maxlength:1000,default:'https://kstu.uz/'},
   logoUrl:{type:String,trim:true,maxlength:1000,default:''},
+  appIconUrl:{type:String,trim:true,maxlength:1000,default:''},
+  primaryColor:{type:String,trim:true,maxlength:7,default:'#0b4fd8'},
+  accentColor:{type:String,trim:true,maxlength:7,default:'#19b5fe'},
+  landingTitle:{type:String,trim:true,maxlength:240,default:'Darslar, davomat va nazorat — bitta joyda'},
+  landingText:{type:String,trim:true,maxlength:1000,default:'O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.'},
   address:{type:String,trim:true,maxlength:500,default:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy'},
   phone:{type:String,trim:true,maxlength:80,default:'+998 75 220-09-24'},
   founded:{type:String,trim:true,maxlength:120,default:'10.12.2024'},
@@ -146,6 +151,11 @@ const DEFAULT_BRANDING=Object.freeze({
   shortName:'QarDTU',
   website:'https://kstu.uz/',
   logoUrl:'',
+  appIconUrl:'',
+  primaryColor:'#0b4fd8',
+  accentColor:'#19b5fe',
+  landingTitle:'Darslar, davomat va nazorat — bitta joyda',
+  landingText:'O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.',
   address:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy',
   phone:'+998 75 220-09-24',
   founded:'10.12.2024',
@@ -160,6 +170,7 @@ const brandingPublic=row=>Object.fromEntries(Object.keys(DEFAULT_BRANDING).map(k
 const getBranding=async()=>mongoose.connection.readyState===1?brandingPublic(await InstitutionSettings.findOne({key:'primary'}).lean()):{...DEFAULT_BRANDING};
 const brandingText=(value,max,required=false)=>{const s=String(value??'').trim().slice(0,max);if(required&&!s)throw new Error('Universitet nomini kiriting');return s};
 const brandingUrl=value=>{const s=String(value??'').trim();if(!s)return '';if(s.length>1000||!/^https:\/\//i.test(s))throw new Error('Havola https:// bilan boshlanishi kerak');return s};
+const brandingColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;
 const onlineUsers = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
@@ -318,6 +329,25 @@ app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', ti
 app.get('/api/branding', async(_req,res)=>{
   try{res.json(await getBranding())}catch{res.json({...DEFAULT_BRANDING})}
 });
+app.get('/api/manifest.webmanifest',async(_req,res)=>{
+  const b=await getBranding().catch(()=>({...DEFAULT_BRANDING}));
+  res.type('application/manifest+json').set('Cache-Control','no-cache').send(JSON.stringify({
+    name:(b.productName||'HALLAYM EDU')+' · '+(b.shortName||'OTM'),
+    short_name:(b.productName||'HALLAYM EDU').slice(0,28),
+    start_url:'/',
+    display:'standalone',
+    background_color:'#071a38',
+    theme_color:b.primaryColor||'#0b4fd8',
+    lang:'uz',
+    icons:[{src:b.appIconUrl||'/api/brand-icon.svg',sizes:'any',type:b.appIconUrl?'image/png':'image/svg+xml',purpose:'any maskable'}]
+  }));
+});
+app.get('/api/brand-icon.svg',async(_req,res)=>{
+  const b=await getBranding().catch(()=>({...DEFAULT_BRANDING})),p=brandingColor(b.primaryColor,'#0b4fd8'),a=brandingColor(b.accentColor,'#19b5fe');
+  const short=String(b.shortName||'OTM').replace(/[<>&"']/g,'').slice(0,12);
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${p}"/><stop offset="1" stop-color="#061b45"/></linearGradient><linearGradient id="a" x1="0" y1="0" x2="1" y2="0"><stop stop-color="${a}"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#g)"/><path d="M86 176 256 92l170 84-170 83L86 176Z" fill="#fff"/><path d="M137 215v92c70 49 168 49 238 0v-92l-119 58-119-58Z" fill="url(#a)"/><circle cx="256" cy="337" r="42" fill="#fff" opacity=".14"/><path d="m243 316 42 24-42 24v-48Z" fill="#fff"/><text x="256" y="432" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="42" fill="#fff">${short}</text></svg>`;
+  res.type('image/svg+xml').set('Cache-Control','no-cache').send(svg);
+});
 app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
   try{
     if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Faqat administrator platforma sozlamalarini o‘zgartiradi'});
@@ -327,6 +357,11 @@ app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
       shortName:brandingText(req.body.shortName,60),
       website:brandingUrl(req.body.website),
       logoUrl:brandingUrl(req.body.logoUrl),
+      appIconUrl:brandingUrl(req.body.appIconUrl),
+      primaryColor:brandingColor(req.body.primaryColor,'#0b4fd8'),
+      accentColor:brandingColor(req.body.accentColor,'#19b5fe'),
+      landingTitle:brandingText(req.body.landingTitle,240),
+      landingText:brandingText(req.body.landingText,1000),
       address:brandingText(req.body.address,500),
       phone:brandingText(req.body.phone,80),
       founded:brandingText(req.body.founded,120),
