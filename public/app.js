@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -583,7 +583,7 @@ async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
   if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
-  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;raisedHands.clear();
+  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
   $('#endLiveLesson').classList.add('hidden');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · kamera OFF · mikrofon OFF':(ultraLiteUI?'Lite rejim · 240p':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
@@ -623,7 +623,7 @@ async function leaveConference(back=true){
   stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
-  activeLessonId='';activeLiveSession=null;raisedHands.clear();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+  activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
@@ -674,6 +674,25 @@ function setLessonDrawer(open){
   $('#lessonDrawerBackdrop')?.classList.toggle('show',Boolean(open));
   document.documentElement.classList.toggle('lesson-drawer-open',Boolean(open));
 }
+function updateRaisedHandAlert(){
+  const wrap=$('#raisedHandAlert'),text=$('#raisedHandAlertText');
+  if(!wrap||!text)return;
+  const items=[...raisedHandUsers.values()];
+  const visible=(user?.role==='teacher'||can('live.manage'))&&items.length>0;
+  wrap.classList.toggle('hidden',!visible);
+  if(!visible)return;
+  const first=items[0];
+  text.textContent=items.length===1?first.fullName:(first.fullName+' + '+(items.length-1)+' ta');
+}
+function approveRaisedHand(){
+  const first=[...raisedHandUsers.values()][0];
+  if(!first||!activeLessonId)return;
+  socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:first.userId});
+  socket?.emit('camera:request-enable',{lessonId:activeLessonId,userId:first.userId});
+  toast(first.fullName+' asosiy ekranga chiqarilmoqda');
+}
+$('#raisedHandOpen')?.addEventListener('click',()=>showLessonSide('participants'));
+$('#raisedHandSpotlight')?.addEventListener('click',approveRaisedHand);
 function showLessonSide(which,openDrawer=true){
   const p=which!=='chat';if(!p){chatUnread=0;$('#chatUnreadBadge')?.classList.add('hidden')}
   $('#participantsPanel')?.classList.toggle('hidden',!p);
@@ -808,7 +827,14 @@ $('#callPiP')?.addEventListener('click',async()=>{
   $('#callPiP')?.classList.toggle('active-control',Boolean(r.active));
   toast(r.active?'PiP kamera yoqildi':'PiP kamera o‘chirildi');
 });
-$('#callFullscreen')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('To‘liq ekran ochilmadi')}});
+$('#callFullscreen')?.addEventListener('click',async()=>{
+  try{
+    if(!mediaRoomClient)return toast('Avval darsga kiring');
+    mediaRoomClient.focusTeacherOrScreen?.();
+    if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen();
+  }catch(e){toast('To‘liq ekran ochilmadi')}
+});
+$('#callZoomReset')?.addEventListener('click',()=>mediaRoomClient?.resetZoom?.());
 $('#callHangup').onclick=()=>leaveConference(true);
 
 function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{6,})/);return m?.[1]||''}
@@ -1083,7 +1109,15 @@ function connectSocket(){
     socket.emit('camera:enable-result',{lessonId:activeLessonId,accepted});
   });
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
-  socket.on('lesson:raise-hand',function(x){if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;if(x.raised)raisedHands.add(String(x.userId));else raisedHands.delete(String(x.userId));toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi ✋':' qo‘lini tushirdi'));loadLessonParticipants()});
+  socket.on('lesson:raise-hand',function(x){
+    if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
+    const id=String(x.userId||'');
+    if(x.raised){raisedHands.add(id);raisedHandUsers.set(id,{userId:id,fullName:x.fullName||x.login||'Talaba',login:x.login||''})}
+    else{raisedHands.delete(id);raisedHandUsers.delete(id)}
+    updateRaisedHandAlert();
+    if(user.role==='teacher'||can('live.manage'))toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi ✋':' qo‘lini tushirdi'));
+    loadLessonParticipants();
+  });
   socket.on('lesson:reaction',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))showReaction(x)});
   socket.on('lesson:spotlight',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))mediaRoomClient?.pinUser(String(x.userId||''))});
   socket.on('lesson:force-mute',async function(x){if(activeLessonId){await mediaRoomClient?.muteSelfIfNeeded();toast((x.by||'O‘qituvchi')+' mikrofonni o‘chirdi')}});
