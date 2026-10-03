@@ -5,22 +5,34 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#081a38">
   <meta name="description" content="Oliy ta’lim uchun yengil, nazorat va statistika markazli masofaviy ta’lim platformasi">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/favicon.svg">
+  <link rel="manifest" href="/api/manifest.webmanifest">
+  <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-1">
   <title>HALLAYM EDU</title>
 </head>
 <body>
 <div id="login" class="login">
+  <div class="login-showcase">
+    <div class="showcase-brand"><span class="brand-mark brand-mark-xl">HE</span><div><b data-product-name>HALLAYM EDU</b><small data-institution-name>Qarshi davlat texnika universiteti</small></div></div>
+    <div class="showcase-copy">
+      <span class="eyebrow">Masofaviy ta’lim platformasi</span>
+      <h1 data-landing-title>Darslar, davomat va nazorat — bitta joyda</h1>
+      <p data-landing-text>O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.</p>
+      <div class="showcase-pills"><span>Jonli dars</span><span>Davomat</span><span>Videodars</span><span>Hisobot</span></div>
+    </div>
+    <div class="showcase-foot"><span>Oddiy ishlaydi</span><span>Telefon uchun mos</span><span>Universitet serverida</span></div>
+  </div>
   <form id="loginForm" class="login-card">
-    <div class="brand"><span class="brand-mark">HE</span><div><b data-product-name>HALLAYM EDU</b><small data-institution-name>Qarshi davlat texnika universiteti</small></div></div>
-    <div class="welcome-icon"><span data-ico="cap" data-fallback="🎓"></span></div><h1>Xush kelibsiz</h1>
-    <p class="login-lead">Dars jadvali, jonli mashg‘ulot, davomat, nazorat va statistika — barchasi bitta tizimda.</p>
-    <label>Login<input name="login" autocomplete="username" placeholder="Sizga berilgan login" required></label>
-    <label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parolingizni kiriting" required></label>
+    <div class="mobile-login-brand"><span class="brand-mark">HE</span><div><b data-product-name>HALLAYM EDU</b><small data-institution-short>QarDTU</small></div></div>
+    <span class="login-kicker">Shaxsiy kabinet</span>
+    <h1>Tizimga kirish</h1>
+    <p class="login-lead">Login va parolingizni kiriting. Darslaringiz va kerakli bo‘limlar rolingizga qarab ochiladi.</p>
+    <label>Login<input name="login" autocomplete="username" placeholder="Login" required></label>
+    <label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parol" required></label>
     <label id="loginOtpWrap" class="hidden">2 bosqichli kod<input name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="6 xonali kod yoki recovery kod"></label>
-    <button class="primary">Tizimga kirish</button><p id="loginError" class="error"></p>
-    <div class="info-note"><b>ℹ Akkauntingiz yo‘qmi?</b><span>Login va parolni fakultetingiz mas’uli yoki texnik xodim beradi.</span></div>
+    <button class="primary login-submit">Kirish</button><p id="loginError" class="error"></p>
+    <div class="login-help"><b>Akkaunt yo‘qmi?</b><span>Login va parolni fakultet mas’uli yoki texnik xodim beradi.</span></div>
   </form>
 </div>
 
@@ -31,32 +43,42 @@
     <div class="header-actions">
       <button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot">●</span><span id="headerName"></span></button>
       <span id="onlineBadge" class="badge">● Onlayn</span>
+      <button id="installPwaBtn" class="icon-btn install-pwa hidden" aria-label="Ilovani o‘rnatish" title="Ilovani o‘rnatish">↓</button>
       <button id="themeBtn" class="icon-btn" aria-label="Rang rejimi">◐</button>
     </div>
   </header>
 
   <aside id="sidebar">
     <nav>
-      <button data-page="dashboard" class="active"><span data-ico="home" data-fallback="⌂"></span>Bosh sahifa</button>
-      <button data-page="university"><span data-ico="building" data-fallback="▦"></span>Universitet</button>
-      <button data-page="analytics"><span data-ico="chart" data-fallback="◫"></span>Statistika</button>
-      <button data-page="structure"><span data-ico="building" data-fallback="▦"></span>Tuzilma</button>
-      <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
-      <button data-page="users"><span data-ico="users" data-fallback="♙"></span>Foydalanuvchilar</button>
-      <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
-      <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
-      <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
-      <button data-page="finalExams"><span data-ico="shield" data-fallback="✓"></span>Yakuniy nazorat</button>
-      <button data-page="curriculum"><span data-ico="calendar" data-fallback="▦"></span>O‘quv reja qamrovi</button>
-      <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
-      <button data-page="communications"><span data-ico="message" data-fallback="✉"></span>Xabarlar va forum</button>
-      <button data-page="reports"><span data-ico="shield" data-fallback="▤"></span>Nazorat va hisobot</button>
-      <button data-page="settings" class="hidden"><span data-ico="building" data-fallback="⚙"></span>Platforma sozlamalari</button>
-      <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
-      <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
+      <button data-page="dashboard" class="active nav-home"><span data-ico="home" data-fallback="⌂"></span>Bosh sahifa</button>
+      <details class="nav-group" open><summary><span>Ta’lim</span><i>⌄</i></summary>
+        <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
+        <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
+        <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
+        <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
+        <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
+      </details>
+      <details class="nav-group"><summary><span>Nazorat</span><i>⌄</i></summary>
+        <button data-page="analytics"><span data-ico="chart" data-fallback="◫"></span>Statistika</button>
+        <button data-page="finalExams"><span data-ico="shield" data-fallback="✓"></span>Yakuniy nazorat</button>
+        <button data-page="curriculum"><span data-ico="calendar" data-fallback="▦"></span>O‘quv reja qamrovi</button>
+        <button data-page="reports"><span data-ico="shield" data-fallback="▤"></span>Nazorat va hisobot</button>
+      </details>
+      <details class="nav-group"><summary><span>Boshqaruv</span><i>⌄</i></summary>
+        <button data-page="university"><span data-ico="building" data-fallback="▦"></span>Universitet</button>
+        <button data-page="structure"><span data-ico="building" data-fallback="▦"></span>Tuzilma</button>
+        <button data-page="users"><span data-ico="users" data-fallback="♙"></span>Foydalanuvchilar</button>
+        <button data-page="communications"><span data-ico="message" data-fallback="✉"></span>Xabarlar va forum</button>
+        <button data-page="settings" class="hidden"><span data-ico="building" data-fallback="⚙"></span>Platforma sozlamalari</button>
+      </details>
+      <details class="nav-group"><summary><span>Akkaunt</span><i>⌄</i></summary>
+        <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
+        <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
+      </details>
     </nav>
     <button id="logoutBtn" class="logout">Chiqish</button>
   </aside>
+  <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="Menyuni yopish"></button>
 
   <main>
     <section id="university" class="page">
@@ -129,8 +151,8 @@
     </section>
     <section id="courses" class="page"><div class="page-head"><div><h1>Fanlar va vazifalar</h1><p>O‘quv resurslari, topshiriqlar, testlar va akademik yozuvlar</p></div><div><button id="myAcademic" class="hidden">O‘quv rejam</button> <button id="manageAcademic" class="hidden">Akademik yozuvlar</button> <button id="courseCompliance" class="hidden">Tayyorlik</button> <button id="reviewGrades" class="hidden">Baho so‘rovlari</button> <button id="addCourse" class="primary hidden">+ Fan qo‘shish</button></div></div><div id="courseList" class="list"></div><div id="courseDetail" class="list"></div></section>
     <section id="dashboard" class="page active">
-      <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugungi ta’lim jarayonini bir joydan kuzating</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
-      <div class="edu-banner"><span data-ico="book" data-fallback="📘"></span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.</p></div></div>
+      <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugun nimalar bo‘layotganini shu yerdan ko‘rasiz</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
+      <div class="edu-banner"><span data-ico="book" data-fallback="📘"></span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval guruhlar va akkauntlarni tayyorlang. Keyin jadvalni qo‘shasiz.</p></div></div>
       <div id="stats" class="stats"></div>
       <div id="dashboardHealth" class="health-strip hidden"></div>
       <article id="presentationReadiness" class="presentation-readiness hidden"></article>
@@ -161,21 +183,21 @@
     </section>
 
     <section id="schedule" class="page">
-      <div class="page-head"><div><h1>Dars jadvali</h1><p>O‘qituvchi va talaba faqat o‘ziga tegishli jadvalni ko‘radi</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV namuna</button><button class="secondary" id="importSchedules">Excel/CSV import</button><button class="primary" id="addSchedule">+ Dars qo‘shish</button></div></div>
+      <div class="page-head"><div><h1>Dars jadvali</h1><p>Har kim o‘ziga tegishli darslarni ko‘radi. Kerakli darsni shu yerdan ochish mumkin.</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV namuna</button><button class="secondary" id="importSchedules">Excel/CSV import</button><button class="primary" id="addSchedule">+ Dars qo‘shish</button></div></div>
       <div class="guide"><b>Import qoidasi:</b> o‘qituvchi F.I.Sh. bilan emas, <b>teacher_login</b> orqali; guruh <b>group_id</b> orqali aniqlanadi. O‘qituvchi, guruh va xona vaqt to‘qnashuvi avtomatik bloklanadi.</div>
       <div id="scheduleFilters" class="toolbar hidden"><input id="scheduleTeacherFilter" placeholder="O‘qituvchi login"><input id="scheduleGroupFilter" placeholder="Guruh ID"><select id="scheduleDayFilter"><option value="">Barcha kunlar</option><option value="1">Dushanba</option><option value="2">Seshanba</option><option value="3">Chorshanba</option><option value="4">Payshanba</option><option value="5">Juma</option><option value="6">Shanba</option><option value="7">Yakshanba</option></select><button id="applyScheduleFilter" class="secondary">Filtrlash</button><button id="clearScheduleFilter" class="ghost">Tozalash</button></div>
       <div id="timetableLinks" class="timetable-links"></div><div id="scheduleList" class="schedule"></div>
     </section>
 
     <section id="users" class="page">
-      <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Har bir foydalanuvchining shaxsiy profili, holati va alohida akkaunti mavjud</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
+      <div class="page-head"><div><h1>Foydalanuvchilar</h1><p>Talaba, o‘qituvchi va xodim akkauntlarini shu yerdan boshqarasiz.</p></div><div id="usersAdminActions" class="head-actions"><button class="secondary" id="userTemplate">CSV namuna</button><button class="secondary" id="importUsers">Excel/CSV import</button><button class="primary" id="addUser">+ Akkaunt</button></div></div>
       <div class="guide warning"><b><span data-ico="lock" data-fallback="🔐"></span> Xavfsizlik:</b> importdan so‘ng yangi login/parollar CSV fayl sifatida beriladi. Bloklash va parolni tiklash harakati audit tarixiga yoziladi.</div>
       <div class="toolbar"><input id="userSearch" placeholder="F.I.Sh., login yoki telefon"><select id="userRoleFilter"><option value="">Barcha rollar</option><option value="student">Talaba</option><option value="teacher">O‘qituvchi</option><option value="tutor">Tyutor</option><option value="department">Kafedra</option><option value="dean">Dekan</option><option value="rectorate">Rektorat</option><option value="tech">Texnik</option><option value="admin">Admin</option></select><select id="userStatusFilter"><option value="">Barcha holat</option><option value="true">Faol</option><option value="false">Bloklangan</option></select><button id="applyUserFilter" class="secondary">Qidirish</button></div>
       <div id="usersList" class="table-wrap"></div>
     </section>
 
     <section id="live" class="page">
-      <div class="page-head"><div><h1>Guruh jonli darslari</h1><p>Har bir guruh uchun alohida real video xona. Bir vaqtda ko‘p guruh mustaqil ishlaydi.</p></div><div class="head-actions"><button id="refreshLiveRooms" class="secondary"><span data-ico="refresh" data-fallback="↻"></span>Yangilash</button></div></div>
+      <div class="page-head"><div><h1>Guruh jonli darslari</h1><p>Har bir guruhning o‘z video xonasi bor. Darslar bir-biriga aralashmaydi.</p></div><div class="head-actions"><button id="refreshLiveRooms" class="secondary"><span data-ico="refresh" data-fallback="↻"></span>Yangilash</button></div></div>
       <div class="live-summary"><div><b id="liveActiveCount">0</b><span>Faol xonalar</span></div><div><b id="liveTodayCount">0</b><span>Bugungi guruh darslari</span></div><div><b id="livePeopleCount">0</b><span>Hozir xonalarda</span></div><div><b>10+</b><span>Parallel guruhga tayyor</span></div></div>
       <div class="guide"><b>Qanday ishlaydi:</b> o‘qituvchi o‘z guruh xonasini boshlaydi, talaba faqat o‘z guruhining faol xonasiga kiradi. Kamera, mikrofon, ekran ulashish va chat real WebRTC konferensiya orqali ishlaydi.</div>
       <div id="liveRooms" class="live-room-grid"></div>
@@ -267,6 +289,11 @@
             <label class="wide">Universitet tavsifi<textarea name="description" rows="4" maxlength="2000" placeholder="Universitet va masofaviy ta’lim muhiti haqida qisqa tavsif"></textarea></label>
             <label>Rasmiy sayt<input name="website" type="url" placeholder="https://..."></label>
             <label>Logo URL<input name="logoUrl" type="url" placeholder="https://.../logo.png"></label>
+            <label>PWA icon URL<input name="appIconUrl" type="url" placeholder="https://.../app-icon.png"></label>
+            <label>Asosiy rang<input name="primaryColor" type="color" value="#0b4fd8"></label>
+            <label>Accent rang<input name="accentColor" type="color" value="#19b5fe"></label>
+            <label class="wide">Kirish sahifasi sarlavhasi<input name="landingTitle" maxlength="240" placeholder="Darslar, davomat va nazorat — bitta joyda"></label>
+            <label class="wide">Kirish sahifasi matni<textarea name="landingText" rows="3" maxlength="1000"></textarea></label>
             <label>Moodle/LMS<input name="lmsUrl" type="url" placeholder="https://..."></label>
             <label>Ilmiy repozitoriy<input name="repositoryUrl" type="url" placeholder="https://..."></label>
             <label>Portfolio<input name="portfolioUrl" type="url" placeholder="https://..."></label>
@@ -318,5 +345,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261002-10"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-1"></script>
 </body></html>
