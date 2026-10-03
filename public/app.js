@@ -543,7 +543,9 @@ async function openConference(payload){
       socket,joinPayload:join,mount,user,lowEnd:lowEndUI,
       onState:state=>{
         if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — o‘chirish':'Mikrofon OFF — yoqish')}
+        if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish')}
+        if(state.cameraBusy!==undefined){const b=$('#callCamera');if(b){b.disabled=Boolean(state.cameraBusy);b.classList.toggle('is-busy',Boolean(state.cameraBusy));b.setAttribute('aria-busy',state.cameraBusy?'true':'false')}}
         if(state.screen!==undefined){const b=$('#callScreen');b?.classList.toggle('active-control',Boolean(state.screen));b?.setAttribute('aria-pressed',state.screen?'true':'false')}
         if(state.echoGuard!==undefined)$('#echoGuard')?.classList.toggle('active-control',state.echoGuard);
         if(state.audioBlocked)toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing');
