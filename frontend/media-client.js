@@ -196,6 +196,11 @@ export class MediaRoomClient{
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
     try{c.close()}catch{};this.consumers.delete(producerId);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.producerId===producerId)a.remove()});
+    if(meta?.appData?.mediaTag==='screen'||meta?.mediaTag==='screen'){
+      const key=String(meta.peerId||'')+':screen',tile=this.tiles.get(key);if(tile){tile.remove();this.tiles.delete(key)}
+      this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');
+      if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout');
+    }
   }
   removePeerTile(peerId){for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   applyAudioLevels(levels){
