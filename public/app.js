@@ -39,7 +39,7 @@ let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
 $('#installPwaBtn')?.addEventListener('click',async()=>{if(!deferredInstallPrompt)return toast('Ilovani brauzer menyusidan o‘rnatish mumkin');deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice.catch(()=>{});deferredInstallPrompt=null;$('#installPwaBtn')?.classList.add('hidden')});
 window.addEventListener('appinstalled',()=>{$('#installPwaBtn')?.classList.add('hidden');toast('HALLAYM EDU ilovasi o‘rnatildi')});
-async function start(){try{await loadBranding();const x=await api('/me');user=x.user;effectivePermissions=x.effectivePermissions||[];$('#login').classList.add('hidden');$('#shell').classList.remove('hidden');configureRoleUI();hydrateIcons();await loadDashboard();connectSocket();const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep&&!user.mustChangePassword){await loadVideoLessons();await openVideoLesson(deep,false)}if(user.mustChangePassword&&user._id!=='demo')setTimeout(()=>{go('profile');toast('Xavfsizlik uchun vaqtinchalik parolni almashtiring')},250)}catch{logout()}}
+async function start(){try{await loadBranding();const x=await api('/me');user=x.user;effectivePermissions=x.effectivePermissions||[];$('#login').classList.add('hidden');$('#shell').classList.remove('hidden');configureRoleUI();hydrateIcons();await loadDashboard();connectSocket();const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep&&!user.mustChangePassword){await loadVideoLessons();await openVideoLesson(deep,false)}if(user.role==='student'&&!activeLessonId&&!deep){setTimeout(async()=>{try{const lr=await api('/live/rooms'),room=(lr.rooms||[]).find(r=>r.session?.status==='active'&&r.canJoin);if(room)await enterLiveRoom(String(room.schedule._id))}catch{}},500)}if(user.mustChangePassword&&user._id!=='demo')setTimeout(()=>{go('profile');toast('Xavfsizlik uchun vaqtinchalik parolni almashtiring')},250)}catch{logout()}}
 async function runDemoFaceGate(){
   const dlg=$('#faceDemoDialog'),video=$('#faceDemoVideo'),status=$('#faceDemoStatus'),count=$('#faceCountdown'),retry=$('#faceDemoRetry');
   if(!dlg||!video)return true;
@@ -267,6 +267,16 @@ async function resetUserPassword(id){
   try{const x=await api('/users/'+id+'/reset-password',{method:'POST',body:'{}'});alert('Yangi vaqtinchalik parol:\n\n'+x.temporaryPassword+'\n\nKeyingi kirishda foydalanuvchi parolni almashtirishi shart.')}catch(e){toast(e.message)}
 }
 $('#applyUserFilter').onclick=loadUsers;
+$('#bulkStudentPassword')?.addEventListener('click',()=>{
+  modal('Talabalar parolini bir xil qilish','<div class="info-note warning"><b>Barcha faol talabalar</b><span>Yangi parol saqlanganda barcha faol talabalarning eski sessiyalari yopiladi va yangi parol darhol ishlaydi.</span></div><label>Yangi umumiy parol<input name="password" type="text" minlength="8" value="student00" required autocomplete="off"></label>',async d=>{
+    const password=String(d.password||'').trim();
+    if(password.length<8)throw new Error('Parol kamida 8 ta belgidan iborat bo‘lsin');
+    const out=await api('/users/bulk-student-password',{method:'POST',body:JSON.stringify({password})});
+    toast(out.count+' ta talaba paroli yangilandi');
+    loadUsers();
+  });
+});
+
 $('#resetTestStudents')?.addEventListener('click',async()=>{
   if(!confirm('Barcha mavjud TALABA akkauntlari o‘chiriladi va student001–student040 qayta yaratiladi. Davom etilsinmi?'))return;
   try{
@@ -963,6 +973,17 @@ function connectSocket(){
   });
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('live:changed',function(){if($('#live')?.classList.contains('active'))loadLiveRooms()});
+  socket.on('lesson:started',async function(x){
+    if(user?.role!=='student'||!x?.scheduleId)return;
+    toast('Dars boshlandi: '+(x.title||'Jonli dars')+' · avtomatik ulanmoqda');
+    try{
+      if('Notification' in window&&Notification.permission==='granted'){
+        new Notification('Dars boshlandi',{body:(x.title||'Jonli dars')+' · '+(x.teacherName||'O‘qituvchi')});
+      }
+    }catch{}
+    if(activeLessonId===String(x.scheduleId))return;
+    try{await enterLiveRoom(String(x.scheduleId))}catch{}
+  });
   socket.on('lesson:chat',function(m){$('#messages').insertAdjacentHTML('beforeend','<p><b>'+esc(m.fullName)+'</b><br>'+esc(m.text)+'</p>');$('#messages').scrollTop=$('#messages').scrollHeight});
   socket.on('lesson:caption',function(m){if(activeLessonId&&String(m.lessonId)===String(activeLessonId)&&String(m.userId)!==String(user?._id)){const current=$('#captionLang')?.value;const sel=$('#captionLang');if(sel&&m.lang)sel.dataset.remoteLang=m.lang;showCaption(m.fullName,normalizeMathCaption(m.text,m.lang||current||'uz-UZ'))}});
   $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');socket.emit('lesson:chat',{lessonId:activeLessonId,text:input.value});input.value=''};
