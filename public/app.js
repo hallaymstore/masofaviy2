@@ -16,6 +16,10 @@ const applyBranding=()=>{
   all('[data-product-name]').forEach(x=>x.textContent=product);
   all('[data-institution-name]').forEach(x=>x.textContent=institution);
   all('[data-institution-short]').forEach(x=>x.textContent=short);
+  all('[data-landing-title]').forEach(x=>x.textContent=branding.landingTitle||'Darslar, davomat va nazorat — bitta joyda');
+  all('[data-landing-text]').forEach(x=>x.textContent=branding.landingText||'O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.');
+  document.documentElement.style.setProperty('--brand',branding.primaryColor||'#0b4fd8');
+  document.documentElement.style.setProperty('--brand-accent',branding.accentColor||'#19b5fe');
   all('.brand-mark').forEach(x=>{const has=Boolean(branding.logoUrl);x.classList.toggle('has-logo',has);x.style.backgroundImage=has?'url("'+String(branding.logoUrl).replace(/"/g,'%22')+'")':'';x.textContent=has?'':'HE'});
   if($('#brandingPreviewInstitution'))$('#brandingPreviewInstitution').textContent=institution;
 };
@@ -30,8 +34,12 @@ function icon(name,fallback='•'){if(lowEndUI)return '<span class="fallback-ico
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
 function logout(){fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
 function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:can('reports.view'),live:['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage'),videos:can('videos.view')||can('videos.manage')||can('videos.upload'),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:['student','teacher','admin','superadmin'].includes(role),curriculum:['student','teacher','admin','superadmin'].includes(role),library:true,communications:['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
-function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));$('#sidebar').classList.remove('open');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
-async function start(){try{await loadBranding();const x=await api('/me');user=x.user;effectivePermissions=x.effectivePermissions||[];$('#login').classList.add('hidden');$('#shell').classList.remove('hidden');configureRoleUI();hydrateIcons();await loadDashboard();connectSocket();const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep&&!user.mustChangePassword){await loadVideoLessons();await openVideoLesson(deep,false)}if(user.mustChangePassword&&user._id!=='demo')setTimeout(()=>{go('profile');toast('Xavfsizlik uchun vaqtinchalik parolni almashtiring')},250)}catch{logout()}}
+function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
+async function start(){try{await let deferredInstallPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
+$('#installPwaBtn')?.addEventListener('click',async()=>{if(!deferredInstallPrompt)return toast('Ilovani brauzer menyusidan o‘rnatish mumkin');deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice.catch(()=>{});deferredInstallPrompt=null;$('#installPwaBtn')?.classList.add('hidden')});
+window.addEventListener('appinstalled',()=>{$('#installPwaBtn')?.classList.add('hidden');toast('HALLAYM EDU ilovasi o‘rnatildi')});
+loadBranding();const x=await api('/me');user=x.user;effectivePermissions=x.effectivePermissions||[];$('#login').classList.add('hidden');$('#shell').classList.remove('hidden');configureRoleUI();hydrateIcons();await loadDashboard();connectSocket();const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';if(deep&&!user.mustChangePassword){await loadVideoLessons();await openVideoLesson(deep,false)}if(user.mustChangePassword&&user._id!=='demo')setTimeout(()=>{go('profile');toast('Xavfsizlik uchun vaqtinchalik parolni almashtiring')},250)}catch{logout()}}
 async function runDemoFaceGate(){
   const dlg=$('#faceDemoDialog'),video=$('#faceDemoVideo'),status=$('#faceDemoStatus'),consent=$('#faceDemoConsent'),confirm=$('#faceDemoConfirm');
   if(!dlg||!video)return true;
@@ -58,7 +66,7 @@ async function runDemoFaceGate(){
   });
 }
 $('#loginForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const result=await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(f))});if(result.twoFactorRequired){$('#loginOtpWrap').classList.remove('hidden');$('#loginError').textContent=result.message||'2 bosqichli kodni kiriting';e.target.elements.otp.focus();return}$('#loginOtpWrap').classList.add('hidden');$('#loginError').textContent='';if(result.faceDemoRequired)await runDemoFaceGate();start()}catch(err){$('#loginError').textContent=err.message}};
-all('nav button').forEach(b=>b.onclick=()=>go(b.dataset.page));all('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));$('#menuBtn').onclick=()=>$('#sidebar').classList.toggle('open');$('#logoutBtn').onclick=logout;$('#profileBtn').onclick=()=>go('profile');$('#themeBtn').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=dark?'':'dark';localStorage.theme=dark?'':'dark'};document.documentElement.dataset.theme=localStorage.theme||'';
+all('nav button').forEach(b=>b.onclick=()=>go(b.dataset.page));all('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));$('#menuBtn').onclick=()=>{const open=$('#sidebar').classList.toggle('open');$('#sidebarBackdrop')?.classList.toggle('show',open)};$('#sidebarBackdrop')?.addEventListener('click',()=>{$('#sidebar').classList.remove('open');$('#sidebarBackdrop').classList.remove('show')});$('#logoutBtn').onclick=logout;$('#profileBtn').onclick=()=>go('profile');$('#themeBtn').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=dark?'':'dark';localStorage.theme=dark?'':'dark'};document.documentElement.dataset.theme=localStorage.theme||'';
 async function loadUniversity(){
   try{
     await loadBranding();
@@ -89,7 +97,7 @@ async function loadInstitutionSettings(){
   if(!['admin','superadmin'].includes(user?.role))return;
   await loadBranding();
   const form=$('#institutionSettingsForm');if(!form)return;
-  ['institutionName','shortName','phone','address','founded','legalBasis','description','website','logoUrl','lmsUrl','repositoryUrl','portfolioUrl','admissionsUrl'].forEach(k=>{if(form.elements[k])form.elements[k].value=branding[k]||''});
+  ['institutionName','shortName','phone','address','founded','legalBasis','description','website','logoUrl','appIconUrl','primaryColor','accentColor','landingTitle','landingText','lmsUrl','repositoryUrl','portfolioUrl','admissionsUrl'].forEach(k=>{if(form.elements[k])form.elements[k].value=branding[k]||''});
   if($('#brandingPreviewInstitution'))$('#brandingPreviewInstitution').textContent=branding.institutionName||'Universitet nomi';
 }
 $('#institutionSettingsForm')?.addEventListener('submit',async e=>{
@@ -104,7 +112,7 @@ loadBranding();
 
 async function loadDashboard(){
   const x=await api('/dashboard'),role=x.role||user.role;
-  const cfg=role==='teacher'?['O‘qituvchi ish stoli','Bugungi darslaringiz, guruhlaringiz va davomat holati','Darsdan oldin kamera, mikrofon va materiallarni tekshirib oling.']:role==='student'?['Talaba bosh sahifasi','Bugungi darslar va shaxsiy davomat ko‘rsatkichlaringiz','Jadvaldagi dars vaqtini tekshiring va mashg‘ulotdan oldin tayyor bo‘ling.']:['Boshqaruv markazi',x.scope?x.scope+' bo‘yicha bugungi ta’lim jarayoni':'Bugungi ta’lim jarayonini bir joydan kuzating','Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.'];
+  const cfg=role==='teacher'?['O‘qituvchi ish stoli','Bugungi darslaringiz, guruhlaringiz va davomat holati','Darsga kirishdan oldin kamera va mikrofonni bir ko‘rib oling.']:role==='student'?['Talaba bosh sahifasi','Bugungi darslar va shaxsiy davomat ko‘rsatkichlaringiz','Bugungi dars vaqtlarini shu yerda tekshirib olasiz.']:['Boshqaruv markazi',x.scope?x.scope+' bo‘yicha bugungi ta’lim jarayoni':'Bugungi ta’lim jarayonini bir joydan kuzating','Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.'];
   $('#dashboardTitle').textContent=cfg[0];$('#dashboardSubtitle').textContent=cfg[1];$('#dashboardGuide').textContent=cfg[2];
   $('#stats').innerHTML=(x.stats||[]).map(i=>'<div class="stat"><b>'+esc(i.value)+'</b><span>'+esc(i.label)+'</span></div>').join('');
   $('#todayLessons').innerHTML=(x.today||[]).slice(0,8).map(scheduleRow).join('')||'<p>Bugun uchun dars topilmadi.</p>';bindScheduleActions();
@@ -122,7 +130,8 @@ function scheduleRow(i){
   let actions='';
   if(canJoin&&i.kind!=='final_exam')actions+='<button class="join-btn" data-join-lesson="'+esc(i._id)+'">Kirish</button>';
   if(can('schedule.manage'))actions+='<button class="ghost danger-text" data-del-schedule="'+esc(i._id)+'">O‘chirish</button>';
-  return '<div class="lesson-row"><time>'+esc(i.start)+'–'+esc(i.end)+'</time><div><b>'+esc(i.title)+'</b><small>'+esc(i.subject||'')+(group?' · '+esc(group):'')+(gid?' ['+esc(gid)+']':'')+(teacher?' · '+esc(teacher):'')+(i.room?' · '+esc(i.room)+'-xona':'')+(i.kind==='final_exam'?' · OTMda shaxsan':'')+'</small></div><span>'+(['','Du','Se','Ch','Pa','Ju','Sh','Ya'][i.weekday]||esc(i.date))+'</span><div class="row-actions">'+actions+'</div></div>';
+  const kindLabel={lecture:'Ma’ruza',practice:'Amaliyot',seminar:'Seminar',exam:'Nazorat',final_exam:'Yakuniy'}[i.kind]||'Dars';
+  return '<div class="lesson-row lesson-kind-'+esc(i.kind||'lecture')+'"><div class="lesson-time"><b>'+esc(i.start)+'</b><span>'+esc(i.end)+'</span></div><div class="lesson-info"><div class="lesson-title-line"><b>'+esc(i.title)+'</b><span class="lesson-kind">'+esc(kindLabel)+'</span></div><small>'+esc(i.subject||'Fan')+(group?' · '+esc(group):'')+(teacher?' · '+esc(teacher):'')+'</small><div class="lesson-meta">'+(gid?'<span>ID: '+esc(gid)+'</span>':'')+(i.room?'<span>'+esc(i.room)+'-xona</span>':'')+'</div></div><div class="row-actions">'+actions+'</div></div>';
 }
 function bindScheduleActions(){
   all('[data-del-schedule]').forEach(function(b){b.onclick=async function(){if(confirm('Dars o‘chirilsinmi?')){try{await api('/schedules/'+b.dataset.delSchedule,{method:'DELETE'});loadSchedules()}catch(e){toast(e.message)}}}});
@@ -133,6 +142,13 @@ all('.tabs button').forEach(b=>b.onclick=()=>{all('.tabs button').forEach(x=>x.c
 async function loadStructure(){if(!can('structure.manage')&&!['dean','department'].includes(user.role))return;cache.structure=await api('/structure');const rows=cache.structure.filter(x=>x.type===structureType&&x.active),byId=Object.fromEntries(cache.structure.map(x=>[String(x._id),x]));$('#structureList').innerHTML=rows.map(x=>{const p=byId[String(x.parentId||'')],pp=p?byId[String(p.parentId||'')]:null,parentLine=structureType==='department'?(p?.name||'Fakultet biriktirilmagan'):structureType==='group'?([pp?.name,p?.name].filter(Boolean).join(' → ')||'Kafedra biriktirilmagan'):'';return `<div><small>ID: ${esc(x.externalId||x.code||x._id)}</small><h2>${esc(x.name)}</h2>${parentLine?`<p class="structure-parent">${esc(parentLine)}</p>`:''}${can('structure.manage')?`<button data-del-structure="${x._id}">Arxivlash</button>`:''}</div>`}).join('')||'<div class="empty"><b>Hozircha ma’lumot kiritilmagan</b><p>“+ Yangi” tugmasi orqali birinchi bo‘limni yarating.</p></div>';all('[data-del-structure]').forEach(b=>b.onclick=async()=>{if(confirm('Arxivga o‘tkazilsinmi?')){try{await api('/structure/'+b.dataset.delStructure,{method:'DELETE'});loadStructure()}catch(e){toast(e.message)}}})}
 function modal(title,fields,onSave){$('#modalTitle').textContent=title;$('#modalFields').innerHTML=fields;$('#modalSave').classList.remove('hidden');$('#modal').showModal();$('#modalForm').onsubmit=async e=>{e.preventDefault();if(e.submitter?.value==='cancel')return $('#modal').close();try{const fd=new FormData(e.currentTarget),data={};for(const key of new Set(fd.keys())){const values=fd.getAll(key);data[key]=values.length>1?values:values[0]}await onSave(data);$('#modal').close();toast('Saqlandi')}catch(err){toast(err.message)}}}
 $('#addStructure').onclick=async()=>{if(!cache.structure.length)cache.structure=await api('/structure');const parents=cache.structure.filter(x=>x.active&&(structureType==='department'?x.type==='faculty':structureType==='group'?x.type==='department':false));modal('Yangi '+({faculty:'fakultet',department:'kafedra',group:'guruh'}[structureType]),`<label>Nomi<input name="name" required></label><label>ID<input name="externalId" ${structureType==='group'?'required':''} placeholder="Masalan: ATT-101"></label>${structureType==='faculty'?'':`<label>Yuqori bo‘lim<select name="parentId" required><option value="">Tanlang</option>${parents.map(x=>`<option value="${x._id}">${esc(x.name)}</option>`)}</select></label>`}`,async d=>{await api('/structure',{method:'POST',body:JSON.stringify({...d,type:structureType})});loadStructure()})};
+function renderScheduleBoard(rows){
+  if(!rows.length)return '<div class="empty"><b>Dars jadvali hali kiritilmagan</b><p>Jadval qo‘lda yoki Excel/CSV orqali qo‘shiladi.</p></div>';
+  const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'];
+  const grouped=new Map();
+  for(const row of rows){const key=Number(row.weekday)||0;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)}
+  return [...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([day,list])=>'<section class="schedule-day"><div class="schedule-day-head"><div><b>'+esc(days[day]||list[0]?.date||'Sana')+'</b><span>'+list.length+' ta dars</span></div></div><div class="schedule-day-list">'+list.sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(scheduleRow).join('')+'</div></section>').join('');
+}
 async function loadSchedules(){
   try{
     const p=new URLSearchParams();
@@ -141,7 +157,7 @@ async function loadSchedules(){
       if(teacher)p.set('teacherLogin',teacher);if(group)p.set('groupId',group);if(day)p.set('weekday',day);
     }
     const rows=await api('/schedules'+(p.toString()?'?'+p.toString():''));
-    $('#scheduleList').innerHTML=rows.map(scheduleRow).join('')||'<div class="empty"><b>Dars jadvali hali shakllantirilmagan</b><p>Administrator jadvalni qo‘lda yoki Excel/CSV orqali kiritadi.</p></div>';
+    $('#scheduleList').innerHTML=renderScheduleBoard(rows);
     bindScheduleActions(); await buildTimetableLinks();
   }catch(e){toast(e.message)}
 }
@@ -169,17 +185,21 @@ async function loadUsers(){
   if(!can('users.manage'))return;
   try{
     const qs=buildUserQuery(),rows=await api('/users'+(qs?'?'+qs:''));
-    $('#usersList').innerHTML='<table><thead><tr><th>F.I.Sh.</th><th>Login</th><th>Rol</th><th>Guruh ID</th><th>Oxirgi kirish</th><th>2FA</th><th>Shaxs</th><th>Holat</th><th>Amallar</th></tr></thead><tbody>'+rows.map(function(x){
+    $('#usersList').innerHTML='<div class="user-card-list">'+rows.map(function(x){
       let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button><button class="ghost" data-user-edit="'+esc(x._id)+'">Tahrir</button>';
       if(can('permissions.manage'))actions+='<button class="ghost" data-user-permissions="'+esc(x._id)+'">Huquqlar</button>';
       if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>'+(x.totpEnabled?'<button class="ghost" data-user-reset-2fa="'+esc(x._id)+'">2FA reset</button>':'')+(x.identityVerifiedAt?'<button class="ghost" data-user-unverify="'+esc(x._id)+'">Shaxs tasdig‘ini bekor</button>':'<button class="ghost" data-user-verify="'+esc(x._id)+'">Shaxsni tasdiqlash</button>');
-      return '<tr><td>'+esc(x.fullName)+'</td><td>@'+esc(x.login)+'</td><td>'+esc(roleName[x.role]||x.role)+'</td><td>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</td><td>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</td><td>'+(x.totpEnabled?'Yoqilgan':'—')+'</td><td>'+(x.identityVerifiedAt?'Tasdiqlangan':'—')+'</td><td><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span></td><td><div class="row-actions">'+actions+'</div></td></tr>';
-    }).join('')+'</tbody></table>';
+      return '<details class="user-card"><summary><div class="user-avatar">'+esc((x.fullName||x.login||'?').trim().charAt(0).toUpperCase())+'</div><div class="user-card-main"><b>'+esc(x.fullName)+'</b><span>@'+esc(x.login)+' · '+esc(roleName[x.role]||x.role)+'</span></div><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span><i>⌄</i></summary><div class="user-card-details"><div class="user-facts"><span><small>Guruh</small><b>'+esc(x.groupId?.externalId||x.groupId?.code||x.group||'—')+'</b></span><span><small>Oxirgi kirish</small><b>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</b></span><span><small>2FA</small><b>'+(x.totpEnabled?'Yoqilgan':'—')+'</b></span><span><small>Shaxs tasdig‘i</small><b>'+(x.identityVerifiedAt?'Tasdiqlangan':'—')+'</b></span></div><div class="row-actions">'+actions+'</div></div></details>';
+    }).join('')+'</div>';
     all('[data-user-profile]').forEach(function(b){b.onclick=function(){openUserProfile(b.dataset.userProfile)}});
     all('[data-user-edit]').forEach(function(b){b.onclick=function(){editUser(b.dataset.userEdit)}});
     all('[data-user-permissions]').forEach(function(b){b.onclick=function(){editUserPermissions(b.dataset.userPermissions)}});
     all('[data-user-toggle]').forEach(function(b){b.onclick=function(){toggleUserStatus(b)}});
-    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});all('[data-user-revoke]').forEach(function(b){b.onclick=function(){revokeUserSessions(b.dataset.userRevoke)}});all('[data-user-reset-2fa]').forEach(function(b){b.onclick=function(){resetUserTwoFactor(b.dataset.userReset2fa)}});all('[data-user-verify]').forEach(function(b){b.onclick=function(){verifyUserIdentity(b.dataset.userVerify)}});all('[data-user-unverify]').forEach(function(b){b.onclick=function(){unverifyUserIdentity(b.dataset.userUnverify)}});
+    all('[data-user-reset]').forEach(function(b){b.onclick=function(){resetUserPassword(b.dataset.userReset)}});
+    all('[data-user-revoke]').forEach(function(b){b.onclick=function(){revokeUserSessions(b.dataset.userRevoke)}});
+    all('[data-user-reset-2fa]').forEach(function(b){b.onclick=function(){resetUserTwoFactor(b.dataset.userReset2fa)}});
+    all('[data-user-verify]').forEach(function(b){b.onclick=function(){verifyUserIdentity(b.dataset.userVerify)}});
+    all('[data-user-unverify]').forEach(function(b){b.onclick=function(){unverifyUserIdentity(b.dataset.userUnverify)}});
   }catch(e){$('#usersList').innerHTML='<p style="padding:15px">'+esc(e.message)+'</p>'}
 }
 async function toggleUserStatus(b){
