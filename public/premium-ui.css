@@ -984,3 +984,193 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
 @media(max-width:680px){
   .conference-controls button.is-busy::before{inset:2px;border-radius:8px}
 }
+
+
+/* === Zoom-like live classroom controls === */
+.control-badge{
+  position:absolute;
+  top:-5px;
+  right:-5px;
+  min-width:16px;
+  height:16px;
+  padding:0 4px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  font-size:8px;
+  font-style:normal;
+  font-weight:900;
+  background:#d92d20;
+  color:#fff;
+  border:2px solid var(--surface);
+  z-index:4;
+}
+.network-quality,
+.lesson-time-left{
+  flex:0 0 auto;
+  min-height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 9px;
+  border-radius:9px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  font-size:10px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.network-quality.good{color:#087a52;background:#e7f8f0;border-color:#a9dec8}
+.network-quality.mid{color:#9a6700;background:#fff7df;border-color:#ead499}
+.network-quality.bad{color:#b42318;background:#fff0ee;border-color:#f0c3bd}
+.lesson-time-left.warning{color:#b42318;background:#fff0ee;border-color:#f0c3bd;animation:m2-time-pulse 1s ease-in-out infinite alternate}
+@keyframes m2-time-pulse{to{box-shadow:0 0 0 4px rgba(180,35,24,.08)}}
+
+.live-popover{
+  position:fixed;
+  left:50%;
+  bottom:78px;
+  transform:translateX(-50%);
+  z-index:1500;
+  display:flex;
+  gap:6px;
+  padding:8px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface);
+  box-shadow:0 14px 40px rgba(0,0,0,.2);
+}
+.live-popover.hidden{display:none!important}
+.live-popover button{
+  width:40px;height:40px;padding:0;border-radius:9px;font-size:20px
+}
+.device-popover{
+  width:min(420px,92vw);
+  display:grid;
+  gap:8px;
+}
+.device-popover label{display:grid;gap:4px;font-size:10px;font-weight:700}
+.device-popover select{width:100%;min-height:38px}
+
+.reaction-stage{
+  position:fixed;
+  right:18px;
+  bottom:86px;
+  z-index:1450;
+  display:grid;
+  gap:7px;
+  pointer-events:none;
+}
+.reaction-bubble{
+  padding:8px 10px;
+  border-radius:999px;
+  background:rgba(8,18,34,.88);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:0 8px 20px rgba(0,0,0,.2);
+  animation:m2-reaction-up 2.4s ease forwards;
+}
+@keyframes m2-reaction-up{
+  0%{opacity:0;transform:translateY(12px) scale(.92)}
+  15%{opacity:1;transform:translateY(0) scale(1)}
+  80%{opacity:1}
+  100%{opacity:0;transform:translateY(-32px) scale(1.05)}
+}
+
+.connection-banner{
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:1700;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#b42318;
+  color:#fff;
+  font-size:11px;
+  font-weight:900;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+
+.teacher-quick-controls{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  padding:8px 10px;
+  border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--bg) 65%,var(--surface));
+}
+.teacher-quick-controls button{
+  padding:6px 8px!important;
+  font-size:9px!important;
+  min-height:30px!important;
+  border-radius:8px!important;
+}
+
+/* gallery / speaker / pin */
+#videoMount .ms-grid.gallery-view:not(.screen-layout):not(.has-focus){
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important;
+  grid-auto-rows:minmax(130px,1fr)!important;
+  gap:7px!important;
+}
+#videoMount .ms-grid.gallery-view:not(.screen-layout):not(.has-focus) .ms-tile{
+  display:block!important;
+  min-height:130px!important;
+  aspect-ratio:16/9!important;
+}
+#videoMount .ms-tile.pinned{
+  outline:3px solid #3b82f6!important;
+  box-shadow:0 0 0 5px rgba(59,130,246,.15)!important;
+}
+#videoMount .ms-tile.speaking{
+  border-color:#19b56b!important;
+  box-shadow:0 0 0 3px rgba(25,181,107,.22)!important;
+}
+
+/* low-bandwidth mode keeps visual load small */
+#videoMount.low-bandwidth-mode .ms-tile:not(.role-teacher):not(.active-speaker):not(.focused) .ms-video{
+  filter:saturate(.85);
+}
+#videoMount.low-bandwidth-mode .ms-grid.gallery-view{
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;
+}
+
+/* make compact controls usable without losing discoverability */
+.conference-controls{
+  position:relative;
+}
+.conference-controls::-webkit-scrollbar{height:5px}
+.conference-controls::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 35%,transparent);border-radius:999px}
+
+@media(max-width:680px){
+  .network-quality{display:none}
+  .lesson-time-left{
+    min-width:58px!important;
+    height:38px!important;
+    padding:0 5px!important;
+    font-size:8px!important;
+  }
+  .live-popover{bottom:64px}
+  .reaction-stage{right:8px;bottom:68px}
+  .teacher-quick-controls{padding:6px;gap:4px}
+  .teacher-quick-controls button{font-size:8px!important;padding:5px 6px!important}
+  #videoMount .ms-grid.gallery-view:not(.screen-layout):not(.has-focus){
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    grid-auto-rows:minmax(105px,1fr)!important;
+    gap:4px!important;
+  }
+  #videoMount .ms-grid.gallery-view:not(.screen-layout):not(.has-focus) .ms-tile{
+    min-height:105px!important;
+  }
+  .conference-controls button#callViewMode,
+  .conference-controls button#callRaiseHand,
+  .conference-controls button#callReaction,
+  .conference-controls button#callDevices,
+  .conference-controls button#callFlipCamera,
+  .conference-controls button#callLowBandwidth,
+  .conference-controls button#callRejoin{
+    display:flex!important;
+  }
+}
