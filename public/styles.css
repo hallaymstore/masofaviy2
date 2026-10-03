@@ -162,3 +162,46 @@ html.ultra-lite-device .ms-tile.floating-pip{box-shadow:none!important;border-wi
 .consent-check{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-weight:700}
 .consent-check input{margin-top:4px}
 .info-note.warning{border-color:#f59e0b;background:#fff7ed}
+
+
+/* v32 live mobile dock + raised-hand queue + fullscreen pinch zoom */
+.raised-hand-alert{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:7px;padding:7px;border-radius:12px;background:rgba(5,13,29,.92);box-shadow:0 10px 30px rgba(0,0,0,.28);max-width:min(92%,620px)}
+.raised-hand-alert>button{border:0;border-radius:9px;padding:9px 11px;font-weight:800}
+.raised-hand-alert>button:first-child{background:transparent;color:#fff;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.raised-hand-approve{background:#22c55e;color:#062b17;white-space:nowrap}
+.zoom-dock{overflow:visible!important;display:block!important;padding:8px!important}
+.zoom-primary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.zoom-primary .zoom-control{position:relative;min-width:0;justify-content:center!important;flex-direction:column;gap:2px!important;padding:8px 5px!important;font-size:11px}
+.zoom-primary .zoom-control>span:first-child{font-size:18px;line-height:1}
+.control-badge{position:absolute;top:3px;right:5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;font-style:normal;display:grid;place-items:center}
+.zoom-status{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;font-size:11px}
+.live-more-panel{position:absolute;left:8px;right:8px;bottom:76px;z-index:95;padding:9px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 16px 42px rgba(0,0,0,.25);max-height:min(62vh,520px);overflow:auto}
+.more-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.more-grid>button,.more-grid>.more-select{min-width:0;min-height:54px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);padding:8px;display:flex;align-items:center;justify-content:center;gap:5px;text-align:center;font-weight:700}
+.more-grid>button{flex-direction:column}
+.more-grid .more-select{flex-direction:column}.more-grid .caption-lang{width:100%;padding:5px}
+.ms-tile{overflow:hidden}.ms-tile .ms-video{transform-origin:center center;will-change:transform}
+.ms-tile.focused{touch-action:none}.ms-tile.focused .ms-video,.ms-tile.pinch-active .ms-video{transition:none!important}
+#lesson:fullscreen{padding:0;background:#000;overflow:hidden}
+#lesson:fullscreen .page-head,#lesson:fullscreen .lesson-side,#lesson:fullscreen .lesson-drawer-backdrop{display:none!important}
+#lesson:fullscreen .conference-shell{display:block;height:100dvh}
+#lesson:fullscreen .conference-main{height:100dvh;display:flex;flex-direction:column}
+#lesson:fullscreen .video-stage{flex:1;min-height:0}
+#lesson:fullscreen .video-mount{height:100%!important;min-height:0!important;border:0;border-radius:0}
+#lesson:fullscreen .conference-controls{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:100;width:min(96vw,720px);margin:0;background:rgba(8,18,37,.88);border-color:rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+#lesson:fullscreen .zoom-primary .zoom-control{color:#fff;background:transparent;border-color:rgba(255,255,255,.16)}
+#lesson:fullscreen .zoom-status{color:#fff}
+@media(max-width:680px){
+  .conference-controls{overflow:visible!important}
+  .zoom-primary{grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
+  .zoom-primary .zoom-control{padding:8px 2px!important;min-height:48px}
+  .zoom-primary .zoom-control>span:last-child{display:block!important;font-size:9px}
+  .zoom-primary .zoom-control>span:first-child{font-size:17px}
+  .more-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .live-more-panel{left:4px;right:4px;bottom:70px;max-height:58vh}
+  .raised-hand-alert{top:7px;max-width:96%;padding:5px}
+  .raised-hand-alert>button{padding:7px 8px;font-size:11px}
+  #lesson:fullscreen .conference-controls{bottom:max(6px,env(safe-area-inset-bottom));width:98vw}
+  #lesson:fullscreen .video-stage .live-captions{bottom:76px}
+}
+@media(max-width:380px){.zoom-primary .zoom-control>span:last-child{display:none!important}.zoom-primary .zoom-control{min-height:44px}.more-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
