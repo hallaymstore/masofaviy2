@@ -889,3 +889,77 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
   .user-card-list{max-height:68vh}
   .editor-card{max-height:calc(100vh - 135px)}
 }
+
+
+/* === Mobile live controls: guaranteed visible icons === */
+@media(max-width:680px){
+  .conference-controls button span:last-child:not(:first-child){
+    display:none!important;
+  }
+  .conference-controls button [data-ico]{
+    display:grid!important;
+    place-items:center!important;
+    width:22px!important;
+    height:22px!important;
+    min-width:22px!important;
+    font-size:0!important;
+    color:currentColor!important;
+    line-height:1!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  .conference-controls button [data-ico]>*{
+    display:none!important;
+  }
+  .conference-controls button [data-ico]::before{
+    content:attr(data-fallback)!important;
+    display:block!important;
+    font-size:18px!important;
+    font-weight:900!important;
+    line-height:22px!important;
+    color:currentColor!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  .conference-controls button>span:first-child{
+    display:grid!important;
+    place-items:center!important;
+    min-width:22px!important;
+    min-height:22px!important;
+    color:currentColor!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  #callMic::after,
+  #callCamera::after{
+    content:"OFF";
+    position:absolute;
+    right:2px;
+    bottom:2px;
+    padding:1px 3px;
+    border-radius:4px;
+    font-size:6px;
+    line-height:1.2;
+    font-weight:900;
+    background:#b42318;
+    color:#fff;
+  }
+  #callMic.active-control::after,
+  #callCamera.active-control::after{
+    content:"ON";
+    background:#087a52;
+  }
+  #callCaptions>span:first-child,
+  #captionMath>span:first-child,
+  #captionSize>span:first-child,
+  #accessibilityMode>span:first-child,
+  #callPiP>span:first-child,
+  #callFullscreen>span:first-child,
+  #echoGuard>span:first-child{
+    display:grid!important;
+    place-items:center!important;
+    font-size:15px!important;
+    font-weight:900!important;
+    line-height:1!important;
+  }
+}
