@@ -43,7 +43,7 @@ export class MediaRoomClient{
     if(msg.event==='newProducer')this.maybeConsume(msg.data).catch(this.onError);
     else if(msg.event==='producerClosed')this.closeConsumerByProducer(msg.data?.producerId);
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
-    else if(msg.event==='audioLevels')this.applyAudioLevels(msg.data?.levels||[]);
+    else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
     else if(msg.event==='roomState')this.onState(msg.data||{});
   }
   getPreferredConstraints(kind){
@@ -61,12 +61,8 @@ export class MediaRoomClient{
     this.renderShell();
     this.mount.classList.toggle('ultra-lite-media',this.ultraLite);this.mount.classList.toggle('low-end-media',this.lowEnd);
     await this.createTransports();
-    if(this.user.role==='student'){
-      this.onState({mic:false,camera:false,studentMediaLocked:true});
-    }else{
-      await this.startMicrophone();
-      if(this.user.role==='teacher')await this.toggleCamera();
-    }
+    this.onState({mic:false,camera:false,studentMediaLocked:false});
+    this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
     this.onState({connected:true,participants:joined.participants||[]});
@@ -177,7 +173,7 @@ export class MediaRoomClient{
   attachRemote(consumer,meta){
     const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},isScreen=meta.appData?.mediaTag==='screen',tileKey=isScreen?String(meta.peerId)+':screen':meta.peerId,tile=this.ensureTile(tileKey,isScreen?{...user,fullName:(user.fullName||user.login||'O‘qituvchi')+' · Ekran'}:user,false);
     if(consumer.kind==='audio'){
-      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.volume=this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.45:0.72):1;this.audioBin.appendChild(audio);return;
+      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=audio.dataset.role==='teacher'?1:(this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.72:0.9):1);this.audioBin.appendChild(audio);audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});return;
     }
     const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
     if(isScreen){
@@ -203,18 +199,31 @@ export class MediaRoomClient{
     }
   }
   removePeerTile(peerId){for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
+  speakerTile(peerId){
+    if(String(peerId||'')===String(this.room?.peerId||''))return this.tiles.get('local');
+    return this.tiles.get(peerId);
+  }
   applyAudioLevels(levels){
-    this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker'));
-    const strongest=(levels||[]).slice().sort((a,b)=>(b.volume||-100)-(a.volume||-100))[0];
-    for(const x of levels||[]){const t=this.tiles.get(x.peerId);if(t)t.classList.add('speaking')}
-    if(strongest){
-      const t=this.tiles.get(strongest.peerId);
-      if(t&&!t.classList.contains('local')&&!this.grid.classList.contains('has-focus'))t.classList.add('active-speaker');
-    }
+    this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker','speaker-side'));
+    const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
+    for(const x of valid){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
+    if(this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
+    const strongest=valid[0],main=strongest?this.speakerTile(strongest.peerId):null;
+    if(main){
+      main.classList.add('active-speaker');
+      this.grid?.classList.add('speaker-layout');
+      for(const t of this.tiles.values())if(t!==main&&t.classList.contains('role-teacher')&&t.classList.contains('has-video'))t.classList.add('speaker-side');
+    }else this.grid?.classList.remove('speaker-layout');
+  }
+  installAudioUnlock(){
+    if(this.audioUnlockInstalled)return;this.audioUnlockInstalled=true;
+    this.audioUnlockHandler=()=>{this.audioBin?.querySelectorAll('audio').forEach(a=>a.play().catch(()=>{}));this.audioNeedsUnlock=false;this.onState({audioBlocked:false})};
+    document.addEventListener('pointerdown',this.audioUnlockHandler,{passive:true});
+    document.addEventListener('keydown',this.audioUnlockHandler,{passive:true});
   }
   refreshRemoteAudioVolume(){
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
-    this.audioBin?.querySelectorAll('audio').forEach(a=>a.volume=this.echoGuard?(active?0.45:0.72):1);
+    this.audioBin?.querySelectorAll('audio').forEach(a=>{a.volume=a.dataset.role==='teacher'?1:(this.echoGuard?(active?0.72:0.9):1);a.play().catch(()=>{})});
   }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
@@ -251,6 +260,7 @@ export class MediaRoomClient{
   }
   async close(){
     if(this.closed)return;this.disablePiP();this.closed=true;
+    if(this.audioUnlockHandler){document.removeEventListener('pointerdown',this.audioUnlockHandler);document.removeEventListener('keydown',this.audioUnlockHandler);this.audioUnlockHandler=null;this.audioUnlockInstalled=false}
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
