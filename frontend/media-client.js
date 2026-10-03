@@ -137,12 +137,48 @@ export class MediaRoomClient{
     if(already){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
     target.classList.add('pinned','focused');this.grid?.classList.add('has-focus');this.pinnedUserId=target.dataset.userId||target.dataset.peerId;this.onState({pinnedUserId:this.pinnedUserId});return true;
   }
-  focusTeacherOrScreen(){
+  getPrimaryVideoTile(){
     const tiles=[...this.tiles.values()];
-    const target=tiles.find(t=>t.classList.contains('screen-share'))||tiles.find(t=>t.classList.contains('role-teacher')&&t.classList.contains('has-video'));
+    return tiles.find(t=>t.classList.contains('pinned')&&t.classList.contains('has-video'))
+      ||tiles.find(t=>t.classList.contains('screen-share')&&t.classList.contains('has-video'))
+      ||tiles.find(t=>t.classList.contains('focused')&&t.classList.contains('has-video'))
+      ||tiles.find(t=>t.classList.contains('role-teacher')&&t.classList.contains('has-video'))
+      ||tiles.find(t=>t.classList.contains('active-speaker')&&t.classList.contains('has-video'))
+      ||tiles.find(t=>t.classList.contains('has-video'))
+      ||null;
+  }
+  focusTeacherOrScreen(){
+    const tiles=[...this.tiles.values()],target=this.getPrimaryVideoTile();
     if(!target)return false;
     for(const t of tiles)t.classList.remove('focused');
-    target.classList.add('focused');this.grid?.classList.add('has-focus');this.resetZoom(target);return true;
+    target.classList.add('focused');this.grid?.classList.add('has-focus');this.resetZoom(target);return target;
+  }
+  async enterPrimaryFullscreen(){
+    const target=this.focusTeacherOrScreen();
+    if(!target)throw new Error('Asosiy video topilmadi');
+    const video=qs('video',target);
+    try{
+      if(target.requestFullscreen){
+        await target.requestFullscreen({navigationUI:'hide'}).catch(()=>target.requestFullscreen());
+        try{await screen.orientation?.lock?.('landscape')}catch{}
+        return {active:true,mode:'tile'};
+      }
+      if(video?.webkitEnterFullscreen){
+        video.webkitEnterFullscreen();
+        return {active:true,mode:'video'};
+      }
+    }catch{}
+    document.documentElement.classList.add('video-cinema-fallback');
+    target.classList.add('cinema-primary');
+    try{await screen.orientation?.lock?.('landscape')}catch{}
+    return {active:true,mode:'fallback'};
+  }
+  async exitPrimaryFullscreen(){
+    if(document.fullscreenElement)try{await document.exitFullscreen()}catch{}
+    document.documentElement.classList.remove('video-cinema-fallback');
+    for(const t of this.tiles.values())t.classList.remove('cinema-primary');
+    try{screen.orientation?.unlock?.()}catch{}
+    return {active:false};
   }
   resetZoom(tile=null){
     const targets=tile?[tile]:[...this.tiles.values()];
