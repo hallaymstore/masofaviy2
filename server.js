@@ -900,9 +900,18 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   if(req.user.role==='teacher')filter.teacherId=req.user._id;
   else if(req.user.role==='student'){const gid=await resolveUserGroupId(req.user);if(!gid)return res.json({dateKey:localDateKey(),rooms:[]});filter.groupId=gid}
   else if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){try{const scope=await resolveScope(req.user,{});filter.groupId={$in:scope.groupIds}}catch{return res.json({dateKey:localDateKey(),rooms:[]})}}
-  const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
-  const rooms=schedules.map(x=>({schedule:x,session:bySchedule[String(x._id)]?{id:bySchedule[String(x._id)]._id,status:bySchedule[String(x._id)].status,startedAt:bySchedule[String(x._id)].startedAt,endedAt:bySchedule[String(x._id)].endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||bySchedule[String(x._id)].currentParticipants||0,participantPeak:Math.max(bySchedule[String(x._id)].participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage'),canJoin:req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support')}));
-  res.json({dateKey,provider:'mediasoup',sfuBridge:SFU_BRIDGE_URL,turnEnabled:Boolean(mediaIceServers().length),rooms});
+  const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),nowMinute=localMinuteOfDay(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
+  const expiredIds=schedules.filter(x=>bySchedule[String(x._id)]?.status==='active'&&nowMinute>=timeToMinutes(x.end)).map(x=>x._id);
+  if(expiredIds.length){
+    const endedAt=new Date();
+    await LiveSession.updateMany({dateKey,scheduleId:{$in:expiredIds},status:'active'},{$set:{status:'ended',endedAt,currentParticipants:0}});
+    for(const sid of expiredIds){const row=bySchedule[String(sid)];if(row){row.status='ended';row.endedAt=endedAt}io.to('lesson:'+String(sid)).emit('lesson:auto-ended',{scheduleId:String(sid),endedAt});io.emit('live:changed',{scheduleId:String(sid),status:'ended',automatic:true})}
+  }
+  const rooms=schedules.map(x=>{
+    const startMinute=timeToMinutes(x.start),endMinute=timeToMinutes(x.end),session=bySchedule[String(x._id)],isTeacher=String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
+    return {schedule:x,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||session.currentParticipants||0,participantPeak:Math.max(session.participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:isTeacher&&nowMinute>=Math.max(0,startMinute-10)&&nowMinute<endMinute,canJoin:(req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support'))&&nowMinute<endMinute,startMinute,endMinute,nowMinute};
+  });
+  res.json({dateKey,provider:'mediasoup',sfuBridge:SFU_BRIDGE_URL,turnEnabled:Boolean(mediaIceServers().length),nowMinute,rooms});
 });
 app.get('/api/live/rooms/:scheduleId/participants',auth,async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
@@ -983,6 +992,26 @@ app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   if(session){audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'})}
   res.json({ok:true});
 });
+const autoEndLiveLessons=async()=>{
+  try{
+    const dateKey=localDateKey(),nowMinute=localMinuteOfDay(),active=await LiveSession.find({dateKey,status:'active'}).select('_id scheduleId').lean();
+    if(!active.length)return;
+    const schedules=await Schedule.find({_id:{$in:active.map(x=>x.scheduleId)}}).select('_id end').lean(),endMap=new Map(schedules.map(x=>[String(x._id),timeToMinutes(x.end)]));
+    const expired=active.filter(x=>nowMinute>=Number(endMap.get(String(x.scheduleId))??1440));
+    if(!expired.length)return;
+    const endedAt=new Date(),ids=expired.map(x=>x._id);
+    await LiveSession.updateMany({_id:{$in:ids},status:'active'},{$set:{status:'ended',endedAt,currentParticipants:0}});
+    for(const row of expired){
+      const sid=String(row.scheduleId);
+      io.to('lesson:'+sid).emit('lesson:auto-ended',{scheduleId:sid,endedAt});
+      io.emit('live:changed',{scheduleId:sid,status:'ended',automatic:true});
+    }
+  }catch(e){console.error('autoEndLiveLessons',e?.message||e)}
+};
+setInterval(autoEndLiveLessons,20000).unref?.();
+setTimeout(autoEndLiveLessons,3000).unref?.();
+
+
 
 app.get('/api/videos', auth, async(req,res)=>{
   const filter={published:true};if((hasPermission(req.user,'videos.manage')||hasPermission(req.user,'videos.upload'))&&req.query.all==='1')delete filter.published;
