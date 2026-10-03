@@ -91,7 +91,7 @@ export class MediaRoomClient{
   }
   ensureTile(peerId,user={},local=false){
     if(this.tiles.has(peerId))return this.tiles.get(peerId);
-    const tile=el('div',{className:'ms-tile',dataset:{peerId}});
+    const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-student',user.role==='student');
     const video=el('video',{autoplay:true,playsInline:true,muted:local});video.className='ms-video';
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
@@ -138,19 +138,25 @@ export class MediaRoomClient{
   }
   async toggleScreen(){
     const p=this.producers.get('screen');
-    if(p){await this.closeProducer('screen');if(this.cameraPausedForScreen){const cam=this.producers.get('camera');if(cam){cam.resume();cam.track.enabled=true;await this.request('resumeProducer',{producerId:cam.id}).catch(()=>{})}this.cameraPausedForScreen=false}this.onState({screen:false});return false}
+    if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
     try{
       const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:lite?8:12,max:lite?12:20}},audio:false}),track=stream.getVideoTracks()[0];
-      if(this.mediaProfile==='lecture-lite'){const cam=this.producers.get('camera');if(cam&&!cam.paused){cam.pause();cam.track.enabled=false;await this.request('pauseProducer',{producerId:cam.id}).catch(()=>{});this.cameraPausedForScreen=true}}
-      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:lite?700000:1800000}],appData:{mediaTag:'screen',role:this.user.role}});
-      this.producers.set('screen',producer);producer.on('trackended',()=>this.closeProducer('screen'));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
+      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:lite?900000:2200000}],appData:{mediaTag:'screen',role:this.user.role}});
+      this.producers.set('screen',producer);
+      const screenTile=this.ensureTile('local:screen',{fullName:(this.user.fullName||this.user.login)+' · Ekran',role:this.user.role},true);
+      screenTile.classList.add('screen-share','local-screen','has-video');
+      const screenVideo=qs('video',screenTile);screenVideo.srcObject=new MediaStream([track]);screenVideo.muted=true;
+      this.grid?.classList.add('screen-layout');
+      const cameraTile=this.tiles.get('local');if(cameraTile?.classList.contains('has-video'))cameraTile.classList.add('screen-camera-pip');
+      producer.on('trackended',()=>this.closeProducer('screen'));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
     }catch(e){if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
   }
   async closeProducer(tag){
     const p=this.producers.get(tag);if(!p)return;
     try{await this.request('closeProducer',{producerId:p.id})}catch{}
     try{p.close()}catch{};try{p.track?.stop()}catch{};this.producers.delete(tag);
-    if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video')}}
+    if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}}
+    if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip')}
   }
   shouldConsume(meta){
     if(meta.kind==='audio')return true;
@@ -169,12 +175,16 @@ export class MediaRoomClient{
     consumer.on('transportclose',()=>this.removeConsumer(meta.producerId));consumer.on('producerclose',()=>this.removeConsumer(meta.producerId));
   }
   attachRemote(consumer,meta){
-    const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},tile=this.ensureTile(meta.peerId,user,false);
+    const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},isScreen=meta.appData?.mediaTag==='screen',tileKey=isScreen?String(meta.peerId)+':screen':meta.peerId,tile=this.ensureTile(tileKey,isScreen?{...user,fullName:(user.fullName||user.login||'O‘qituvchi')+' · Ekran'}:user,false);
     if(consumer.kind==='audio'){
       const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.volume=this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.45:0.72):1;this.audioBin.appendChild(audio);return;
     }
     const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
-    if(meta.appData?.mediaTag==='screen')tile.classList.add('screen-share');
+    if(isScreen){
+      tile.classList.add('screen-share');
+      this.grid?.classList.add('screen-layout');
+      const teacherTile=this.tiles.get(meta.peerId);if(teacherTile?.classList.contains('has-video'))teacherTile.classList.add('screen-camera-pip');
+    }else if(user.role==='teacher'&&this.tiles.get(String(meta.peerId)+':screen'))tile.classList.add('screen-camera-pip');
   }
   async updateVisibility(){
     if(this.closed)return;const pause=document.hidden;
@@ -187,7 +197,7 @@ export class MediaRoomClient{
     try{c.close()}catch{};this.consumers.delete(producerId);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.producerId===producerId)a.remove()});
   }
-  removePeerTile(peerId){const t=this.tiles.get(peerId);if(t){t.remove();this.tiles.delete(peerId)}}
+  removePeerTile(peerId){for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   applyAudioLevels(levels){
     this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker'));
     const strongest=(levels||[]).slice().sort((a,b)=>(b.volume||-100)-(a.volume||-100))[0];
