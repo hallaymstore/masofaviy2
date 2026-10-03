@@ -432,3 +432,106 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     right:8px;bottom:8px;width:34%!important;min-width:112px;border-radius:8px;
   }
 }
+
+
+/* Live lesson right drawer: attendance, camera/mic requests and chat */
+.conference-shell{
+  grid-template-columns:minmax(0,1fr)!important;
+  position:relative;
+}
+.lesson-side{
+  position:fixed!important;
+  top:72px;
+  right:0;
+  bottom:0;
+  width:min(430px,92vw);
+  min-height:0!important;
+  max-height:none!important;
+  z-index:1300;
+  border-radius:16px 0 0 16px!important;
+  box-shadow:-18px 0 48px rgba(15,23,42,.22);
+  transform:translateX(105%);
+  transition:transform .2s ease;
+  display:flex;
+  flex-direction:column;
+  background:var(--surface)!important;
+}
+.lesson-side.open{transform:translateX(0)}
+.lesson-drawer-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:1290;
+  border:0;
+  padding:0;
+  background:rgba(5,12,25,.35);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .18s ease;
+}
+.lesson-drawer-backdrop.show{opacity:1;pointer-events:auto}
+.lesson-drawer-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 14px;
+  border-bottom:1px solid var(--line);
+}
+.lesson-drawer-head>div{display:grid;gap:2px}
+.lesson-drawer-head b{font-size:14px}
+.lesson-drawer-head small{font-size:10px;color:var(--muted)}
+.lesson-drawer-close{
+  width:36px;height:36px;
+  display:grid;place-items:center;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface);
+  color:var(--text);
+  font-size:24px;
+  line-height:1;
+  cursor:pointer;
+}
+.lesson-side-tabs{flex:0 0 auto}
+.participants-panel,#lessonChatPanel{min-height:0;flex:1}
+.participant-list{
+  max-height:none!important;
+  overflow:auto!important;
+  flex:1;
+  padding-bottom:90px!important;
+}
+.attendance-manual-toolbar{
+  position:sticky;
+  top:0;
+  z-index:4;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.participant-row{
+  grid-template-columns:10px minmax(0,1fr)!important;
+  align-items:start!important;
+}
+.participant-actions{
+  grid-column:2!important;
+  width:100%;
+  justify-content:flex-start!important;
+  flex-wrap:wrap!important;
+  gap:6px!important;
+}
+.participant-actions button,
+.participant-actions select,
+.participant-actions label{
+  max-width:100%;
+}
+.lesson-drawer-open{overflow:hidden}
+#callAttendance.active-control{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:680px){
+  .lesson-side{
+    top:0;
+    width:100vw;
+    border-radius:0!important;
+  }
+  .lesson-drawer-head{padding-top:max(13px,env(safe-area-inset-top))}
+  .participant-row{padding:10px!important}
+  .participant-actions{gap:5px!important}
+}
