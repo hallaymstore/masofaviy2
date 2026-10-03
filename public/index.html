@@ -8,7 +8,7 @@
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261003-3">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-4">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -32,7 +32,7 @@
     <label>Parol<input name="password" type="password" autocomplete="current-password" placeholder="Parol" required></label>
     <label id="loginOtpWrap" class="hidden">2 bosqichli kod<input name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="6 xonali kod yoki recovery kod"></label>
     <button class="primary login-submit">Kirish</button><p id="loginError" class="error"></p>
-    <div class="login-help"><b>Akkaunt yo‘qmi?</b><span>Login va parolni fakultet mas’uli yoki texnik xodim beradi.</span></div>
+    <div class="login-help"><b>Akkaunt yo‘qmi?</b><span>Login va parolni fakultet mas’uli yoki texnik xodim beradi.</span></div><div class="login-legal"><span>Tizimga kirish orqali platformaning ichki tartiblariga rioya qilasiz.</span><div><a href="/terms.html" target="_blank" rel="noopener">Foydalanish shartlari</a><span>·</span><a href="/privacy.html" target="_blank" rel="noopener">Maxfiylik siyosati</a></div></div>
   </form>
 </div>
 
@@ -327,6 +327,8 @@
   <button id="acceptPrivacy" class="secondary" type="button">Maxfiylik shartlariga rozilik</button>
   <button id="privacyRequestBtn" class="secondary" type="button">Ma’lumot bo‘yicha so‘rov</button>
   <button id="oneIdStatusBtn" class="secondary" type="button">OneID holati</button>
+  <a class="secondary legal-link-btn" href="/terms.html" target="_blank" rel="noopener">Foydalanish shartlari</a>
+  <a class="secondary legal-link-btn" href="/privacy.html" target="_blank" rel="noopener">Maxfiylik siyosati</a>
 </div>
 </article></div>
     </section>
@@ -350,14 +352,13 @@
 
 <dialog id="faceDemoDialog" class="face-demo-dialog">
   <div class="face-demo-card">
-    <div class="modal-head"><div><h2>Demo Face ID</h2><small>Vaqtinchalik sinov rejimi</small></div></div>
-    <div class="info-note warning"><b>DEMO</b><span>Bu OneID yoki huquqiy biometrik identifikatsiya emas. Kamera faqat preview uchun ishlatiladi, yuz rasmi va biometrik shablon saqlanmaydi.</span></div>
-    <video id="faceDemoVideo" autoplay muted playsinline></video>
-    <label class="consent-check"><input id="faceDemoConsent" type="checkbox"> Kamera orqali demo tekshiruviga roziman</label>
-    <div id="faceDemoStatus" class="info-note">Kamera tayyorlanmoqda…</div>
-    <div class="modal-actions"><button id="faceDemoConfirm" class="primary" type="button" disabled>Tasdiqlash</button></div>
+    <div class="modal-head"><div><h2>Face ID tekshiruvi</h2><small>Sinov rejimi · 5 soniya</small></div></div>
+    <div class="info-note warning"><b>Demo rejim</b><span>Kamera ruxsatini berganingizdan keyin 5 soniya yuzingizni kameraga qarating. Hozircha kimligi tekshirilmaydi, yuz rasmi va biometrik shablon saqlanmaydi.</span></div>
+    <div class="face-video-wrap"><video id="faceDemoVideo" autoplay muted playsinline></video><div id="faceCountdown" class="face-countdown">5</div></div>
+    <div id="faceDemoStatus" class="info-note">Kamera ochilishi kutilmoqda…</div>
+    <div class="modal-actions"><button id="faceDemoRetry" class="secondary hidden" type="button">Kamerani qayta ochish</button></div>
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-3"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261002-10"></script><script type="module" src="/app.js?v=20261003-4"></script>
 </body></html>
