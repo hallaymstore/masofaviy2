@@ -223,12 +223,12 @@ async function loadUsers(){
     $('#usersList').innerHTML='<div class="user-card-list">'+rows.map(function(x){
       let actions='<button class="ghost" data-user-profile="'+esc(x._id)+'">Profil</button><button class="ghost" data-user-edit="'+esc(x._id)+'">Tahrir</button>';
       if(can('permissions.manage'))actions+='<button class="ghost" data-user-permissions="'+esc(x._id)+'">Huquqlar</button>';
-      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>'+(x.totpEnabled?'<button class="ghost" data-user-reset-2fa="'+esc(x._id)+'">2FA reset</button>':'')+(x.identityVerifiedAt?'<button class="ghost" data-user-unverify="'+esc(x._id)+'">Shaxs tasdig‘ini bekor</button>':'<button class="ghost" data-user-verify="'+esc(x._id)+'">Shaxsni tasdiqlash</button>');
+      if(can('users.control'))actions+='<button class="ghost" data-user-toggle="'+esc(x._id)+'" data-active="'+(x.active?'1':'0')+'">'+(x.active?'Bloklash':'Ochish')+'</button><button class="ghost" data-user-reset="'+esc(x._id)+'">Parol</button><button class="ghost" data-user-revoke="'+esc(x._id)+'">Sessiyalar</button>'+(x.totpEnabled?'<button class="ghost" data-user-reset-2fa="'+esc(x._id)+'">2FA reset</button>':'')+(x.role==='student'?'':(x.identityVerifiedAt?'<button class="ghost" data-user-unverify="'+esc(x._id)+'">Shaxs tasdig‘ini bekor</button>':'<button class="ghost" data-user-verify="'+esc(x._id)+'">Shaxsni tasdiqlash</button>'));
       const groupLabel=x.groupId?.externalId||x.groupId?.code||x.group||'—';
       const groupName=x.groupId?.name||x.group||'—';
       const courseLabel=x.courseYear?x.courseYear+'-kurs':'Kurs —';
       const directionLabel=x.direction||'Yo‘nalish —';
-      return '<details class="user-card '+(x.identityVerifiedAt?'user-verified':'user-unverified')+'"><summary><div class="user-avatar">'+esc((x.fullName||x.login||'?').trim().charAt(0).toUpperCase())+'</div><div class="user-card-main"><b>'+esc(x.fullName)+'</b><span>@'+esc(x.login)+' · '+esc(roleName[x.role]||x.role)+'</span><div class="user-quick-meta"><span class="user-meta-chip">'+esc(courseLabel)+'</span><span class="user-meta-chip">'+esc(groupLabel)+'</span><span class="user-meta-direction">'+esc(directionLabel)+'</span></div></div><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span><i>⌄</i></summary><div class="user-card-details"><div class="user-facts"><span><small>Guruh</small><b>'+esc(groupName)+'</b><small>'+esc(groupLabel)+'</small></span><span><small>Kurs</small><b>'+esc(courseLabel)+'</b></span><span><small>Yo‘nalish</small><b>'+esc(directionLabel)+'</b></span><span><small>Oxirgi kirish</small><b>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</b></span><span><small>2FA</small><b>'+(x.totpEnabled?'Yoqilgan':'—')+'</b></span><span class="identity-status-box '+(x.identityVerifiedAt?'verified':'unverified')+'"><small>Shaxs tasdig‘i</small><b>'+(x.identityVerifiedAt?'Tasdiqlangan':'Tasdiqlanmagan')+'</b></span></div><div class="row-actions">'+actions+'</div></div></details>';
+      return '<details class="user-card '+(x.role==='student'?'user-student-free':(x.identityVerifiedAt?'user-verified':'user-unverified'))+'"><summary><div class="user-avatar">'+esc((x.fullName||x.login||'?').trim().charAt(0).toUpperCase())+'</div><div class="user-card-main"><b>'+esc(x.fullName)+'</b><span>@'+esc(x.login)+' · '+esc(roleName[x.role]||x.role)+'</span><div class="user-quick-meta"><span class="user-meta-chip">'+esc(courseLabel)+'</span><span class="user-meta-chip">'+esc(groupLabel)+'</span><span class="user-meta-direction">'+esc(directionLabel)+'</span></div></div><span class="status '+(x.active?'ok':'blocked')+'">'+(x.active?'Faol':'Blok')+'</span><i>⌄</i></summary><div class="user-card-details"><div class="user-facts"><span><small>Guruh</small><b>'+esc(groupName)+'</b><small>'+esc(groupLabel)+'</small></span><span><small>Kurs</small><b>'+esc(courseLabel)+'</b></span><span><small>Yo‘nalish</small><b>'+esc(directionLabel)+'</b></span><span><small>Oxirgi kirish</small><b>'+(x.lastLoginAt?new Date(x.lastLoginAt).toLocaleString('uz-UZ'):'—')+'</b></span><span><small>2FA</small><b>'+(x.totpEnabled?'Yoqilgan':'—')+'</b></span><span class="identity-status-box '+(x.role==='student'?'free':(x.identityVerifiedAt?'verified':'unverified'))+'"><small>Shaxs tasdig‘i</small><b>'+(x.role==='student'?'Talab qilinmaydi':(x.identityVerifiedAt?'Tasdiqlangan':'Tasdiqlanmagan'))+'</b></span></div><div class="row-actions">'+actions+'</div></div></details>';
     }).join('')+'</div>';
     all('[data-user-profile]').forEach(function(b){b.onclick=function(){openUserProfile(b.dataset.userProfile)}});
     all('[data-user-edit]').forEach(function(b){b.onclick=function(){editUser(b.dataset.userEdit)}});
@@ -267,6 +267,14 @@ async function resetUserPassword(id){
   try{const x=await api('/users/'+id+'/reset-password',{method:'POST',body:'{}'});alert('Yangi vaqtinchalik parol:\n\n'+x.temporaryPassword+'\n\nKeyingi kirishda foydalanuvchi parolni almashtirishi shart.')}catch(e){toast(e.message)}
 }
 $('#applyUserFilter').onclick=loadUsers;
+$('#resetTestStudents')?.addEventListener('click',async()=>{
+  if(!confirm('Barcha mavjud TALABA akkauntlari o‘chiriladi va student001–student040 qayta yaratiladi. Davom etilsinmi?'))return;
+  try{
+    const out=await api('/users/test-students/reset',{method:'POST'});
+    toast(out.created+' ta test talaba yaratildi · parol: '+out.password);
+    $('#userSearch').value='';$('#userRoleFilter').value='student';await loadUsers();
+  }catch(e){toast(e.message)}
+});
 $('#userSearch').addEventListener('keydown',function(e){if(e.key==='Enter')loadUsers()});
 async function editUser(id){
   try{
