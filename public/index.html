@@ -8,7 +8,7 @@
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261003-18">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261003-19">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -244,23 +244,42 @@
       <div class="conference-shell">
         <div class="conference-main">
           <div class="video-stage"><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
-          <div class="conference-controls">
-            <button id="callMic"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
-            <button id="callCamera"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
-            <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select><button id="echoGuard" title="Yonma-yon qurilmalarda shovqinni kamaytiradi"><span>🔇</span><span>Echo himoya</span></button>
-            <button id="callAttendance"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
-            <button id="callChat"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
-            <button id="callViewMode" title="Speaker / Gallery"><span>▦</span><span>Ko‘rinish</span></button>
-            <button id="callRaiseHand" title="Qo‘l ko‘tarish"><span>✋</span><span>Qo‘l</span></button>
-            <button id="callReaction" title="Reaksiya"><span>👏</span><span>Reaksiya</span></button>
-            <button id="callDevices" title="Mic va kamera tanlash"><span>⌃</span><span>Qurilmalar</span></button>
-            <button id="callFlipCamera" title="Old/orqa kamera"><span>↻</span><span>Kamera aylantirish</span></button>
-            <button id="callLowBandwidth" title="Kam internet rejimi"><span>⇣</span><span>Lite</span></button>
-            <button id="callRejoin" class="hidden" title="Qayta ulanish"><span>↺</span><span>Qayta kirish</span></button>
-            <span id="networkQualityBadge" class="network-quality good" title="Tarmoq sifati">● Yaxshi</span>
-            <span id="lessonTimeLeft" class="lesson-time-left">--:--</span><button id="callCaptions"><span>CC</span><span>Subtitr</span></button><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select><button id="captionMath" title="Son va matematik amallarni formulaga aylantirish"><span>∑</span><span>Matematika</span></button><button id="captionSize" title="Subtitr o‘lchami"><span>A+</span></button><button id="accessibilityMode" title="Inklyuziv qulaylik rejimi"><span>◐</span><span>Qulaylik</span></button><button id="callPiP" title="Kamerani kichik suzuvchi oynada ko‘rsatish"><span>▣</span><span>PiP</span></button><button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
-            <button id="callHangup" class="danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
+          <div class="conference-controls zoom-dock">
+            <div class="zoom-primary">
+              <button id="callMic" class="zoom-control"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
+              <button id="callCamera" class="zoom-control"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
+              <button id="callScreen" class="zoom-control"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button>
+              <button id="callAttendance" class="zoom-control"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
+              <button id="callChat" class="zoom-control"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
+              <button id="callRaiseHand" class="zoom-control"><span>✋</span><span>Qo‘l</span></button>
+              <button id="callReaction" class="zoom-control"><span>👏</span><span>Reaksiya</span></button>
+              <button id="callViewMode" class="zoom-control"><span>▦</span><span>Ko‘rinish</span></button>
+              <button id="callMore" class="zoom-control"><span>•••</span><span>Yana</span></button>
+              <button id="callHangup" class="zoom-control danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
+            </div>
+            <div class="zoom-status">
+              <span id="networkQualityBadge" class="network-quality good" title="Tarmoq sifati">● Yaxshi</span>
+              <span id="lessonTimeLeft" class="lesson-time-left">--:--</span>
+            </div>
+            <div id="liveMorePanel" class="live-more-panel hidden">
+              <div class="more-grid">
+                <label class="more-select"><span>Sifat</span><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
+                <button id="echoGuard"><span>🔇</span><span>Echo himoya</span></button>
+                <button id="callDevices"><span>⌃</span><span>Qurilmalar</span></button>
+                <button id="callFlipCamera"><span>↻</span><span>Kamera aylantirish</span></button>
+                <button id="callLowBandwidth"><span>⇣</span><span>Lite</span></button>
+                <button id="callRejoin" class="hidden"><span>↺</span><span>Qayta kirish</span></button>
+                <button id="callCaptions"><span>CC</span><span>Subtitr</span></button>
+                <label class="more-select"><span>Subtitr tili</span><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select></label>
+                <button id="captionMath"><span>∑</span><span>Matematika</span></button>
+                <button id="captionSize"><span>A+</span><span>Subtitr o‘lchami</span></button>
+                <button id="accessibilityMode"><span>◐</span><span>Qulaylik</span></button>
+                <button id="callPiP"><span>▣</span><span>PiP</span></button>
+                <button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
+              </div>
+            </div>
           </div>
+/div>
         </div>
         <div id="reactionPopover" class="live-popover hidden"><button data-reaction="👍">👍</button><button data-reaction="👏">👏</button><button data-reaction="✋">✋</button><button data-reaction="❤️">❤️</button><button data-reaction="😂">😂</button></div>
         <div id="devicePopover" class="live-popover device-popover hidden"><label>Mikrofon<select id="micDeviceSelect"></select></label><label>Kamera<select id="cameraDeviceSelect"></select></label></div>
@@ -381,5 +400,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261003-19"></script><script type="module" src="/app.js?v=20261003-19"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261003-19"></script><script type="module" src="/app.js?v=20261003-20"></script>
 </body></html>
