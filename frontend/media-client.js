@@ -46,14 +46,30 @@ export class MediaRoomClient{
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
     else if(msg.event==='roomState')this.onState(msg.data||{});
   }
-  getPreferredConstraints(kind){
-    const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=localStorage.getItem(key);
-    if(kind==='audio'){const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16},latency:{ideal:0.02}};return id?{deviceId:{exact:id},...a}:a;}
+  getPreferredConstraints(kind,{ignoreDevice=false}={}){
+    const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
+    if(kind==='audio'){
+      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16}};
+      return id?{deviceId:{ideal:id},...a}:a;
+    }
     const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
     const video=this.ultraLite
-      ?{width:{ideal:426,max:426},height:{ideal:240,max:240},frameRate:{ideal:12,max:12}}
-      :(lite?{width:{ideal:640,max:640},height:{ideal:360,max:360},frameRate:{ideal:15,max:18}}:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:24,max:30}});
-    return id?{deviceId:{exact:id},...video}:video;
+      ?{width:{ideal:426,max:640},height:{ideal:240,max:360},frameRate:{ideal:12,max:15},facingMode:{ideal:'user'}}
+      :(lite?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:'user'}}:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},frameRate:{ideal:24,max:30},facingMode:{ideal:'user'}});
+    return id?{deviceId:{ideal:id},...video}:video;
+  }
+  async getMediaOnce(kind){
+    const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera';
+    const first=kind==='audio'?{audio:this.getPreferredConstraints('audio'),video:false}:{audio:false,video:this.getPreferredConstraints('video')};
+    try{return await navigator.mediaDevices.getUserMedia(first)}
+    catch(e){
+      if(['OverconstrainedError','NotFoundError','DevicesNotFoundError'].includes(e?.name)){
+        localStorage.removeItem(key);
+        const fallback=kind==='audio'?{audio:this.getPreferredConstraints('audio',{ignoreDevice:true}),video:false}:{audio:false,video:this.getPreferredConstraints('video',{ignoreDevice:true})};
+        return navigator.mediaDevices.getUserMedia(fallback);
+      }
+      throw e;
+    }
   }
   async connect(){
     const joined=await this.request('join',{ticket:this.joinPayload.mediaTicket});
@@ -102,13 +118,18 @@ export class MediaRoomClient{
     tile.append(video,avatar,label,mic);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
   }
   async startMicrophone(){
+    if(this.mediaBusy?.mic)return false;
+    this.mediaBusy=this.mediaBusy||{};this.mediaBusy.mic=true;this.onState({micBusy:true});
     try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:this.getPreferredConstraints('audio'),video:false});
-      const track=stream.getAudioTracks()[0];if(!track)return;
-      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:16000},appData:{mediaTag:'mic',role:this.user.role}});
+      const stream=await this.getMediaOnce('audio');
+      const track=stream.getAudioTracks()[0];if(!track)throw new Error('Mikrofon trek topilmadi');
+      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:48000},appData:{mediaTag:'mic',role:this.user.role}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.refreshRemoteAudioVolume();this.onState({mic:true});
-    }catch(e){this.onError(new Error('Mikrofon ochilmadi: '+e.message));this.onState({mic:false})}
+      this.refreshRemoteAudioVolume();this.onState({mic:true});return true;
+    }catch(e){
+      const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
+      this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});return false;
+    }finally{this.mediaBusy.mic=false;this.onState({micBusy:false})}
   }
   async toggleMic(){
     const p=this.producers.get('mic');
@@ -122,12 +143,18 @@ export class MediaRoomClient{
       if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:true});return true}
       p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:false});return false;
     }
+    if(this.mediaBusy?.camera)return false;
+    this.mediaBusy=this.mediaBusy||{};this.mediaBusy.camera=true;this.onState({cameraBusy:true});
     try{
-      const stream=await navigator.mediaDevices.getUserMedia({video:this.getPreferredConstraints('video'),audio:false}),track=stream.getVideoTracks()[0];
+      const stream=await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
+      if(!track)throw new Error('Kamera trek topilmadi');
       const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=lite?[{maxBitrate:120000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:350000,scaleResolutionDownBy:2,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:1,maxFramerate:18}]:[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2500000,scaleResolutionDownBy:1,maxFramerate:30}];
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:lite?300:600},appData:{mediaTag:'camera',role:this.user.role}});
       this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
-    }catch(e){this.onError(new Error('Kamera ochilmadi: '+e.message));return false}
+    }catch(e){
+      const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
+      this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});return false;
+    }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
   attachLocalVideo(track){
     const tile=this.ensureTile('local',{fullName:this.user.fullName,role:this.user.role},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');
