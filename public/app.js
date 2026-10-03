@@ -177,6 +177,17 @@ function modal(title,fields,onSave){
 $('#editorBack')?.addEventListener('click',closeEditor);
 $('#editorCancel')?.addEventListener('click',closeEditor);
 $('#addStructure').onclick=async()=>{if(!cache.structure.length)cache.structure=await api('/structure');const parents=cache.structure.filter(x=>x.active&&(structureType==='department'?x.type==='faculty':structureType==='group'?x.type==='department':false));modal('Yangi '+({faculty:'fakultet',department:'kafedra',group:'guruh'}[structureType]),`<label>Nomi<input name="name" required></label><label>ID<input name="externalId" ${structureType==='group'?'required':''} placeholder="Masalan: ATT-101"></label>${structureType==='faculty'?'':`<label>Yuqori bo‘lim<select name="parentId" required><option value="">Tanlang</option>${parents.map(x=>`<option value="${x._id}">${esc(x.name)}</option>`)}</select></label>`}`,async d=>{await api('/structure',{method:'POST',body:JSON.stringify({...d,type:structureType})});loadStructure()})};
+function scheduleGroupMatchesUser(schedule){
+  if(user?.role!=='student')return true;
+  const ug=user?.groupId||user?.group||null,sg=schedule?.groupId||schedule?.group||null;
+  const values=x=>{
+    if(!x)return [];
+    if(typeof x==='string')return [String(x)];
+    return [x._id,x.externalId,x.code,x.name].filter(Boolean).map(String);
+  };
+  const a=new Set(values(ug));
+  return values(sg).some(v=>a.has(v));
+}
 function renderScheduleBoard(rows){
   if(!rows.length)return '<div class="empty"><b>Dars jadvali hali kiritilmagan</b><p>Jadval qo‘lda yoki Excel/CSV orqali qo‘shiladi.</p></div>';
   const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],today=(new Date().getDay()||7);
@@ -192,7 +203,8 @@ async function loadSchedules(){
       const teacher=$('#scheduleTeacherFilter')?.value?.trim()||'',group=$('#scheduleGroupFilter')?.value?.trim()||'',day=$('#scheduleDayFilter')?.value||'';
       if(teacher)p.set('teacherLogin',teacher);if(group)p.set('groupId',group);if(day)p.set('weekday',day);
     }
-    const rows=await api('/schedules'+(p.toString()?'?'+p.toString():''));
+    let rows=await api('/schedules'+(p.toString()?'?'+p.toString():''));
+    if(user?.role==='student')rows=(rows||[]).filter(scheduleGroupMatchesUser);
     $('#scheduleList').innerHTML=renderScheduleBoard(rows);
     bindScheduleActions(); await buildTimetableLinks();
   }catch(e){toast(e.message)}
@@ -492,13 +504,9 @@ async function loadLiveRooms(){
     const finished=rooms.filter(r=>!current.includes(r)&&!later.includes(r));
 
     const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],distance=d=>((Number(d)-today)+7)%7;
-    const ownGroupId=String(user?.groupId?._id||user?.groupId?.externalId||user?.groupId?.code||user?.groupId||'');
     const upcoming=(scheduleRows||[]).filter(s=>{
       if(Number(s.weekday)===today||s.kind==='final_exam'||s.liveEnabled===false)return false;
-      if(user?.role==='student'){
-        const sg=String(s.groupId?._id||s.groupId?.externalId||s.groupId?.code||s.groupId||'');
-        return Boolean(ownGroupId)&&sg===ownGroupId;
-      }
+      if(user?.role==='student')return scheduleGroupMatchesUser(s);
       return true;
     }).sort((a,b)=>distance(a.weekday)-distance(b.weekday)||String(a.start).localeCompare(String(b.start))).slice(0,16);
 
