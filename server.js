@@ -1100,6 +1100,42 @@ socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim(
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId)socket.leave('lesson:'+lessonId);if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId)io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}catch{} });
 socket.on('disconnect', async()=>{sfuSend({clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
 
+async function ensureQdtuTestAccounts(){
+  const groups=await Structure.find({type:'group',active:true,externalId:/^QDTU-MT-2026-/}).sort({externalId:1}).lean();
+  if(groups.length<12)return;
+  const teacherSeeds=[
+    ['QDTU-T-001','azizbek.karimov','Azizbek Karimov','Azizbek.Karimov2026!'],
+    ['QDTU-T-002','dilshod.raximov','Dilshod Raximov','Dilshod.Raximov2026!'],
+    ['QDTU-T-003','mohira.ergasheva','Mohira Ergasheva','Mohira.Ergasheva2026!'],
+    ['QDTU-T-004','shahnoza.aliyeva','Shahnoza Aliyeva','Shahnoza.Aliyeva2026!'],
+    ['QDTU-T-005','javohir.xasanov','Javohir Xasanov','Javohir.Xasanov2026!'],
+    ['QDTU-T-006','madina.jorayeva','Madina Jo‘rayeva','Madina.Jo‘rayeva2026!'],
+    ['QDTU-T-007','sardor.qodirov','Sardor Qodirov','Sardor.Qodirov2026!'],
+    ['QDTU-T-008','nodira.toxtayeva','Nodira To‘xtayeva','Nodira.To‘xtayeva2026!'],
+    ['QDTU-T-009','bekzod.mamatqulov','Bekzod Mamatqulov','Bekzod.Mamatqulov2026!'],
+    ['QDTU-T-010','nilufar.ismoilova','Nilufar Ismoilova','Nilufar.Ismoilova2026!']
+  ];
+  for(const [externalId,login,fullName,password] of teacherSeeds){
+    if(!await User.exists({externalId}))await User.create({externalId,login,fullName,role:'teacher',passwordHash:await bcrypt.hash(password,11),active:true,mustChangePassword:false,permissions:[],deniedPermissions:[]});
+  }
+  const first=['Azizbek','Diyorbek','Jasurbek','Sherzod','Bekzod','Sardor','Asadbek','Shoxrux','Umid','Akmal','Mohira','Madina','Nilufar','Shahnoza','Dilnoza','Malika','Sevara','Zarina','Gulnoza','Nodira'];
+  const last=['Aliyev','Karimov','Raximov','Xasanov','Qodirov','Mamatqulov','Ismoilov','Tursunov','Ergashev','Jo‘rayev','Sodiqov','Nazarov'];
+  let n=0;
+  for(const g of groups){
+    const count=/DI-01$/.test(g.externalId)?50:10;
+    const dep=g.parentId?await Structure.findById(g.parentId).lean():null,fac=dep?.parentId?await Structure.findById(dep.parentId).lean():null;
+    for(let j=0;j<count;j++,n++){
+      const fn=first[n%first.length],ln=last[Math.floor(n/first.length)%last.length],seq=String(j+1).padStart(2,'0');
+      const key=String(g.code||g.externalId).toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,12);
+      const login=(fn+'.'+ln+'.'+key+seq).toLowerCase().replace(/[‘’']/g,'');
+      const externalId='QDTU-S-'+String(n+1).padStart(4,'0');
+      if(await User.exists({externalId}))continue;
+      await User.create({externalId,login,fullName:fn+' '+ln,role:'student',passwordHash:await bcrypt.hash(fn+'.'+ln+'2026!',11),active:true,mustChangePassword:false,permissions:[],deniedPermissions:[],faculty:fac?.name||'',department:dep?.name||'',group:g.name,facultyId:fac?._id,departmentId:dep?._id,groupId:g._id,courseYear:1,direction:String(g.name||'').replace(/\s+—\s+.*$/,'')});
+    }
+  }
+  console.log('QDTU test akkauntlari tayyor:',await User.countDocuments({externalId:/^QDTU-(T|S)-/}));
+}
+
 async function bootstrap(){
   if(process.env.NODE_ENV==='production'&&!process.env.JWT_SECRET)throw new Error('Production uchun JWT_SECRET majburiy');
   if(process.env.NODE_ENV==='production'&&SFU_BRIDGE_URL&&SFU_BRIDGE_SECRET.length<32)throw new Error('SFU_BRIDGE_URL uchun 32+ belgili SFU_BRIDGE_SECRET majburiy');
@@ -1115,6 +1151,7 @@ async function bootstrap(){
       await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(adminPassword,11),mustChangePassword:false,active:true});
     }
     console.log('MongoDB ulandi');
+    await ensureQdtuTestAccounts();
     const attendanceTimer=setInterval(()=>attendanceSweep().catch(()=>{}),60000);attendanceTimer.unref?.();
   }catch(err){if(process.env.NODE_ENV==='production')throw err;console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
 }
