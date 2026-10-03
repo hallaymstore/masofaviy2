@@ -830,9 +830,16 @@ $('#callPiP')?.addEventListener('click',async()=>{
 $('#callFullscreen')?.addEventListener('click',async()=>{
   try{
     if(!mediaRoomClient)return toast('Avval darsga kiring');
-    mediaRoomClient.focusTeacherOrScreen?.();
-    if(!document.fullscreenElement)await $('#lesson').requestFullscreen();else await document.exitFullscreen();
-  }catch(e){toast('To‘liq ekran ochilmadi')}
+    if(document.fullscreenElement||document.documentElement.classList.contains('video-cinema-fallback'))await mediaRoomClient.exitPrimaryFullscreen?.();
+    else await mediaRoomClient.enterPrimaryFullscreen?.();
+  }catch(e){toast(e.message||'To‘liq ekran ochilmadi')}
+});
+document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement){
+    document.documentElement.classList.remove('video-cinema-fallback');
+    mediaRoomClient?.resetZoom?.();
+    try{screen.orientation?.unlock?.()}catch{}
+  }
 });
 $('#callZoomReset')?.addEventListener('click',()=>mediaRoomClient?.resetZoom?.());
 $('#callHangup').onclick=()=>leaveConference(true);
