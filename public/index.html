@@ -243,17 +243,13 @@
       <div class="page-head"><div><h1 id="liveLessonTitle">Jonli dars xonasi</h1><p id="liveLessonMeta">Guruh video konferensiyasi</p></div><div class="head-actions"><button id="backToLive" class="secondary"><span data-ico="back" data-fallback="←"></span>Guruh darslari</button><button id="endLiveLesson" class="danger hidden">Darsni yakunlash</button></div></div>
       <div class="conference-shell">
         <div class="conference-main">
-          <div class="video-stage"><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
+          <div class="video-stage"><button id="raisedHandAlert" class="raised-hand-alert hidden" type="button">✋ <b id="raisedHandAlertText">Qo‘l ko‘tarildi</b></button><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
           <div class="conference-controls zoom-dock">
             <div class="zoom-primary">
               <button id="callMic" class="zoom-control"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
               <button id="callCamera" class="zoom-control"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
-              <button id="callScreen" class="zoom-control"><span data-ico="screen" data-fallback="□"></span><span>Ekran</span></button>
-              <button id="callAttendance" class="zoom-control"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
               <button id="callChat" class="zoom-control"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
               <button id="callRaiseHand" class="zoom-control"><span>✋</span><span>Qo‘l</span></button>
-              <button id="callReaction" class="zoom-control"><span>👏</span><span>Reaksiya</span></button>
-              <button id="callViewMode" class="zoom-control"><span>▦</span><span>Ko‘rinish</span></button>
               <button id="callMore" class="zoom-control"><span>•••</span><span>Yana</span></button>
               <button id="callHangup" class="zoom-control danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
             </div>
@@ -263,6 +259,10 @@
             </div>
             <div id="liveMorePanel" class="live-more-panel hidden">
               <div class="more-grid">
+                <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran ulashish</span></button>
+                <button id="callAttendance"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
+                <button id="callReaction"><span>👏</span><span>Reaksiya</span></button>
+                <button id="callViewMode"><span>▦</span><span>Ko‘rinish</span></button>
                 <label class="more-select"><span>Sifat</span><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
                 <button id="echoGuard"><span>🔇</span><span>Echo himoya</span></button>
                 <button id="callDevices"><span>⌃</span><span>Qurilmalar</span></button>
@@ -275,7 +275,7 @@
                 <button id="captionSize"><span>A+</span><span>Subtitr o‘lchami</span></button>
                 <button id="accessibilityMode"><span>◐</span><span>Qulaylik</span></button>
                 <button id="callPiP"><span>▣</span><span>PiP</span></button>
-                <button id="callFullscreen"><span>⛶</span><span>To‘liq ekran</span></button>
+                <button id="callFullscreen"><span>⛶</span><span>O‘qituvchi / ekran full</span></button><button id="callZoomReset"><span>↔</span><span>Zoomni tiklash</span></button>
               </div>
             </div>
           </div>
