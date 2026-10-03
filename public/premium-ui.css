@@ -766,3 +766,126 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     border-radius:7px!important;
   }
 }
+
+
+/* === Live schedule UX: current / today / upcoming, compact scroll areas === */
+#liveRooms{
+  display:grid!important;
+  gap:12px!important;
+  min-width:0!important;
+}
+.live-section,
+.live-finished{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface);
+  overflow:hidden;
+}
+.live-section-current{
+  border-color:color-mix(in srgb,var(--good) 38%,var(--line));
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--good) 8%,transparent) inset;
+}
+.live-section-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--bg) 65%,var(--surface));
+}
+.live-section-head>div{display:grid;gap:2px;min-width:0}
+.live-section-head b{font-size:13px}
+.live-section-head small{font-size:10px;color:var(--muted)}
+.live-section-head>span{
+  min-width:28px;height:28px;padding:0 8px;
+  border-radius:999px;display:grid;place-items:center;
+  font-size:10px;font-weight:900;
+  background:var(--bg);color:var(--text);
+}
+.live-scroll-list{
+  display:grid;
+  gap:8px;
+  max-height:min(48vh,520px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  padding:8px;
+  scrollbar-width:thin;
+}
+.live-upcoming-scroll{
+  display:grid;
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(240px,320px);
+  gap:8px;
+  overflow-x:auto;
+  overscroll-behavior-inline:contain;
+  padding:8px;
+  scrollbar-width:thin;
+}
+.live-upcoming-row{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--bg);
+  padding:10px;
+}
+.live-upcoming-row>div{display:grid;gap:4px}
+.live-upcoming-row b{font-size:11px;color:var(--brand)}
+.live-upcoming-row span{font-size:12px;font-weight:800;overflow-wrap:anywhere}
+.live-upcoming-row small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.live-finished summary{
+  cursor:pointer;
+  padding:10px 12px;
+  font-size:11px;
+  font-weight:800;
+  color:var(--muted);
+}
+.live-room-card.is-current{
+  border-color:color-mix(in srgb,var(--brand) 35%,var(--line))!important;
+}
+.live-room-card.is-finished{opacity:.72}
+.empty.compact{padding:14px!important;min-height:0!important}
+
+/* Today is always visually first in the schedule. */
+.schedule-day.is-today{
+  border-color:color-mix(in srgb,var(--brand) 42%,var(--line))!important;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand) 8%,transparent) inset;
+}
+.schedule-day.is-today .schedule-day-head{
+  background:color-mix(in srgb,var(--brand) 7%,var(--surface))!important;
+}
+.today-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--brand);margin-right:6px;vertical-align:1px;
+}
+
+/* Predictable scrolling for dense operational pages. */
+#lessonParticipants,
+#messages,
+.online-list,
+.timeline,
+.inner-table,
+.user-card-list,
+.schedule-day-list{
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.schedule-day-list{max-height:62vh;overflow:auto}
+.user-card-list{max-height:72vh;overflow:auto;padding-right:2px}
+#messages{overflow:auto!important}
+.lesson-side{overscroll-behavior:contain}
+.editor-card{max-height:calc(100vh - 190px);overflow:auto}
+
+/* Keep controls usable on narrow screens without hiding command icons. */
+@media(max-width:680px){
+  .live-scroll-list{max-height:44vh}
+  .live-upcoming-scroll{grid-auto-columns:minmax(215px,82vw)}
+  .live-section-head{padding:8px 9px}
+  .live-room-card{padding:10px!important}
+  .live-room-card h2{font-size:14px!important}
+  .room-meta{font-size:10px!important}
+  .schedule-day-list{max-height:52vh}
+  .user-card-list{max-height:68vh}
+  .editor-card{max-height:calc(100vh - 135px)}
+}
