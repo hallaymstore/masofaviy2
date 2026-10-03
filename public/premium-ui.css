@@ -1174,3 +1174,309 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     display:flex!important;
   }
 }
+
+
+/* === CLEAN ZOOM-LIKE LIVE DOCK OVERRIDE === */
+#lesson .conference-main{
+  min-width:0!important;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) auto!important;
+  gap:10px!important;
+}
+#lesson .video-stage{
+  min-height:0!important;
+}
+#lesson .zoom-dock{
+  position:sticky!important;
+  bottom:8px!important;
+  z-index:80!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:10px!important;
+  width:100%!important;
+  padding:8px 10px!important;
+  margin:0!important;
+  border:1px solid color-mix(in srgb,var(--line) 82%,transparent)!important;
+  border-radius:14px!important;
+  background:color-mix(in srgb,var(--surface) 94%,transparent)!important;
+  backdrop-filter:blur(12px)!important;
+  box-shadow:0 10px 30px rgba(3,15,35,.18)!important;
+  overflow:visible!important;
+}
+#lesson .zoom-primary{
+  min-width:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:6px!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  scrollbar-width:none!important;
+}
+#lesson .zoom-primary::-webkit-scrollbar{display:none!important}
+#lesson .zoom-control{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:62px!important;
+  height:52px!important;
+  min-height:52px!important;
+  padding:5px 8px!important;
+  display:grid!important;
+  grid-template-rows:24px 14px!important;
+  place-items:center!important;
+  gap:1px!important;
+  border-radius:10px!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:var(--text)!important;
+  font-size:10px!important;
+  font-weight:700!important;
+  line-height:1!important;
+}
+#lesson .zoom-control>span:first-child{
+  display:grid!important;
+  place-items:center!important;
+  width:24px!important;
+  height:24px!important;
+  min-width:24px!important;
+  min-height:24px!important;
+  font-size:18px!important;
+  color:currentColor!important;
+}
+#lesson .zoom-control>span:last-child{
+  display:block!important;
+  max-width:72px!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:9px!important;
+}
+#lesson .zoom-control .ui-icon,
+#lesson .zoom-control svg{
+  display:block!important;
+  width:21px!important;
+  height:21px!important;
+  min-width:21px!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+#lesson .zoom-control:hover{
+  background:var(--bg)!important;
+}
+#lesson .zoom-control.is-off{
+  color:#c33228!important;
+  background:color-mix(in srgb,#d92d20 7%,var(--surface))!important;
+  border-color:color-mix(in srgb,#d92d20 22%,var(--line))!important;
+}
+#lesson .zoom-control.active-control{
+  color:#078455!important;
+  background:color-mix(in srgb,#12b76a 9%,var(--surface))!important;
+  border-color:color-mix(in srgb,#12b76a 28%,var(--line))!important;
+}
+#lesson .zoom-control.danger{
+  color:#fff!important;
+  background:#d92d20!important;
+  border-color:#d92d20!important;
+  min-width:66px!important;
+}
+#lesson .zoom-control.danger:hover{background:#b42318!important}
+#lesson #callMic::after,
+#lesson #callCamera::after{
+  right:4px!important;
+  bottom:3px!important;
+}
+#lesson .zoom-status{
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  padding-left:4px!important;
+}
+#lesson .network-quality,
+#lesson .lesson-time-left{
+  min-height:34px!important;
+  height:34px!important;
+  padding:0 9px!important;
+  border-radius:9px!important;
+  font-size:9px!important;
+}
+#lesson .live-more-panel{
+  position:absolute!important;
+  right:8px!important;
+  bottom:68px!important;
+  z-index:1600!important;
+  width:min(440px,calc(100vw - 32px))!important;
+  max-height:min(64vh,560px)!important;
+  overflow:auto!important;
+  padding:10px!important;
+  border:1px solid var(--line)!important;
+  border-radius:14px!important;
+  background:var(--surface)!important;
+  box-shadow:0 18px 55px rgba(2,12,27,.28)!important;
+}
+#lesson .live-more-panel.hidden{display:none!important}
+#lesson .more-grid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:7px!important;
+}
+#lesson .more-grid>button,
+#lesson .more-select{
+  min-width:0!important;
+  min-height:68px!important;
+  padding:8px!important;
+  border:1px solid var(--line)!important;
+  border-radius:10px!important;
+  background:var(--bg)!important;
+  color:var(--text)!important;
+}
+#lesson .more-grid>button{
+  display:grid!important;
+  grid-template-rows:24px auto!important;
+  place-items:center!important;
+  gap:4px!important;
+  font-size:9px!important;
+  text-align:center!important;
+}
+#lesson .more-grid>button>span:first-child{
+  display:grid!important;
+  place-items:center!important;
+  min-width:24px!important;
+  min-height:24px!important;
+  font-size:17px!important;
+}
+#lesson .more-select{
+  display:grid!important;
+  align-content:center!important;
+  gap:5px!important;
+}
+#lesson .more-select>span{
+  font-size:9px!important;
+  font-weight:800!important;
+  color:var(--muted)!important;
+}
+#lesson .more-select select{
+  width:100%!important;
+  min-height:34px!important;
+  padding:4px 6px!important;
+  font-size:10px!important;
+}
+#lesson .control-badge{
+  top:1px!important;
+  right:2px!important;
+  border-width:1px!important;
+}
+
+/* stage proportions */
+#lesson .video-mount{
+  min-height:420px!important;
+  height:min(68vh,760px)!important;
+  border-radius:14px!important;
+  overflow:hidden!important;
+}
+#lesson .ms-grid{
+  min-height:100%!important;
+}
+
+/* desktop: hide redundant labels in tight widths gracefully */
+@media(max-width:1180px){
+  #lesson .zoom-control{
+    min-width:52px!important;
+    padding:5px 6px!important;
+  }
+  #lesson .zoom-control>span:last-child{font-size:8px!important}
+  #lesson .network-quality{display:none!important}
+}
+@media(max-width:900px){
+  #lesson .zoom-dock{
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:6px!important;
+    padding:6px!important;
+    bottom:4px!important;
+  }
+  #lesson .zoom-status{
+    position:absolute!important;
+    top:-36px!important;
+    right:8px!important;
+    padding:0!important;
+  }
+  #lesson .lesson-time-left{
+    height:28px!important;
+    min-height:28px!important;
+    background:rgba(5,15,30,.78)!important;
+    color:#fff!important;
+    border-color:rgba(255,255,255,.16)!important;
+  }
+  #lesson .zoom-control{
+    min-width:48px!important;
+    width:48px!important;
+    height:46px!important;
+    min-height:46px!important;
+    grid-template-rows:24px!important;
+    padding:5px!important;
+  }
+  #lesson .zoom-control>span:last-child{
+    display:none!important;
+  }
+  #lesson .zoom-control>span:first-child{
+    width:24px!important;height:24px!important;
+  }
+  #lesson .zoom-control.danger{
+    min-width:48px!important;
+    width:48px!important;
+  }
+  #lesson .live-more-panel{
+    right:4px!important;
+    bottom:58px!important;
+  }
+  #lesson .more-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #lesson .video-mount{
+    height:min(66vh,640px)!important;
+    min-height:320px!important;
+  }
+}
+@media(max-width:680px){
+  #lesson{
+    padding-left:8px!important;
+    padding-right:8px!important;
+  }
+  #lesson .page-head{
+    gap:6px!important;
+    margin-bottom:8px!important;
+  }
+  #lesson .page-head h1{font-size:20px!important}
+  #lesson .page-head p{font-size:11px!important}
+  #lesson .zoom-primary{
+    justify-content:flex-start!important;
+    gap:4px!important;
+  }
+  #lesson .zoom-control{
+    min-width:44px!important;
+    width:44px!important;
+    height:44px!important;
+    min-height:44px!important;
+    border-radius:9px!important;
+  }
+  #lesson .zoom-control>span:first-child{font-size:17px!important}
+  #lesson .zoom-control .ui-icon,
+  #lesson .zoom-control svg{width:20px!important;height:20px!important}
+  #lesson #callMic::after,
+  #lesson #callCamera::after{
+    font-size:5px!important;
+    right:1px!important;
+    bottom:1px!important;
+  }
+  #lesson .video-mount{
+    min-height:260px!important;
+    height:58vh!important;
+    border-radius:11px!important;
+  }
+  #lesson .live-more-panel{
+    left:4px!important;
+    right:4px!important;
+    bottom:56px!important;
+    width:auto!important;
+    max-height:58vh!important;
+  }
+  #lesson .more-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
