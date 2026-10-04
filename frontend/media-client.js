@@ -313,11 +313,11 @@ export class MediaRoomClient{
     const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:this.receiveQuality==='auto'?(this.lowEnd?'240':'auto'):this.receiveQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
-    this.attachRemote(consumer,meta);
+    await this.attachRemote(consumer,meta);
     await this.request('resumeConsumer',{consumerId:consumer.id}).catch(()=>{});
     consumer.on('transportclose',()=>this.removeConsumer(meta.producerId));consumer.on('producerclose',()=>this.removeConsumer(meta.producerId));
   }
-  attachRemote(consumer,meta){
+  async attachRemote(consumer,meta){
     const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},isScreen=meta.appData?.mediaTag==='screen',tileKey=isScreen?String(meta.peerId)+':screen':meta.peerId,tile=this.ensureTile(tileKey,isScreen?{...user,fullName:(user.fullName||user.login||'O‘qituvchi')+' · Ekran'}:user,false);
     if(consumer.kind==='audio'){
       const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=audio.dataset.role==='teacher'?1:(this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.72:0.9):1);this.audioBin.appendChild(audio);audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});return;
