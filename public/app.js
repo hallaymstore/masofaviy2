@@ -554,9 +554,10 @@ function startNetworkMonitor(){
       if(lastAutoQuality!==q){lastAutoQuality=q;mediaRoomClient.setReceiveQuality(q).catch(()=>{})}
     }
     $('#connectionBanner')?.classList.toggle('hidden',navigator.onLine&&socket?.connected!==false);
-  };update();networkTimer=setInterval(update,3000)
+  };update();networkTimer=setInterval(update,ultraLiteUI?7000:(lowEndUI?5000:3000))
 }
 function showReaction(m){
+  if(ultraLiteUI)return;
   const box=$('#reactionStage');if(!box)return;const n=document.createElement('div');n.className='reaction-bubble';n.textContent=(m.reaction||'👏')+' '+(m.fullName||'');box.appendChild(n);setTimeout(()=>n.remove(),2400)
 }
 async function loadDeviceChoices(){
@@ -608,7 +609,7 @@ async function openConference(payload){
       onError:e=>toast(e.message||String(e))
     });
     await mediaRoomClient.connect();
-    if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||(lowEndUI?'240':'auto');
+    if($('#videoQuality'))$('#videoQuality').value=ultraLiteUI?'240':(localStorage.getItem('m2-video-quality')||(lowEndUI?'240':'auto'));
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
     studentCameraGranted=true;studentMicGranted=true;showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
