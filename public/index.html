@@ -340,10 +340,45 @@
             <button class="primary wide">Saqlash va barcha sahifalarda qo‘llash</button>
           </form>
         </article>
+        <article class="settings-master-card">
+          <div class="section-title"><div><h2>Instance boshqaruvi</h2><small>Har bir universitet, maktab yoki o‘quv markazi uchun alohida profil</small></div><button id="refreshInstanceOverview" class="secondary" type="button">Yangilash</button></div>
+          <div id="instanceReadiness" class="instance-readiness"></div>
+          <form id="instanceSettingsForm" class="form-grid">
+            <label>Tashkilot turi<select name="organizationType"><option value="university">Universitet</option><option value="school">Maktab</option><option value="training_center">O‘quv markazi</option></select></label>
+            <label>Instance kodi<input name="tenantCode" maxlength="64" placeholder="MASALAN: QARDTU"></label>
+            <label class="wide">Asosiy domen<input name="domain" maxlength="255" placeholder="https://edu.example.uz"></label>
+            <label>Standart til<select name="defaultLanguage"><option value="uz">O‘zbek</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+            <label>Tarif<select name="licensePlan"><option value="starter">Starter</option><option value="standard">Standard</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></label>
+            <label>Shartnoma / loyiha nomi<input name="contractLabel" maxlength="160" placeholder="Masalan: 2026 Masofaviy ta’lim"></label>
+            <label>Litsenziya tugash sanasi<input name="licenseExpiresAt" type="date"></label>
+            <label>Support email<input name="supportEmail" type="email" placeholder="support@example.uz"></label>
+            <label>Support telefon<input name="supportPhone" maxlength="80" placeholder="+998 ..."></label>
+            <label>Maks. foydalanuvchi<input name="maxUsers" type="number" min="10" max="1000000" value="5000"></label>
+            <label>Parallel live xona<input name="maxConcurrentRooms" type="number" min="1" max="500" value="6"></label>
+            <label>Xonadagi maks. ishtirokchi<input name="maxRoomParticipants" type="number" min="2" max="500" value="120"></label>
+            <fieldset class="module-fieldset wide">
+              <legend>Modullar</legend>
+              <div class="module-toggle-grid">
+                <label><input type="checkbox" data-module="live"> Jonli dars</label>
+                <label><input type="checkbox" data-module="videos"> Videodarslar</label>
+                <label><input type="checkbox" data-module="analytics"> Statistika</label>
+                <label><input type="checkbox" data-module="reports"> Hisobotlar</label>
+                <label><input type="checkbox" data-module="library"> Kutubxona</label>
+                <label><input type="checkbox" data-module="communications"> Muloqot</label>
+                <label><input type="checkbox" data-module="curriculum"> O‘quv reja</label>
+                <label><input type="checkbox" data-module="finalExams"> Yakuniy nazorat</label>
+                <label><input type="checkbox" data-module="scorm"> SCORM</label>
+                <label><input type="checkbox" data-module="proctoring"> Proktoring</label>
+                <label><input type="checkbox" data-module="publicTimetable"> Ochiq jadval</label>
+              </div>
+            </fieldset>
+            <button class="primary wide">Instance profilini saqlash</button>
+          </form>
+        </article>
         <article>
-          <div class="section-title"><h2>Tez o‘rnatish</h2><small>Yangi OTM uchun tavsiya etilgan ketma-ketlik</small></div>
+          <div class="section-title"><h2>Tez o‘rnatish</h2><small>Yangi tashkilot uchun tavsiya etilgan ketma-ketlik</small></div>
           <div class="install-steps">
-            <div><b>1</b><span>OTM nomi va aloqa ma’lumotlarini kiriting</span></div>
+            <div><b>1</b><span>Tashkilot turi, nomi va aloqa ma’lumotlarini kiriting</span></div>
             <div><b>2</b><span>Fakultet, kafedra va guruhlarni yarating yoki import qiling</span></div>
             <div><b>3</b><span>O‘qituvchi va talabalarni Excel/CSV orqali yuklang</span></div>
             <div><b>4</b><span>Dars jadvalini teacher_login va group_id bilan import qiling</span></div>
