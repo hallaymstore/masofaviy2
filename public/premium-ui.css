@@ -1480,3 +1480,103 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
   }
   #lesson .more-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+
+
+/* v36 FINAL: mobile More menu = single-column readable list */
+#lesson .live-more-panel{
+  left:8px!important;
+  right:8px!important;
+  bottom:62px!important;
+  width:auto!important;
+  max-height:62vh!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:8px!important;
+}
+#lesson .more-grid{
+  display:flex!important;
+  flex-direction:column!important;
+  grid-template-columns:none!important;
+  gap:4px!important;
+}
+#lesson .more-grid>button,
+#lesson .more-grid>.more-select{
+  width:100%!important;
+  min-width:0!important;
+  min-height:42px!important;
+  height:auto!important;
+  padding:7px 10px!important;
+  display:grid!important;
+  grid-template-columns:30px minmax(0,1fr) auto!important;
+  grid-template-rows:1fr!important;
+  align-items:center!important;
+  justify-items:start!important;
+  gap:8px!important;
+  border-radius:9px!important;
+  text-align:left!important;
+  background:var(--surface)!important;
+}
+#lesson .more-grid>button>span:first-child{
+  width:28px!important;
+  height:28px!important;
+  min-width:28px!important;
+  min-height:28px!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:17px!important;
+}
+#lesson .more-grid>button>span:last-child,
+#lesson .more-grid>.more-select>span{
+  display:block!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:normal!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+  font-weight:800!important;
+  text-align:left!important;
+}
+#lesson .more-grid>.more-select{
+  align-content:normal!important;
+}
+#lesson .more-grid>.more-select .caption-lang{
+  justify-self:end!important;
+  width:auto!important;
+  min-width:78px!important;
+  max-width:120px!important;
+  margin:0!important;
+  padding:6px 8px!important;
+}
+#lesson .more-grid .control-badge{
+  position:static!important;
+  justify-self:end!important;
+  align-self:center!important;
+}
+@media(max-width:680px){
+  #lesson .live-more-panel{
+    left:6px!important;
+    right:6px!important;
+    bottom:58px!important;
+    max-height:64vh!important;
+    width:auto!important;
+  }
+  #lesson .more-grid{
+    display:flex!important;
+    flex-direction:column!important;
+    grid-template-columns:none!important;
+  }
+  #lesson .more-grid>button,
+  #lesson .more-grid>.more-select{
+    min-height:40px!important;
+    padding:6px 9px!important;
+    grid-template-columns:28px minmax(0,1fr) auto!important;
+  }
+  #lesson .more-grid>button>span:last-child,
+  #lesson .more-grid>.more-select>span{
+    display:block!important;
+    font-size:11px!important;
+  }
+}
