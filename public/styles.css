@@ -362,3 +362,29 @@ html.ultra-lite-device .live-more-panel{
   box-shadow:none!important;
   backdrop-filter:none!important;
 }
+
+
+/* v37 reusable-instance admin control center */
+.settings-master-card{grid-column:1/-1}
+.module-fieldset{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
+.module-fieldset legend{padding:0 6px;font-size:12px;font-weight:900;color:var(--muted)}
+.module-toggle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.module-toggle-grid label{display:flex!important;align-items:center;gap:8px;margin:0!important;padding:9px 10px!important;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-weight:800!important;font-size:11px}
+.module-toggle-grid input{width:16px!important;height:16px!important;margin:0!important}
+.instance-readiness{display:grid;grid-template-columns:auto 1fr;gap:10px;margin:10px 0 14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.instance-score{display:grid;place-items:center;align-content:center;min-width:110px;padding:12px;border-radius:11px;background:var(--surface);border:1px solid var(--line)}
+.instance-score b{font-size:28px;color:var(--accent)}.instance-score span{font-size:10px;color:var(--muted);font-weight:800}
+.instance-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.instance-counts span,.instance-infra span,.instance-checks span{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:10px}
+.instance-counts b{display:block;font-size:15px;color:var(--text)}
+.instance-checks,.instance-infra{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.instance-checks .ready{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
+.instance-checks .pending{color:#a16207;border-color:#f5d58a}
+.instance-infra span{color:var(--muted);font-weight:800}
+@media(max-width:760px){
+  .module-toggle-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .instance-readiness{grid-template-columns:1fr}
+  .instance-score{min-width:0}
+  .instance-counts{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:420px){.module-toggle-grid{grid-template-columns:1fr}}
