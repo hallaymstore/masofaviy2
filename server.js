@@ -143,7 +143,20 @@ const institutionSettingsSchema = new mongoose.Schema({
   lmsUrl:{type:String,trim:true,maxlength:1000,default:'https://moodle.kstu.uz/'},
   repositoryUrl:{type:String,trim:true,maxlength:1000,default:'https://dspace.kstu.uz/'},
   portfolioUrl:{type:String,trim:true,maxlength:1000,default:'https://portfel.kstu.uz/'},
-  admissionsUrl:{type:String,trim:true,maxlength:1000,default:'https://my.uzbmb.uz/university-about-direction/435'}
+  admissionsUrl:{type:String,trim:true,maxlength:1000,default:'https://my.uzbmb.uz/university-about-direction/435'},
+  organizationType:{type:String,enum:['university','school','training_center'],default:'university'},
+  tenantCode:{type:String,trim:true,maxlength:64,default:'QARDTU'},
+  domain:{type:String,trim:true,maxlength:255,default:''},
+  defaultLanguage:{type:String,enum:['uz','ru','en'],default:'uz'},
+  supportEmail:{type:String,trim:true,maxlength:240,default:''},
+  supportPhone:{type:String,trim:true,maxlength:80,default:''},
+  contractLabel:{type:String,trim:true,maxlength:160,default:''},
+  licensePlan:{type:String,enum:['starter','standard','pro','enterprise'],default:'enterprise'},
+  licenseExpiresAt:{type:Date,default:null},
+  maxUsers:{type:Number,min:10,max:1000000,default:5000},
+  maxConcurrentRooms:{type:Number,min:1,max:500,default:6},
+  maxRoomParticipants:{type:Number,min:2,max:500,default:120},
+  modules:{type:mongoose.Schema.Types.Mixed,default:()=>({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true})}
 },{timestamps:true});
 const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema), VideoComment=mongoose.model('VideoComment',videoCommentSchema), InstitutionSettings=mongoose.model('InstitutionSettings',institutionSettingsSchema);
 
@@ -166,13 +179,38 @@ const DEFAULT_BRANDING=Object.freeze({
   lmsUrl:'https://moodle.kstu.uz/',
   repositoryUrl:'https://dspace.kstu.uz/',
   portfolioUrl:'https://portfel.kstu.uz/',
-  admissionsUrl:'https://my.uzbmb.uz/university-about-direction/435'
+  admissionsUrl:'https://my.uzbmb.uz/university-about-direction/435',
+  organizationType:'university',
+  tenantCode:'QARDTU',
+  domain:'',
+  defaultLanguage:'uz',
+  supportEmail:'',
+  supportPhone:'',
+  contractLabel:'',
+  licensePlan:'enterprise',
+  licenseExpiresAt:null,
+  maxUsers:5000,
+  maxConcurrentRooms:6,
+  maxRoomParticipants:120,
+  modules:{live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true}
 });
 const brandingPublic=row=>Object.fromEntries(Object.keys(DEFAULT_BRANDING).map(k=>[k,k==='productName'?DEFAULT_BRANDING.productName:(row?.[k]??DEFAULT_BRANDING[k])]));
 const getBranding=async()=>mongoose.connection.readyState===1?brandingPublic(await InstitutionSettings.findOne({key:'primary'}).lean()):{...DEFAULT_BRANDING};
 const brandingText=(value,max,required=false)=>{const s=String(value??'').trim().slice(0,max);if(required&&!s)throw new Error('Universitet nomini kiriting');return s};
 const brandingUrl=value=>{const s=String(value??'').trim();if(!s)return '';if(s.length>1000||!/^https:\/\//i.test(s))throw new Error('Havola https:// bilan boshlanishi kerak');return s};
 const brandingColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;
+const boolValue=(v,fallback=false)=>v===undefined?fallback:(v===true||v==='true'||v===1||v==='1'||v==='on');
+const intValue=(v,min,max,fallback)=>{const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.round(n))):fallback};
+const MODULE_DEFAULTS=Object.freeze({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true});
+const normalizedModules=value=>Object.fromEntries(Object.keys(MODULE_DEFAULTS).map(k=>[k,boolValue(value?.[k],MODULE_DEFAULTS[k])]));
+const getInstanceSettings=async()=>mongoose.connection.readyState===1?(await InstitutionSettings.findOne({key:'primary'}).lean())||{...DEFAULT_BRANDING}:{...DEFAULT_BRANDING};
+const modulePathMap=[
+  ['live',/^\/api\/live(?:\/|$)/],['videos',/^\/api\/(?:videos|video-comments)(?:\/|$)/],
+  ['analytics',/^\/api\/analytics(?:\/|$)/],['reports',/^\/api\/(?:reports|audit)(?:\/|$)/],
+  ['library',/^\/api\/(?:library|lms\/library)(?:\/|$)/],['communications',/^\/api\/(?:communications|lms\/communications)(?:\/|$)/],
+  ['curriculum',/^\/api\/(?:curriculum|lms\/curricula)(?:\/|$)/],['finalExams',/^\/api\/(?:final-exams|lms\/final-exams)(?:\/|$)/],
+  ['scorm',/^\/api\/(?:scorm|lms\/scorm)(?:\/|$)/],['proctoring',/^\/api\/(?:proctoring|lms\/proctor)(?:\/|$)/]
+];
 const onlineUsers = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
@@ -327,6 +365,15 @@ const auth = async (req, res, next) => { try {
 }catch{res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' });} };
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
+app.use('/api',async(req,res,next)=>{
+  if(req.path==='/health'||req.path==='/branding'||req.path.startsWith('/auth/')||req.path.startsWith('/admin/institution-settings')||req.path.startsWith('/admin/instance-overview'))return next();
+  try{
+    const row=await getInstanceSettings(),mods=normalizedModules(row.modules||DEFAULT_BRANDING.modules);
+    const found=modulePathMap.find(([,rx])=>rx.test(req.originalUrl||req.url||''));
+    if(found&&!mods[found[0]])return res.status(403).json({message:'Bu modul administrator tomonidan o‘chirilgan',module:found[0]});
+  }catch{}
+  next();
+});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
 installCompliance(app,{mongoose,User,auth,audit});
 
@@ -375,12 +422,51 @@ app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
       lmsUrl:brandingUrl(req.body.lmsUrl),
       repositoryUrl:brandingUrl(req.body.repositoryUrl),
       portfolioUrl:brandingUrl(req.body.portfolioUrl),
-      admissionsUrl:brandingUrl(req.body.admissionsUrl)
+      admissionsUrl:brandingUrl(req.body.admissionsUrl),
+      organizationType:['university','school','training_center'].includes(String(req.body.organizationType))?String(req.body.organizationType):'university',
+      tenantCode:brandingText(req.body.tenantCode,64).toUpperCase().replace(/[^A-Z0-9_-]/g,''),
+      domain:brandingText(req.body.domain,255),
+      defaultLanguage:['uz','ru','en'].includes(String(req.body.defaultLanguage))?String(req.body.defaultLanguage):'uz',
+      supportEmail:brandingText(req.body.supportEmail,240),
+      supportPhone:brandingText(req.body.supportPhone,80),
+      contractLabel:brandingText(req.body.contractLabel,160),
+      licensePlan:['starter','standard','pro','enterprise'].includes(String(req.body.licensePlan))?String(req.body.licensePlan):'standard',
+      licenseExpiresAt:req.body.licenseExpiresAt?new Date(req.body.licenseExpiresAt):null,
+      maxUsers:intValue(req.body.maxUsers,10,1000000,5000),
+      maxConcurrentRooms:intValue(req.body.maxConcurrentRooms,1,500,6),
+      maxRoomParticipants:intValue(req.body.maxRoomParticipants,2,500,120),
+      modules:normalizedModules(req.body.modules||{})
     };
     const row=await InstitutionSettings.findOneAndUpdate({key:'primary'},{$set:patch,$setOnInsert:{key:'primary'}},{new:true,upsert:true,setDefaultsOnInsert:true});
     audit(req,'INSTITUTION_SETTINGS_UPDATE','InstitutionSettings',row.id,{institutionName:row.institutionName,shortName:row.shortName});
     res.json(brandingPublic(row.toObject()));
   }catch(e){res.status(400).json({message:e.message||'Sozlamalarni saqlab bo‘lmadi'})}
+});
+app.get('/api/admin/instance-overview',auth,async(req,res)=>{
+  if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+  const row=await getInstanceSettings(),mods=normalizedModules(row.modules||DEFAULT_BRANDING.modules);
+  const [users,faculties,departments,groups,teachers,students]=mongoose.connection.readyState===1?await Promise.all([
+    User.countDocuments({active:true}),Structure.countDocuments({type:'faculty',active:true}),Structure.countDocuments({type:'department',active:true}),
+    Structure.countDocuments({type:'group',active:true}),User.countDocuments({role:'teacher',active:true}),User.countDocuments({role:'student',active:true})
+  ]):[0,0,0,0,0,0];
+  const checks=[
+    {key:'identity',label:'Tashkilot profili',ready:Boolean(row.institutionName&&row.shortName&&row.organizationType)},
+    {key:'domain',label:'Domen',ready:Boolean(row.domain||row.website)},
+    {key:'structure',label:'Tuzilma',ready:groups>0},
+    {key:'teachers',label:'O‘qituvchilar',ready:teachers>0},
+    {key:'students',label:'Talabalar',ready:students>0},
+    {key:'media',label:'Media/TURN',ready:Boolean(SFU_BRIDGE_URLS.length&&TURN_URLS.length)},
+    {key:'branding',label:'Branding',ready:Boolean(row.primaryColor&&row.accentColor)},
+    {key:'license',label:'Shartnoma/litsenziya',ready:Boolean(row.contractLabel||row.licensePlan)}
+  ];
+  const ready=checks.filter(x=>x.ready).length;
+  res.json({
+    profile:{organizationType:row.organizationType||'university',tenantCode:row.tenantCode||'',domain:row.domain||'',defaultLanguage:row.defaultLanguage||'uz',licensePlan:row.licensePlan||'standard',licenseExpiresAt:row.licenseExpiresAt||null,contractLabel:row.contractLabel||''},
+    limits:{maxUsers:row.maxUsers||5000,maxConcurrentRooms:row.maxConcurrentRooms||6,maxRoomParticipants:row.maxRoomParticipants||120},
+    modules:mods,counts:{users,faculties,departments,groups,teachers,students},
+    infrastructure:{sfuConfigured:Boolean(SFU_BRIDGE_URLS.length),turnConfigured:Boolean(TURN_URLS.length),database:mongoose.connection.readyState===1?'connected':'disconnected',node:process.version},
+    readiness:{percent:Math.round(ready/checks.length*100),checks}
+  });
 });
 app.get('/api/system/metrics', auth, async(req,res)=>{
   if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Tizim metrikasi uchun ruxsat yo‘q'});
