@@ -280,3 +280,85 @@ html.ultra-lite-device img{animation:none!important;transition:none!important}
   html.ultra-lite-device .video-mount{height:54vh!important;min-height:240px!important}
   html.ultra-lite-device .more-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+
+
+/* v35 compact readable More menu */
+.live-more-panel{
+  padding:8px!important;
+  max-height:min(66vh,520px)!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+.more-grid{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:4px!important;
+}
+.more-grid>button,
+.more-grid>.more-select{
+  width:100%!important;
+  min-height:42px!important;
+  padding:8px 10px!important;
+  border-radius:9px!important;
+  display:grid!important;
+  grid-template-columns:30px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  justify-content:stretch!important;
+  gap:8px!important;
+  text-align:left!important;
+  background:var(--surface)!important;
+  border:1px solid var(--line)!important;
+  color:var(--text)!important;
+  box-shadow:none!important;
+}
+.more-grid>button>span:first-child{
+  width:28px!important;
+  height:28px!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:17px!important;
+}
+.more-grid>button>span:last-child,
+.more-grid>.more-select>span{
+  display:block!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  text-align:left!important;
+}
+.more-grid>.more-select .caption-lang{
+  width:auto!important;
+  min-width:82px!important;
+  max-width:120px!important;
+  padding:6px 8px!important;
+  margin:0!important;
+}
+.more-grid .control-badge{
+  position:static!important;
+  justify-self:end!important;
+  align-self:center!important;
+}
+@media(max-width:680px){
+  .live-more-panel{
+    left:6px!important;
+    right:6px!important;
+    bottom:72px!important;
+    max-height:62vh!important;
+  }
+  .more-grid{grid-template-columns:none!important}
+  .more-grid>button,
+  .more-grid>.more-select{
+    min-height:40px!important;
+    grid-template-columns:28px minmax(0,1fr) auto!important;
+    padding:7px 9px!important;
+  }
+  .more-grid>button>span:last-child,
+  .more-grid>.more-select>span{font-size:11px!important}
+}
+html.ultra-lite-device .live-more-panel{
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+}
