@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?1:(this.lowEnd?2:6);this.studentVideoConsumers=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=localStorage.getItem('m2-view-mode')||'speaker';this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -49,12 +49,12 @@ export class MediaRoomClient{
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
     if(kind==='audio'){
-      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16}};
+      const a=this.ultraLite?{echoCancellation:{ideal:true},noiseSuppression:{ideal:false},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:24000,max:32000},sampleSize:{ideal:16}}:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16}};
       return id?{deviceId:{ideal:id},...a}:a;
     }
     const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
     const video=this.ultraLite
-      ?{width:{ideal:426,max:640},height:{ideal:240,max:360},frameRate:{ideal:12,max:15},facingMode:{ideal:this.facingMode}}
+      ?{width:{ideal:320,max:426},height:{ideal:180,max:240},frameRate:{ideal:10,max:12},facingMode:{ideal:this.facingMode}}
       :(lite?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:this.facingMode}}:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},frameRate:{ideal:24,max:30},facingMode:{ideal:this.facingMode}});
     return id?{deviceId:{ideal:id},...video}:video;
   }
@@ -79,7 +79,7 @@ export class MediaRoomClient{
     await this.createTransports();
     this.onState({mic:false,camera:false,studentMediaLocked:false,viewMode:this.viewMode,lowBandwidth:this.lowBandwidthMode});
     this.setViewMode(this.viewMode);
-    if(this.lowBandwidthMode)await this.setReceiveQuality('240');
+    if(this.lowBandwidthMode||this.ultraLite)await this.setReceiveQuality('240');
     this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
@@ -265,8 +265,8 @@ export class MediaRoomClient{
     try{
       const stream=await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
       if(!track)throw new Error('Kamera trek topilmadi');
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=lite?[{maxBitrate:120000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:350000,scaleResolutionDownBy:2,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:1,maxFramerate:18}]:[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2500000,scaleResolutionDownBy:1,maxFramerate:30}];
-      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:lite?300:600},appData:{mediaTag:'camera',role:this.user.role}});
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=this.ultraLite?[{maxBitrate:180000,scaleResolutionDownBy:1,maxFramerate:10}]:(lite?[{maxBitrate:100000,scaleResolutionDownBy:4,maxFramerate:10},{maxBitrate:280000,scaleResolutionDownBy:2,maxFramerate:12},{maxBitrate:550000,scaleResolutionDownBy:1,maxFramerate:15}]:[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2500000,scaleResolutionDownBy:1,maxFramerate:30}]);
+      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?120:(lite?240:600)},appData:{mediaTag:'camera',role:this.user.role}});
       this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
@@ -280,8 +280,8 @@ export class MediaRoomClient{
     const p=this.producers.get('screen');
     if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
     try{
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:lite?8:12,max:lite?12:20}},audio:false}),track=stream.getVideoTracks()[0];
-      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:lite?900000:2200000}],appData:{mediaTag:'screen',role:this.user.role}});
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:this.ultraLite?5:(lite?8:12),max:this.ultraLite?8:(lite?12:20)}},audio:false}),track=stream.getVideoTracks()[0];
+      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?450000:(lite?750000:2200000)}],appData:{mediaTag:'screen',role:this.user.role}});
       this.producers.set('screen',producer);
       const screenTile=this.ensureTile('local:screen',{fullName:(this.user.fullName||this.user.login)+' · Ekran',role:this.user.role},true);
       screenTile.classList.add('screen-share','local-screen','has-video');
@@ -302,8 +302,11 @@ export class MediaRoomClient{
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
     if(tag==='screen'||role==='teacher')return true;
-    if(role==='student')return this.user.role==='teacher'||this.studentVideoConsumers<(this.lowEnd?4:8);
-    return true;
+    if(role==='student'){
+      if(this.user.role==='student'&&this.ultraLite)return false;
+      return this.user.role==='teacher'||this.studentVideoConsumers<this.maxStudentVideos;
+    }
+    return !this.ultraLite;
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
@@ -323,6 +326,14 @@ export class MediaRoomClient{
     if(isScreen){
       tile.classList.add('screen-share');
       this.grid?.classList.add('screen-layout');
+      if(this.ultraLite&&this.user.role==='student'){
+        for(const other of this.consumers.values()){
+          const m=other.appData?.meta;
+          if(other!==consumer&&other.kind==='video'&&m?.appData?.role==='teacher'&&m?.appData?.mediaTag!=='screen'){
+            try{await this.request('pauseConsumer',{consumerId:other.id});other.pause()}catch{}
+          }
+        }
+      }
       const teacherTile=this.tiles.get(meta.peerId);if(teacherTile?.classList.contains('has-video'))teacherTile.classList.add('screen-camera-pip');
     }else if(user.role==='teacher'&&this.tiles.get(String(meta.peerId)+':screen'))tile.classList.add('screen-camera-pip');
   }
@@ -340,7 +351,17 @@ export class MediaRoomClient{
     if(meta?.appData?.mediaTag==='screen'||meta?.mediaTag==='screen'){
       const key=String(meta.peerId||'')+':screen',tile=this.tiles.get(key);if(tile){tile.remove();this.tiles.delete(key)}
       this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');
-      if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout');
+      if(!this.grid?.querySelector('.screen-share')){
+        this.grid?.classList.remove('screen-layout');
+        if(this.ultraLite&&this.user.role==='student'){
+          for(const other of this.consumers.values()){
+            const m=other.appData?.meta;
+            if(other.kind==='video'&&m?.appData?.role==='teacher'){
+              try{this.request('resumeConsumer',{consumerId:other.id}).catch(()=>{});other.resume()}catch{}
+            }
+          }
+        }
+      }
     }
   }
   removePeerTile(peerId){for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
