@@ -7,6 +7,7 @@ document.documentElement.classList.toggle('low-end-device',lowEndUI);
 document.documentElement.classList.toggle('ultra-lite-device',ultraLiteUI);
 const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texnik xodim',rectorate:'Rektorat',dean:'Dekan',department:'Kafedra mudiri',teacher:'O‘qituvchi',student:'Talaba',tutor:'Tyutor'};
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
+const moduleOn=name=>branding?.modules?.[name]!==false;
 const csrf=()=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('m2_csrf='))?.slice('m2_csrf='.length)||'';
 const api=async(path,options={})=>{const r=await fetch('/api'+path,{...options,credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),...options.headers}});const data=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(data.message)}if(!r.ok)throw Error(data.message||'Xatolik');return data};
 const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}; const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -33,7 +34,7 @@ const iconPaths={home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9
 function icon(name,fallback='•'){if(lowEndUI)return '<span class="fallback-icon" aria-hidden="true">'+esc(fallback)+'</span>';return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.home)+'</svg>'}
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
 function logout(){fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
-function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:can('reports.view'),live:['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage'),videos:can('videos.view')||can('videos.manage')||can('videos.upload'),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:['student','teacher','admin','superadmin'].includes(role),curriculum:['student','teacher','admin','superadmin'].includes(role),library:true,communications:['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
+function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
 function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
@@ -107,13 +108,38 @@ async function loadInstitutionSettings(){
   const form=$('#institutionSettingsForm');if(!form)return;
   ['institutionName','shortName','phone','address','founded','legalBasis','description','website','logoUrl','appIconUrl','primaryColor','accentColor','landingTitle','landingText','lmsUrl','repositoryUrl','portfolioUrl','admissionsUrl'].forEach(k=>{if(form.elements[k])form.elements[k].value=branding[k]||''});
   if($('#brandingPreviewInstitution'))$('#brandingPreviewInstitution').textContent=branding.institutionName||'Universitet nomi';
+  const instance=$('#instanceSettingsForm');
+  if(instance){
+    ['organizationType','tenantCode','domain','defaultLanguage','supportEmail','supportPhone','contractLabel','licensePlan','maxUsers','maxConcurrentRooms','maxRoomParticipants'].forEach(k=>{if(instance.elements[k])instance.elements[k].value=branding[k]??''});
+    if(instance.elements.licenseExpiresAt)instance.elements.licenseExpiresAt.value=branding.licenseExpiresAt?String(branding.licenseExpiresAt).slice(0,10):'';
+    instance.querySelectorAll('[data-module]').forEach(x=>x.checked=branding.modules?.[x.dataset.module]!==false);
+  }
+  await loadInstanceOverview().catch(()=>{});
 }
 $('#institutionSettingsForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
   try{
     const body=Object.fromEntries(new FormData(e.target));
     const updated=await api('/admin/institution-settings',{method:'PATCH',body:JSON.stringify(body)});
-    branding={...branding,...updated};applyBranding();toast('Universitet sozlamalari saqlandi');await loadInstitutionSettings();
+    branding={...branding,...updated};applyBranding();toast('Tashkilot brendi saqlandi');await loadInstitutionSettings();
+  }catch(err){toast(err.message)}
+});
+async function loadInstanceOverview(){
+  if(!['admin','superadmin','tech'].includes(user?.role))return;
+  const x=await api('/admin/instance-overview'),box=$('#instanceReadiness');if(!box)return;
+  box.innerHTML='<div class="instance-score"><b>'+esc(x.readiness?.percent||0)+'%</b><span>o‘rnatish tayyorligi</span></div>'+
+    '<div class="instance-counts"><span>Foydalanuvchi <b>'+esc(x.counts?.users||0)+'</b></span><span>O‘qituvchi <b>'+esc(x.counts?.teachers||0)+'</b></span><span>Talaba <b>'+esc(x.counts?.students||0)+'</b></span><span>Guruh <b>'+esc(x.counts?.groups||0)+'</b></span></div>'+
+    '<div class="instance-checks">'+(x.readiness?.checks||[]).map(i=>'<span class="'+(i.ready?'ready':'pending')+'">'+(i.ready?'✓':'○')+' '+esc(i.label)+'</span>').join('')+'</div>'+
+    '<div class="instance-infra"><span>DB: '+esc(x.infrastructure?.database||'—')+'</span><span>SFU: '+(x.infrastructure?.sfuConfigured?'tayyor':'yo‘q')+'</span><span>TURN: '+(x.infrastructure?.turnConfigured?'tayyor':'yo‘q')+'</span><span>Limit: '+esc(x.limits?.maxConcurrentRooms||0)+' xona / '+esc(x.limits?.maxUsers||0)+' user</span></div>';
+}
+$('#refreshInstanceOverview')?.addEventListener('click',()=>loadInstanceOverview().catch(e=>toast(e.message)));
+$('#instanceSettingsForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();
+  try{
+    const body=Object.fromEntries(new FormData(e.target));
+    body.modules={};e.target.querySelectorAll('[data-module]').forEach(x=>body.modules[x.dataset.module]=x.checked);
+    const updated=await api('/admin/institution-settings',{method:'PATCH',body:JSON.stringify(body)});
+    branding={...branding,...updated};configureRoleUI();toast('Instance profili saqlandi');await loadInstitutionSettings();
   }catch(err){toast(err.message)}
 });
 loadBranding();
