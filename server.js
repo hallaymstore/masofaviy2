@@ -404,6 +404,7 @@ app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
   try{
     if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Faqat administrator platforma sozlamalarini o‘zgartiradi'});
     if(mongoose.connection.readyState!==1)return res.status(503).json({message:'Ma’lumotlar bazasi ulanmagan'});
+    const current=(await InstitutionSettings.findOne({key:'primary'}).lean())||DEFAULT_BRANDING;
     const patch={
       institutionName:brandingText(req.body.institutionName,240,true),
       shortName:brandingText(req.body.shortName,60),
@@ -423,19 +424,19 @@ app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
       repositoryUrl:brandingUrl(req.body.repositoryUrl),
       portfolioUrl:brandingUrl(req.body.portfolioUrl),
       admissionsUrl:brandingUrl(req.body.admissionsUrl),
-      organizationType:['university','school','training_center'].includes(String(req.body.organizationType))?String(req.body.organizationType):'university',
-      tenantCode:brandingText(req.body.tenantCode,64).toUpperCase().replace(/[^A-Z0-9_-]/g,''),
-      domain:brandingText(req.body.domain,255),
-      defaultLanguage:['uz','ru','en'].includes(String(req.body.defaultLanguage))?String(req.body.defaultLanguage):'uz',
-      supportEmail:brandingText(req.body.supportEmail,240),
-      supportPhone:brandingText(req.body.supportPhone,80),
-      contractLabel:brandingText(req.body.contractLabel,160),
-      licensePlan:['starter','standard','pro','enterprise'].includes(String(req.body.licensePlan))?String(req.body.licensePlan):'standard',
-      licenseExpiresAt:req.body.licenseExpiresAt?new Date(req.body.licenseExpiresAt):null,
-      maxUsers:intValue(req.body.maxUsers,10,1000000,5000),
-      maxConcurrentRooms:intValue(req.body.maxConcurrentRooms,1,500,6),
-      maxRoomParticipants:intValue(req.body.maxRoomParticipants,2,500,120),
-      modules:normalizedModules(req.body.modules||{})
+      organizationType:['university','school','training_center'].includes(String(req.body.organizationType))?String(req.body.organizationType):(current.organizationType||'university'),
+      tenantCode:brandingText(req.body.tenantCode??current.tenantCode,64).toUpperCase().replace(/[^A-Z0-9_-]/g,''),
+      domain:brandingText(req.body.domain??current.domain,255),
+      defaultLanguage:['uz','ru','en'].includes(String(req.body.defaultLanguage))?String(req.body.defaultLanguage):(current.defaultLanguage||'uz'),
+      supportEmail:brandingText(req.body.supportEmail??current.supportEmail,240),
+      supportPhone:brandingText(req.body.supportPhone??current.supportPhone,80),
+      contractLabel:brandingText(req.body.contractLabel??current.contractLabel,160),
+      licensePlan:['starter','standard','pro','enterprise'].includes(String(req.body.licensePlan))?String(req.body.licensePlan):(current.licensePlan||'standard'),
+      licenseExpiresAt:req.body.licenseExpiresAt===undefined?(current.licenseExpiresAt||null):(req.body.licenseExpiresAt?new Date(req.body.licenseExpiresAt):null),
+      maxUsers:intValue(req.body.maxUsers,10,1000000,current.maxUsers||5000),
+      maxConcurrentRooms:intValue(req.body.maxConcurrentRooms,1,500,current.maxConcurrentRooms||6),
+      maxRoomParticipants:intValue(req.body.maxRoomParticipants,2,500,current.maxRoomParticipants||120),
+      modules:req.body.modules?normalizedModules(req.body.modules):normalizedModules(current.modules||MODULE_DEFAULTS)
     };
     const row=await InstitutionSettings.findOneAndUpdate({key:'primary'},{$set:patch,$setOnInsert:{key:'primary'}},{new:true,upsert:true,setDefaultsOnInsert:true});
     audit(req,'INSTITUTION_SETTINGS_UPDATE','InstitutionSettings',row.id,{institutionName:row.institutionName,shortName:row.shortName});
