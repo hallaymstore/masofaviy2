@@ -252,3 +252,31 @@ html.video-cinema-fallback #lesson .ms-tile.cinema-primary .ms-avatar{display:no
   .ms-tile:-webkit-full-screen .ms-video,
   html.video-cinema-fallback #lesson .ms-tile.cinema-primary .ms-video{object-fit:contain!important}
 }
+
+
+/* v34 ultra-lite 1GB phone profile */
+html.ultra-lite-device body{font-size:13px}
+html.ultra-lite-device .conference-main,
+html.ultra-lite-device .video-stage,
+html.ultra-lite-device .video-mount{contain:layout paint style}
+html.ultra-lite-device .ms-grid{grid-template-columns:1fr!important;gap:2px!important;padding:2px!important}
+html.ultra-lite-device .ms-tile{box-shadow:none!important;border-width:1px!important;background:#020817!important}
+html.ultra-lite-device .ms-tile.role-student:not(.focused):not(.pinned):not(.active-speaker){display:none!important}
+html.ultra-lite-device .ms-tile .ms-avatar{display:none!important}
+html.ultra-lite-device .ms-label{padding:4px 6px!important;font-size:10px!important;background:rgba(0,0,0,.55)!important}
+html.ultra-lite-device .reaction-stage,
+html.ultra-lite-device #reactionPopover{display:none!important}
+html.ultra-lite-device .live-more-panel{backdrop-filter:none!important;box-shadow:none!important}
+html.ultra-lite-device .raised-hand-alert{box-shadow:none!important;backdrop-filter:none!important}
+html.ultra-lite-device .conference-controls{box-shadow:none!important;backdrop-filter:none!important}
+html.ultra-lite-device .zoom-primary .zoom-control{min-height:42px!important;padding:5px 2px!important}
+html.ultra-lite-device .zoom-primary .zoom-control>span:first-child{font-size:16px!important}
+html.ultra-lite-device .zoom-primary .zoom-control>span:last-child{font-size:8px!important}
+html.ultra-lite-device .video-stage .live-captions{font-size:11px!important;padding:5px 7px!important;box-shadow:none!important}
+html.ultra-lite-device .participant-list{content-visibility:auto;contain-intrinsic-size:500px}
+html.ultra-lite-device .participant-row{box-shadow:none!important}
+html.ultra-lite-device img{animation:none!important;transition:none!important}
+@media(max-width:420px){
+  html.ultra-lite-device .video-mount{height:54vh!important;min-height:240px!important}
+  html.ultra-lite-device .more-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
