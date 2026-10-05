@@ -1694,3 +1694,83 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
   #lesson .participant-actions{grid-template-columns:1fr 1fr!important;grid-column:2/4!important}
   #lesson .participant-actions .attendance-status{max-width:none!important}
 }
+
+
+/* v41 classroom stage: teacher fixed left, students rail right */
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus){
+  display:grid!important;
+  grid-template-columns:minmax(0,2.25fr) minmax(220px,.9fr)!important;
+  grid-auto-rows:minmax(110px,auto)!important;
+  gap:8px!important;
+  align-content:start!important;
+  overflow-y:auto!important;
+  padding:8px!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile{
+  display:block!important;
+  min-height:110px!important;
+  aspect-ratio:16/9!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-teacher.has-video{
+  grid-column:1!important;
+  grid-row:1 / span 999!important;
+  position:sticky!important;
+  top:8px!important;
+  width:100%!important;
+  height:calc(100% - 2px)!important;
+  min-height:420px!important;
+  max-height:calc(100vh - 250px)!important;
+  align-self:start!important;
+  z-index:2!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-teacher.has-video .ms-video{
+  object-fit:contain!important;
+  background:#02060c!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-student{
+  grid-column:2!important;
+  min-height:120px!important;
+  max-height:180px!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-student .ms-video{
+  object-fit:cover!important;
+}
+#videoMount .ms-grid.teacher-stage-layout .ms-tile.speaking{
+  border-color:#20c77a!important;
+  box-shadow:0 0 0 3px rgba(32,199,122,.24)!important;
+}
+#videoMount .ms-grid.teacher-stage-layout .ms-tile.active-speaker{
+  outline:2px solid #22c55e!important;
+  outline-offset:-2px!important;
+}
+#videoMount .ms-grid.teacher-stage-layout .ms-tile.pinned{
+  outline:3px solid #3b82f6!important;
+  box-shadow:0 0 0 4px rgba(59,130,246,.18)!important;
+}
+@media(max-width:900px){
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus){
+    grid-template-columns:minmax(0,1.7fr) minmax(170px,.9fr)!important;
+  }
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-teacher.has-video{
+    min-height:320px!important;
+  }
+}
+@media(max-width:680px){
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus){
+    grid-template-columns:1fr!important;
+    overflow-y:auto!important;
+  }
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-teacher.has-video{
+    grid-column:1!important;
+    grid-row:auto!important;
+    position:relative!important;
+    top:auto!important;
+    min-height:220px!important;
+    max-height:none!important;
+  }
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-student{
+    grid-column:1!important;
+    max-height:none!important;
+    min-height:110px!important;
+  }
+}
