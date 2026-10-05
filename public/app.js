@@ -683,7 +683,7 @@ async function loadLessonParticipants(){
     $('#lessonParticipants').innerHTML=toolbar+rows.map(r=>{
       const checked=['present','late'].includes(r.status)||r.online;
       const manual=Boolean(r.manualMarkedAt);
-      return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'">'+
+      return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'" data-focus-user="'+esc(r._id)+'" role="button" tabindex="0" title="Asosiy ekranga chiqarish">'+
         '<span class="participant-dot"></span>'+
         '<div class="participant-main">'+
           '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+(raisedHands.has(String(r._id))?'✋ ':'')+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
@@ -696,7 +696,12 @@ async function loadLessonParticipants(){
     const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
     $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true)});
     $('#attendanceSave')?.addEventListener('click',saveManualAttendance);
-    all('[data-spotlight-user]').forEach(b=>b.onclick=()=>{socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:b.dataset.spotlightUser});toast('Spotlight yuborildi')});
+    const spotlightUser=id=>{if(!id)return;socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:id});mediaRoomClient?.pinUser?.(String(id));toast('Asosiy ekranga chiqarildi')};
+    all('[data-spotlight-user]').forEach(b=>b.onclick=e=>{e.stopPropagation();spotlightUser(b.dataset.spotlightUser)});
+    all('#lessonParticipants [data-focus-user]').forEach(row=>{
+      row.onclick=e=>{if(e.target.closest('input,select,button,label'))return;spotlightUser(row.dataset.focusUser)};
+      row.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('input,select,button,label')){e.preventDefault();spotlightUser(row.dataset.focusUser)}};
+    });
   }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
 function setLessonDrawer(open){
