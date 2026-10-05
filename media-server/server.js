@@ -41,8 +41,18 @@ function reply(ws,clientId,id,ok,data,error){send(ws,{clientId,id,ok,data,error}
 function event(peer,name,data){send(peer.bridge,{clientId:peer.id,event:name,data})}
 function broadcast(room,name,data,exceptPeerId=null){for(const p of room.peers.values())if(p.id!==exceptPeerId)event(p,name,data)}
 function normalizeProfile(value){const p=String(value||'standard');return LECTURE_LITE_ENABLED&&p==='lecture-lite'?'lecture-lite':p==='seminar'?'seminar':'standard'}
-function studentAudioCount(room){let n=0;for(const p of room.peers.values())if(p.user?.role==='student')for(const producer of p.producers.values())if(producer.kind==='audio'&&!producer.closed)n++;return n}
-function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>({peerId:p.id,user:p.user})),count:room.peers.size,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null,studentAudioActive:room.profile==='lecture-lite'?studentAudioCount(room):null}}}
+function studentAudioCount(room){let n=0;for(const p of room.peers.values())if(p.user?.role==='student')for(const producer of p.producers.values())if(producer.kind==='audio'&&!producer.closed&&!producer.paused)n++;return n}
+function clearAudioFloor(room,peerId='',producerId=''){
+  if(!room?.audioFloor)return;
+  if((peerId&&room.audioFloor.peerId!==peerId)||(producerId&&room.audioFloor.producerId!==producerId))return;
+  room.audioFloor=null;broadcast(room,'audioFloor',{active:false});
+}
+function claimAudioFloor(room,peer,producerId){
+  if(room.audioFloor&&room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
+  room.audioFloor={peerId:peer.id,producerId,user:peer.user,at:Date.now()};
+  broadcast(room,'audioFloor',{active:true,peerId:peer.id,user:peer.user,at:room.audioFloor.at});
+}
+function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>({peerId:p.id,user:p.user})),count:room.peers.size,audioFloor:room.audioFloor||null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:1,studentAudioActive:studentAudioCount(room)}}}
 
 async function verifyTicket(ticket){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
@@ -71,7 +81,7 @@ async function getRoom(roomId,profile='standard',maxParticipants=MAX_PEERS_PER_R
   const workerSlot=chooseWorker(roomId);
   const router=await workerSlot.worker.createRouter({mediaCodecs});
   const audioObserver=await router.createAudioLevelObserver({maxEntries:6,threshold:-55,interval:900});
-  room={id:roomId,profile:normalizeProfile(profile),maxParticipants:Math.min(MAX_PEERS_PER_ROOM,Math.max(2,Number(maxParticipants)||MAX_PEERS_PER_ROOM)),router,workerSlot,peers:new Map(),audioObserver,createdAt:new Date()};
+  room={id:roomId,profile:normalizeProfile(profile),maxParticipants:Math.min(MAX_PEERS_PER_ROOM,Math.max(2,Number(maxParticipants)||MAX_PEERS_PER_ROOM)),router,workerSlot,peers:new Map(),audioObserver,audioFloor:null,createdAt:new Date()};
   rooms.set(roomId,room);workerSlot.rooms++;
   audioObserver.on('volumes',volumes=>{
     const levels=volumes.map(({producer,volume})=>({peerId:producer.appData?.peerId,producerId:producer.id,volume})).filter(x=>x.peerId);
@@ -90,6 +100,7 @@ function serializeTransport(t){
 async function closePeer(clientId,notify=true){
   const peer=peers.get(clientId);if(!peer)return;
   peers.delete(clientId);const room=peer.room;
+  if(room?.audioFloor?.peerId===peer.id)clearAudioFloor(room,peer.id);
   for(const producer of peer.producers.values())try{producer.close()}catch{}
   for(const consumer of peer.consumers.values())try{consumer.close()}catch{}
   for(const transport of peer.transports.values())try{transport.close()}catch{}
@@ -150,11 +161,12 @@ async function handleRequest(ws,msg){
     if(method==='produce'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
       const appData={...(data.appData||{}),peerId:peer.id,role:peer.user.role};
+      if(data.kind==='audio'&&peer.room.audioFloor&&peer.room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
       const producer=await t.produce({kind:data.kind,rtpParameters:data.rtpParameters,appData});
       peer.producers.set(producer.id,producer);
-      if(producer.kind==='audio')try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}
-      producer.on('transportclose',()=>peer.producers.delete(producer.id));
-      producer.observer.on('close',()=>{peer.producers.delete(producer.id);broadcast(peer.room,'producerClosed',{producerId:producer.id,peerId:peer.id})});
+      if(producer.kind==='audio'){claimAudioFloor(peer.room,peer,producer.id);try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}}
+      producer.on('transportclose',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id)});
+      producer.observer.on('close',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id);broadcast(peer.room,'producerClosed',{producerId:producer.id,peerId:peer.id})});
       const meta=serializeProducer(producer,peer);broadcast(peer.room,'newProducer',meta,peer.id);
       reply(ws,clientId,id,true,{id:producer.id});return;
     }
@@ -183,10 +195,17 @@ async function handleRequest(ws,msg){
     if(method==='pauseConsumer'){const c=peer.consumers.get(data.consumerId);if(c)await c.pause();reply(ws,clientId,id,true,{ok:true});return}
     if(method==='pauseProducer'||method==='resumeProducer'){
       const p=peer.producers.get(data.producerId);if(!p)throw new Error('Producer topilmadi');
-      if(method==='pauseProducer')await p.pause();else await p.resume();reply(ws,clientId,id,true,{ok:true});return;
+      if(method==='pauseProducer'){
+        await p.pause();
+        if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);
+      }else{
+        if(p.kind==='audio')claimAudioFloor(peer.room,peer,p.id);
+        await p.resume();
+      }
+      reply(ws,clientId,id,true,{ok:true,audioFloor:peer.room.audioFloor||null});return;
     }
     if(method==='closeProducer'){
-      const p=peer.producers.get(data.producerId);if(p){p.close();peer.producers.delete(p.id);broadcast(peer.room,'producerClosed',{producerId:p.id,peerId:peer.id})}
+      const p=peer.producers.get(data.producerId);if(p){if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);p.close();peer.producers.delete(p.id);broadcast(peer.room,'producerClosed',{producerId:p.id,peerId:peer.id})}
       reply(ws,clientId,id,true,{ok:true});return;
     }
     if(method==='restartIce'){
