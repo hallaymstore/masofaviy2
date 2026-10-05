@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -132,7 +132,7 @@ export class MediaRoomClient{
   setViewMode(mode){
     this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
     this.grid?.classList.toggle('gallery-view',this.viewMode==='gallery');
-    this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');
+    this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');this.grid?.classList.toggle('teacher-stage-layout',this.viewMode==='speaker');
     if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side')}
     this.onState({viewMode:this.viewMode});return this.viewMode;
   }
@@ -376,16 +376,20 @@ export class MediaRoomClient{
     return this.tiles.get(peerId);
   }
   applyAudioLevels(levels){
-    this.tiles.forEach(t=>t.classList.remove('speaking','active-speaker','speaker-side'));
+    this.tiles.forEach(t=>t.classList.remove('speaking'));
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
-    for(const x of valid){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
+    for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
     if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
-    const strongest=valid[0],main=strongest?this.speakerTile(strongest.peerId):null;
-    if(main){
-      main.classList.add('active-speaker');
-      this.grid?.classList.add('speaker-layout');
-      for(const t of this.tiles.values())if(t!==main&&t.classList.contains('role-teacher')&&t.classList.contains('has-video'))t.classList.add('speaker-side');
-    }else this.grid?.classList.remove('speaker-layout');
+    const strongest=valid[0],peer=String(strongest?.peerId||''),now=Date.now();
+    if(!peer){this.activeSpeakerCandidate='';return}
+    if(peer!==this.activeSpeakerCandidate){this.activeSpeakerCandidate=peer;this.activeSpeakerCandidateAt=now;return}
+    if(now-this.activeSpeakerCandidateAt<2200)return;
+    if(peer===this.activeSpeakerPeer)return;
+    if(now-this.activeSpeakerChangedAt<5000)return;
+    this.activeSpeakerPeer=peer;this.activeSpeakerChangedAt=now;
+    for(const t of this.tiles.values())t.classList.remove('active-speaker');
+    const active=this.speakerTile(peer);if(active)active.classList.add('active-speaker');
+    this.onState({activeSpeakerPeerId:peer});
   }
   installAudioUnlock(){
     if(this.audioUnlockInstalled)return;this.audioUnlockInstalled=true;
