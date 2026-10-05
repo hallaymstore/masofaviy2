@@ -319,7 +319,7 @@ export class MediaRoomClient{
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.triggerFeedbackGuard(2500);this.refreshRemoteAudioVolume();this.onState({mic:true});return true;
+      this.triggerFeedbackGuard(1200);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});return false;
@@ -328,8 +328,8 @@ export class MediaRoomClient{
   async toggleMic(){
     const p=this.producers.get('mic');
     if(!p)return this.startMicrophone();
-    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.triggerFeedbackGuard(2500);this.refreshRemoteAudioVolume();this.onState({mic:true});return true}
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});setTimeout(()=>this.refreshRemoteAudioVolume(),180);this.onState({mic:false});return false;
+    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.triggerFeedbackGuard(1200);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:true});return true}
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});setTimeout(()=>this.refreshRemoteAudioVolume(),180);this.onState({mic:false,halfDuplex:false});return false;
   }
   async toggleCamera(){
     const p=this.producers.get('camera');
@@ -459,10 +459,10 @@ export class MediaRoomClient{
   }
   computeRemoteAudioVolume(role=''){
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),risk=Date.now()<this.feedbackRiskUntil;
-    if(!this.echoGuard)return active?0.58:1;
-    if(risk)return role==='teacher'?0.03:0.005;
-    if(active&&this.proximityGuard)return role==='teacher'?0.12:0.015;
-    if(active)return role==='teacher'?0.45:0.16;
+    if(active&&this.proximityGuard)return 0;
+    if(!this.echoGuard)return 1;
+    if(risk)return 0;
+    if(active)return 0;
     return role==='teacher' ? .82 : .62;
   }
   refreshRemoteAudioVolume(){
@@ -470,11 +470,11 @@ export class MediaRoomClient{
   }
   triggerFeedbackGuard(ms=4500,severe=false){
     this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,Date.now()+ms);
-    if(severe)this.setMicGuardGain(.18,.02);else this.setMicGuardGain(.42,.04);
-    this.refreshRemoteAudioVolume();
+    if(severe)this.setMicGuardGain(.12,.01);else this.setMicGuardGain(.34,.03);
+    this.audioBin?.querySelectorAll('audio').forEach(a=>{a.volume=0});
     clearTimeout(this.feedbackGuardTimer);
-    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.86,.22);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+180);
-    this.onState({feedbackGuard:true,severeFeedback:Boolean(severe)});
+    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.86,.24);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+180);
+    this.onState({feedbackGuard:true,severeFeedback:Boolean(severe),halfDuplex:true});
   }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
