@@ -463,7 +463,7 @@ export class MediaRoomClient{
     if(risk)return role==='teacher'?0.06:0.01;
     if(active&&this.proximityGuard)return role==='teacher'?0.24:0.05;
     if(active)return role==='teacher'?0.45:0.16;
-    return role==='teacher'?.82:.62;
+    return role==='teacher' ? .82 : .62;
   }
   refreshRemoteAudioVolume(){
     this.audioBin?.querySelectorAll('audio').forEach(a=>{a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');a.play().catch(()=>{})});
