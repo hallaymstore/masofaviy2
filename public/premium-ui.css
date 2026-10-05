@@ -1580,3 +1580,117 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     font-size:11px!important;
   }
 }
+
+
+/* v39 attendance roster cleanup + clickable spotlight rows */
+#lesson .attendance-manual-toolbar{
+  position:sticky!important;
+  top:0!important;
+  z-index:5!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:8px!important;
+  padding:10px 12px!important;
+  margin:0 0 8px!important;
+  border:1px solid var(--line)!important;
+  border-radius:12px!important;
+  background:var(--surface)!important;
+}
+#lesson .attendance-manual-toolbar>div:first-child{display:grid!important;gap:2px!important}
+#lesson .attendance-manual-toolbar>div:first-child b{font-size:12px!important}
+#lesson .attendance-manual-toolbar>div:first-child small{font-size:9px!important;color:var(--muted)!important}
+#lesson .attendance-manual-toolbar>div:last-child{display:flex!important;gap:6px!important;flex-wrap:wrap!important;justify-content:flex-end!important}
+#lesson .attendance-manual-toolbar button{min-height:34px!important;padding:7px 10px!important;font-size:10px!important;border-radius:8px!important}
+
+#lesson .participant-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  padding:8px!important;
+}
+#lesson .participant-row{
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:10px minmax(0,1fr) auto!important;
+  gap:8px!important;
+  align-items:start!important;
+  padding:10px 11px!important;
+  border:1px solid var(--line)!important;
+  border-radius:12px!important;
+  background:var(--surface)!important;
+  box-shadow:none!important;
+  cursor:pointer!important;
+}
+#lesson .participant-row:hover,
+#lesson .participant-row:focus-visible{
+  border-color:var(--accent)!important;
+  background:color-mix(in srgb,var(--accent) 6%,var(--surface))!important;
+  outline:none!important;
+}
+#lesson .participant-row.is-online{border-color:color-mix(in srgb,var(--good) 32%,var(--line))!important}
+#lesson .participant-dot{margin-top:5px!important}
+#lesson .participant-main{min-width:0!important;display:grid!important;gap:6px!important}
+#lesson .participant-name{min-width:0!important;display:grid!important;gap:2px!important}
+#lesson .participant-name b{font-size:12px!important;line-height:1.2!important;overflow-wrap:anywhere!important}
+#lesson .participant-name small{font-size:9px!important;color:var(--muted)!important;overflow-wrap:anywhere!important}
+#lesson .participant-statusline{
+  display:flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  flex-wrap:wrap!important;
+}
+#lesson .attendance-chip,
+#lesson .online-chip,
+#lesson .offline-chip,
+#lesson .manual-chip{
+  font-size:9px!important;
+  line-height:1!important;
+  padding:4px 6px!important;
+  border-radius:999px!important;
+  white-space:nowrap!important;
+}
+#lesson .mini-spotlight{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  padding:0!important;
+  border-radius:8px!important;
+  display:grid!important;
+  place-items:center!important;
+  align-self:start!important;
+}
+#lesson .participant-actions{
+  grid-column:2/4!important;
+  display:grid!important;
+  grid-template-columns:auto minmax(110px,150px)!important;
+  align-items:center!important;
+  justify-content:start!important;
+  gap:6px!important;
+  width:100%!important;
+}
+#lesson .participant-actions .attendance-check{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  min-height:34px!important;
+  padding:6px 8px!important;
+  border-radius:8px!important;
+  font-size:10px!important;
+}
+#lesson .participant-actions .attendance-status{
+  width:100%!important;
+  min-width:110px!important;
+  max-width:150px!important;
+  min-height:34px!important;
+  padding:6px 8px!important;
+  font-size:10px!important;
+  border-radius:8px!important;
+}
+@media(max-width:680px){
+  #lesson .attendance-manual-toolbar{grid-template-columns:1fr!important}
+  #lesson .attendance-manual-toolbar>div:last-child{justify-content:flex-start!important}
+  #lesson .participant-row{grid-template-columns:8px minmax(0,1fr) auto!important;padding:9px!important}
+  #lesson .participant-actions{grid-template-columns:1fr 1fr!important;grid-column:2/4!important}
+  #lesson .participant-actions .attendance-status{max-width:none!important}
+}
