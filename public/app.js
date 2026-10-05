@@ -621,7 +621,7 @@ async function openConference(payload){
       onState:state=>{
         if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — o‘chirish':'Mikrofon OFF — yoqish')}
         if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
-        if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish')}
+        if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — erkin yoqish')}
         if(state.cameraBusy!==undefined){const b=$('#callCamera');if(b){b.disabled=Boolean(state.cameraBusy);b.classList.toggle('is-busy',Boolean(state.cameraBusy));b.setAttribute('aria-busy',state.cameraBusy?'true':'false')}}
         if(state.screen!==undefined){const b=$('#callScreen');b?.classList.toggle('active-control',Boolean(state.screen));b?.setAttribute('aria-pressed',state.screen?'true':'false')}
         if(state.echoGuard!==undefined)$('#echoGuard')?.classList.toggle('active-control',state.echoGuard);
@@ -685,9 +685,12 @@ async function loadLessonParticipants(){
       const manual=Boolean(r.manualMarkedAt);
       return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'">'+
         '<span class="participant-dot"></span>'+
-        '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+(raisedHands.has(String(r._id))?'✋ ':'')+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
-        '<div class="participant-statusline"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(r.online?'<span class="online-chip">Onlayn</span>':'<span class="offline-chip">Oflayn</span>')+(manual?'<span class="manual-chip">Qo‘lda</span>':'')+(user.role==='teacher'&&r.online?'<button class="mini-spotlight" data-spotlight-user="'+esc(r._id)+'" title="Spotlight">⭐</button>':'')+'</div>'+
-        (editable?'<div class="participant-actions"><label class="attendance-check"><input type="checkbox" data-attendance-check '+(checked?'checked':'')+'><span>Bor</span></label><select data-attendance-status class="attendance-status" aria-label="Davomat holati"><option value="">Oddiy</option><option value="late" '+(r.status==='late'?'selected':'')+'>Kechikdi</option><option value="excused" '+(r.status==='excused'?'selected':'')+'>Sababli</option></select></div>':'')+
+        '<div class="participant-main">'+
+          '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+(raisedHands.has(String(r._id))?'✋ ':'')+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
+          '<div class="participant-statusline"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(r.online?'<span class="online-chip">Onlayn</span>':'<span class="offline-chip">Oflayn</span>')+(manual?'<span class="manual-chip">Qo‘lda</span>':'')+'</div>'+
+        '</div>'+
+        (user.role==='teacher'&&r.online?'<button class="mini-spotlight" data-spotlight-user="'+esc(r._id)+'" title="Asosiy ekranga chiqarish">⭐</button>':'')+
+        (editable?'<div class="participant-actions"><label class="attendance-check"><input type="checkbox" data-attendance-check '+(checked?'checked':'')+'><span>Qatnashdi</span></label><select data-attendance-status class="attendance-status" aria-label="Davomat holati"><option value="">Holat: oddiy</option><option value="late" '+(r.status==='late'?'selected':'')+'>Kechikdi</option><option value="excused" '+(r.status==='excused'?'selected':'')+'>Sababli</option></select></div>':'')+
         '</div>';
     }).join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
     const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
@@ -715,8 +718,7 @@ function approveRaisedHand(){
   const first=[...raisedHandUsers.values()][0];
   if(!first||!activeLessonId)return;
   socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:first.userId});
-  socket?.emit('camera:request-enable',{lessonId:activeLessonId,userId:first.userId});
-  toast(first.fullName+' asosiy ekranga chiqarilmoqda');
+  toast(first.fullName+' asosiy ekranga chiqarildi');
 }
 $('#raisedHandOpen')?.addEventListener('click',()=>showLessonSide('participants'));
 $('#raisedHandSpotlight')?.addEventListener('click',approveRaisedHand);
@@ -1121,19 +1123,6 @@ function connectSocket(){
     socket.emit('mic:enable-result',{lessonId:activeLessonId,accepted});
   });
   socket.on('mic:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' mikrofonni yoqdi':' gapirish so‘rovini rad etdi'))});
-  socket.on('camera:permission-request',function(x){
-    if(!activeLessonId||user.role!=='teacher')return;
-    const approved=confirm((x.fullName||'Talaba')+' kamerani yoqishga ruxsat so‘radi. Ruxsat berasizmi?');
-    socket.emit('camera:permission-response',{lessonId:activeLessonId,userId:x.userId,approved});
-  });
-  socket.on('camera:permission-result',async function(x){
-    if(!activeLessonId||user.role!=='student')return;
-    studentCameraGranted=Boolean(x.approved);
-    if(!x.approved)return toast('O‘qituvchi kamera ruxsatini bermadi');
-    if(confirm((x.teacherName||'O‘qituvchi')+' kamera uchun ruxsat berdi. Hozir kamerani yoqasizmi?')){
-      try{await mediaRoomClient?.toggleCamera()}catch(e){toast(e.message)}
-    }
-  });
   socket.on('camera:enable-request',async function(x){
     if(!activeLessonId||user.role!=='student')return;
     const accepted=confirm((x.teacherName||'O‘qituvchi')+' kamerani yoqishni so‘radi. Kamerani yoqasizmi?');
