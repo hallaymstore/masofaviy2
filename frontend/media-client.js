@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=true;this.feedbackRiskUntil=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -49,7 +49,7 @@ export class MediaRoomClient{
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
     if(kind==='audio'){
-      const a=this.ultraLite?{echoCancellation:{ideal:true},noiseSuppression:{ideal:false},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:24000,max:32000},sampleSize:{ideal:16}}:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:48000},sampleSize:{ideal:16}};
+      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05}};
       return id?{deviceId:{ideal:id},...a}:a;
     }
     const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
@@ -262,9 +262,9 @@ export class MediaRoomClient{
     try{
       const stream=await this.getMediaOnce('audio');
       const track=stream.getAudioTracks()[0];if(!track)throw new Error('Mikrofon trek topilmadi');
-      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:48000},appData:{mediaTag:'mic',role:this.user.role}});
+      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.refreshRemoteAudioVolume();this.onState({mic:true});return true;
+      this.triggerFeedbackGuard(2500);this.refreshRemoteAudioVolume();this.onState({mic:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});return false;
@@ -273,7 +273,7 @@ export class MediaRoomClient{
   async toggleMic(){
     const p=this.producers.get('mic');
     if(!p)return this.startMicrophone();
-    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.refreshRemoteAudioVolume();this.onState({mic:true});return true}
+    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.triggerFeedbackGuard(2500);this.refreshRemoteAudioVolume();this.onState({mic:true});return true}
     p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.refreshRemoteAudioVolume();this.onState({mic:false});return false;
   }
   async toggleCamera(){
@@ -342,7 +342,7 @@ export class MediaRoomClient{
   async attachRemote(consumer,meta){
     const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},isScreen=meta.appData?.mediaTag==='screen',tileKey=isScreen?String(meta.peerId)+':screen':meta.peerId,tile=this.ensureTile(tileKey,isScreen?{...user,fullName:(user.fullName||user.login||'O‘qituvchi')+' · Ekran'}:user,false);
     if(consumer.kind==='audio'){
-      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=audio.dataset.role==='teacher'?1:(this.echoGuard?(this.producers.get('mic')&&!this.producers.get('mic').paused?0.72:0.9):1);this.audioBin.appendChild(audio);audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});return;
+      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=this.computeRemoteAudioVolume(audio.dataset.role);this.audioBin.appendChild(audio);audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});return;
     }
     const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
     if(isScreen){
@@ -379,6 +379,8 @@ export class MediaRoomClient{
   }
   applyAudioLevels(levels){
     this.tiles.forEach(t=>t.classList.remove('speaking'));
+    const loud=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))&&Number(x.volume)>-28);
+    if(loud.length>=2&&this.producers.get('mic')&&!this.producers.get('mic').paused)this.triggerFeedbackGuard(5000);
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
     for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
     if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
@@ -399,9 +401,22 @@ export class MediaRoomClient{
     document.addEventListener('pointerdown',this.audioUnlockHandler,{passive:true});
     document.addEventListener('keydown',this.audioUnlockHandler,{passive:true});
   }
+  computeRemoteAudioVolume(role=''){
+    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),risk=Date.now()<this.feedbackRiskUntil;
+    if(!this.echoGuard)return active?0.72:1;
+    if(risk)return role==='teacher'?0.28:0.12;
+    if(active)return role==='teacher'?0.52:0.24;
+    return role==='teacher'?0.88:0.72;
+  }
   refreshRemoteAudioVolume(){
-    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
-    this.audioBin?.querySelectorAll('audio').forEach(a=>{a.volume=a.dataset.role==='teacher'?1:(this.echoGuard?(active?0.72:0.9):1);a.play().catch(()=>{})});
+    this.audioBin?.querySelectorAll('audio').forEach(a=>{a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');a.play().catch(()=>{})});
+  }
+  triggerFeedbackGuard(ms=4500){
+    this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,Date.now()+ms);
+    this.refreshRemoteAudioVolume();
+    clearTimeout(this.feedbackGuardTimer);
+    this.feedbackGuardTimer=setTimeout(()=>this.refreshRemoteAudioVolume(),ms+150);
+    this.onState({feedbackGuard:true});
   }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
