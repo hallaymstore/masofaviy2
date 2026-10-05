@@ -70,7 +70,7 @@ async function getRoom(roomId,profile='standard',maxParticipants=MAX_PEERS_PER_R
   if(rooms.size>=MAX_ACTIVE_ROOMS)throw new Error('Parallel jonli xonalar limiti to‘lgan');
   const workerSlot=chooseWorker(roomId);
   const router=await workerSlot.worker.createRouter({mediaCodecs});
-  const audioObserver=await router.createAudioLevelObserver({maxEntries:8,threshold:-72,interval:800});
+  const audioObserver=await router.createAudioLevelObserver({maxEntries:6,threshold:-55,interval:900});
   room={id:roomId,profile:normalizeProfile(profile),maxParticipants:Math.min(MAX_PEERS_PER_ROOM,Math.max(2,Number(maxParticipants)||MAX_PEERS_PER_ROOM)),router,workerSlot,peers:new Map(),audioObserver,createdAt:new Date()};
   rooms.set(roomId,room);workerSlot.rooms++;
   audioObserver.on('volumes',volumes=>{
