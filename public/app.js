@@ -864,6 +864,7 @@ $('#callFullscreen')?.addEventListener('click',async()=>{
 document.addEventListener('fullscreenchange',()=>{
   if(!document.fullscreenElement){
     document.documentElement.classList.remove('video-cinema-fallback');
+    mediaRoomClient?.clearFullscreenLayout?.();
     mediaRoomClient?.resetZoom?.();
     try{screen.orientation?.unlock?.()}catch{}
   }
