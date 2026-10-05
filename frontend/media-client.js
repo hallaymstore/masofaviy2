@@ -110,6 +110,8 @@ export class MediaRoomClient{
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
+    const pin=el('button',{className:'ms-pin-btn',type:'button',title:'Pin / unpin'});pin.textContent='📌';
+    pin.addEventListener('click',e=>{e.stopPropagation();this.pinUser(tile.dataset.userId||'',tile.dataset.peerId)});
     tile.title='Bosib kattalashtirish';
     tile.addEventListener('click',e=>{
       if(e.target.closest('button,select,input,label'))return;
@@ -127,7 +129,7 @@ export class MediaRoomClient{
     });
     tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
     this.installPinchZoom(tile,video);
-    tile.append(video,avatar,label,mic);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
+    tile.append(video,avatar,label,mic,pin);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
   }
   setViewMode(mode){
     this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
