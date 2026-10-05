@@ -329,7 +329,7 @@ export class MediaRoomClient{
     const p=this.producers.get('mic');
     if(!p)return this.startMicrophone();
     if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.triggerFeedbackGuard(2500);this.refreshRemoteAudioVolume();this.onState({mic:true});return true}
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.refreshRemoteAudioVolume();this.onState({mic:false});return false;
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});setTimeout(()=>this.refreshRemoteAudioVolume(),180);this.onState({mic:false});return false;
   }
   async toggleCamera(){
     const p=this.producers.get('camera');
@@ -460,8 +460,8 @@ export class MediaRoomClient{
   computeRemoteAudioVolume(role=''){
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),risk=Date.now()<this.feedbackRiskUntil;
     if(!this.echoGuard)return active?0.58:1;
-    if(risk)return role==='teacher'?0.06:0.01;
-    if(active&&this.proximityGuard)return role==='teacher'?0.24:0.05;
+    if(risk)return role==='teacher'?0.03:0.005;
+    if(active&&this.proximityGuard)return role==='teacher'?0.12:0.015;
     if(active)return role==='teacher'?0.45:0.16;
     return role==='teacher' ? .82 : .62;
   }
