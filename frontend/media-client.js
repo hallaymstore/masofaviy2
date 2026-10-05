@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=true;this.feedbackRiskUntil=0;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=true;this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -44,7 +44,8 @@ export class MediaRoomClient{
     else if(msg.event==='producerClosed')this.closeConsumerByProducer(msg.data?.producerId);
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
-    else if(msg.event==='roomState')this.onState(msg.data||{});
+    else if(msg.event==='audioFloor'){this.audioFloor=msg.data?.active?msg.data:null;this.onState({audioFloor:this.audioFloor})}
+    else if(msg.event==='roomState'){this.audioFloor=msg.data?.audioFloor||null;this.onState(msg.data||{});}
   }
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
@@ -310,8 +311,24 @@ export class MediaRoomClient{
     const now=g.context.currentTime;
     try{g.gain.cancelScheduledValues(now);g.gain.setTargetAtTime(value,now,seconds)}catch{g.gain.value=value}
   }
-    async startMicrophone(){
+    enterZeroFeedbackMode(){
+    this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
+    this.onState({halfDuplex:true,zeroFeedback:true});
+  }
+  exitZeroFeedbackMode(){
+    const mic=this.producers.get('mic');
+    if(mic&&!mic.paused)return;
+    setTimeout(()=>this.refreshRemoteAudioVolume(),80);
+    this.onState({halfDuplex:false,zeroFeedback:true});
+  }
+  floorBusyForMe(){
+    const mine=String(this.room?.peerId||'');
+    return Boolean(this.audioFloor?.active&&String(this.audioFloor?.peerId||'')!==mine);
+  }
+  async startMicrophone(){
     if(this.mediaBusy?.mic)return false;
+    if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shagach qayta bosing.'));return false}
+    this.enterZeroFeedbackMode();
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.mic=true;this.onState({micBusy:true});
     try{
       const stream=await this.getMediaOnce('audio');
@@ -319,17 +336,27 @@ export class MediaRoomClient{
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.triggerFeedbackGuard(1200);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true;
+      this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
-      this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});return false;
+      this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});this.exitZeroFeedbackMode();return false;
     }finally{this.mediaBusy.mic=false;this.onState({micBusy:false})}
   }
   async toggleMic(){
     const p=this.producers.get('mic');
     if(!p)return this.startMicrophone();
-    if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.triggerFeedbackGuard(1200);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true}
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});setTimeout(()=>this.refreshRemoteAudioVolume(),120);this.onState({mic:false,halfDuplex:false,zeroFeedback:true});return false;
+    if(p.paused){
+      if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti.'));return false}
+      this.enterZeroFeedbackMode();
+      try{
+        await this.request('resumeProducer',{producerId:p.id});
+        p.track.enabled=true;p.resume();
+        this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true
+      }catch(e){
+        p.track.enabled=false;this.exitZeroFeedbackMode();this.onError(e);return false
+      }
+    }
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.exitZeroFeedbackMode();this.onState({mic:false,halfDuplex:false,zeroFeedback:true});return false;
   }
   async toggleCamera(){
     const p=this.producers.get('camera');
