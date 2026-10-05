@@ -153,30 +153,43 @@ export class MediaRoomClient{
     for(const t of tiles)t.classList.remove('focused');
     target.classList.add('focused');this.grid?.classList.add('has-focus');this.resetZoom(target);return target;
   }
+  prepareFullscreenLayout(){
+    const tiles=[...this.tiles.values()],target=this.getPrimaryVideoTile();
+    if(!target)return null;
+    for(const t of tiles)t.classList.remove('cinema-primary','fullscreen-teacher-pip');
+    target.classList.add('cinema-primary');
+    const teacher=tiles.find(t=>t!==target&&t.classList.contains('role-teacher')&&t.classList.contains('has-video')&&!t.classList.contains('screen-share'));
+    if(teacher)teacher.classList.add('fullscreen-teacher-pip');
+    this.grid?.classList.add('fullscreen-video-grid');
+    return {target,teacher};
+  }
+  clearFullscreenLayout(){
+    this.grid?.classList.remove('fullscreen-video-grid');
+    for(const t of this.tiles.values())t.classList.remove('cinema-primary','fullscreen-teacher-pip');
+  }
   async enterPrimaryFullscreen(){
-    const target=this.focusTeacherOrScreen();
-    if(!target)throw new Error('Asosiy video topilmadi');
-    const video=qs('video',target);
+    const layout=this.prepareFullscreenLayout();
+    if(!layout)throw new Error('Asosiy video topilmadi');
+    const {target}=layout,video=qs('video',target),host=this.grid||this.mount;
     try{
-      if(target.requestFullscreen){
-        await target.requestFullscreen({navigationUI:'hide'}).catch(()=>target.requestFullscreen());
+      if(host?.requestFullscreen){
+        await host.requestFullscreen({navigationUI:'hide'}).catch(()=>host.requestFullscreen());
         try{await screen.orientation?.lock?.('landscape')}catch{}
-        return {active:true,mode:'tile'};
+        return {active:true,mode:'grid'};
       }
-      if(video?.webkitEnterFullscreen){
+      if(video?.webkitEnterFullscreen&&!layout.teacher){
         video.webkitEnterFullscreen();
         return {active:true,mode:'video'};
       }
     }catch{}
     document.documentElement.classList.add('video-cinema-fallback');
-    target.classList.add('cinema-primary');
     try{await screen.orientation?.lock?.('landscape')}catch{}
     return {active:true,mode:'fallback'};
   }
   async exitPrimaryFullscreen(){
     if(document.fullscreenElement)try{await document.exitFullscreen()}catch{}
     document.documentElement.classList.remove('video-cinema-fallback');
-    for(const t of this.tiles.values())t.classList.remove('cinema-primary');
+    this.clearFullscreenLayout();
     try{screen.orientation?.unlock?.()}catch{}
     return {active:false};
   }
@@ -326,14 +339,7 @@ export class MediaRoomClient{
     if(isScreen){
       tile.classList.add('screen-share');
       this.grid?.classList.add('screen-layout');
-      if(this.ultraLite&&this.user.role==='student'){
-        for(const other of this.consumers.values()){
-          const m=other.appData?.meta;
-          if(other!==consumer&&other.kind==='video'&&m?.appData?.role==='teacher'&&m?.appData?.mediaTag!=='screen'){
-            try{await this.request('pauseConsumer',{consumerId:other.id});other.pause()}catch{}
-          }
-        }
-      }
+
       const teacherTile=this.tiles.get(meta.peerId);if(teacherTile?.classList.contains('has-video'))teacherTile.classList.add('screen-camera-pip');
     }else if(user.role==='teacher'&&this.tiles.get(String(meta.peerId)+':screen'))tile.classList.add('screen-camera-pip');
   }
@@ -353,14 +359,7 @@ export class MediaRoomClient{
       this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');
       if(!this.grid?.querySelector('.screen-share')){
         this.grid?.classList.remove('screen-layout');
-        if(this.ultraLite&&this.user.role==='student'){
-          for(const other of this.consumers.values()){
-            const m=other.appData?.meta;
-            if(other.kind==='video'&&m?.appData?.role==='teacher'){
-              try{this.request('resumeConsumer',{consumerId:other.id}).catch(()=>{});other.resume()}catch{}
-            }
-          }
-        }
+
       }
     }
   }
