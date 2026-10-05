@@ -111,12 +111,19 @@ export class MediaRoomClient{
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
     tile.title='Bosib kattalashtirish';
-    tile.addEventListener('click',()=>{
-      if(this.viewMode==='gallery')return;
-      const focused=tile.classList.contains('focused');
+    tile.addEventListener('click',e=>{
+      if(e.target.closest('button,select,input,label'))return;
+      const focused=tile.classList.contains('focused')&&this.grid?.classList.contains('has-focus');
       for(const x of this.tiles.values())x.classList.remove('focused');
-      this.grid.classList.toggle('has-focus',!focused);
-      if(!focused)tile.classList.add('focused');
+      if(focused){
+        this.grid?.classList.remove('has-focus');
+        this.onState({focusedUserId:''});
+        return;
+      }
+      tile.classList.add('focused');
+      this.grid?.classList.add('has-focus');
+      this.resetZoom(tile);
+      this.onState({focusedUserId:tile.dataset.userId||tile.dataset.peerId||''});
     });
     tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
     this.installPinchZoom(tile,video);
