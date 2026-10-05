@@ -679,8 +679,16 @@ async function loadLessonParticipants(){
   try{
     const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
-    const toolbar=editable?'<div class="attendance-manual-toolbar"><div><b>Qo‘lda davomat</b><small>Ro‘yxat aynan shu guruhdan olinadi</small></div><div><button class="ghost" id="attendanceMarkAll" type="button">Barchasini belgilash</button><button class="primary" id="attendanceSave" type="button">Davomatni saqlash</button></div></div>':'';
-    $('#lessonParticipants').innerHTML=toolbar+rows.map(r=>{
+    const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length};
+    const summary='<div class="attendance-summary">'+
+      '<span><b>'+counts.total+'</b><small>Jami</small></span>'+
+      '<span><b>'+counts.online+'</b><small>Onlayn</small></span>'+
+      '<span><b>'+counts.present+'</b><small>Vaqtida</small></span>'+
+      '<span><b>'+counts.late+'</b><small>Kechikkan</small></span>'+
+      '<span><b>'+counts.absent+'</b><small>Yo‘q</small></span>'+
+    '</div>';
+    const toolbar=editable?'<div class="attendance-manual-toolbar"><div><b>Qo‘lda davomat</b><small>Avtomatik nazorat + o‘qituvchi tuzatishi</small></div><div><button class="ghost" id="attendanceMarkAll" type="button">Barchasini belgilash</button><button class="primary" id="attendanceSave" type="button">Davomatni saqlash</button></div></div>':'';
+    $('#lessonParticipants').innerHTML=summary+toolbar+rows.map(r=>{
       const checked=['present','late'].includes(r.status)||r.online;
       const manual=Boolean(r.manualMarkedAt);
       return '<div class="participant-row '+(r.online?'is-online':'')+'" data-attendance-student="'+esc(r._id)+'" data-focus-user="'+esc(r._id)+'" role="button" tabindex="0" title="Asosiy ekranga chiqarish">'+
@@ -688,6 +696,7 @@ async function loadLessonParticipants(){
         '<div class="participant-main">'+
           '<div class="participant-name"><b title="'+esc(r.fullName)+'">'+(raisedHands.has(String(r._id))?'✋ ':'')+esc(r.fullName)+'</b><small title="@'+esc(r.login)+'">@'+esc(r.login)+'</small></div>'+
           '<div class="participant-statusline"><span class="attendance-chip '+esc(r.status)+'">'+esc(label[r.status]||r.status)+'</span>'+(r.online?'<span class="online-chip">Onlayn</span>':'<span class="offline-chip">Oflayn</span>')+(manual?'<span class="manual-chip">Qo‘lda</span>':'')+'</div>'+
+          '<div class="participant-presence-meta"><span>⏱ '+esc(r.minutes||0)+' daq</span><span>◔ '+esc(r.presencePercent||0)+'%</span><span>↻ '+esc(r.reconnectCount||0)+' qayta kirish</span><span>✓ '+esc(r.checkpointCount||0)+' checkpoint</span></div>'+
         '</div>'+
         (user.role==='teacher'&&r.online?'<button class="mini-spotlight" data-spotlight-user="'+esc(r._id)+'" title="Asosiy ekranga chiqarish">⭐</button>':'')+
         (editable?'<div class="participant-actions"><label class="attendance-check"><input type="checkbox" data-attendance-check '+(checked?'checked':'')+'><span>Qatnashdi</span></label><select data-attendance-status class="attendance-status" aria-label="Davomat holati"><option value="">Holat: oddiy</option><option value="late" '+(r.status==='late'?'selected':'')+'>Kechikdi</option><option value="excused" '+(r.status==='excused'?'selected':'')+'>Sababli</option></select></div>':'')+
