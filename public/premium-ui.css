@@ -1837,3 +1837,27 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
   #lesson .attendance-summary>span{padding:7px 4px!important}
   #lesson .participant-presence-meta span{font-size:7px!important}
 }
+
+
+#videoMount .ms-pin-btn{
+  position:absolute!important;
+  top:7px!important;
+  right:7px!important;
+  z-index:12!important;
+  width:28px!important;
+  height:28px!important;
+  min-width:28px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid rgba(255,255,255,.35)!important;
+  border-radius:8px!important;
+  background:rgba(2,6,12,.62)!important;
+  color:#fff!important;
+  font-size:14px!important;
+  cursor:pointer!important;
+}
+#videoMount .ms-tile.pinned .ms-pin-btn{background:#2563eb!important;border-color:#2563eb!important}
+@media(max-width:680px){
+  #videoMount .ms-pin-btn{width:26px!important;height:26px!important;min-width:26px!important;font-size:12px!important}
+}
