@@ -24,6 +24,7 @@ const TARGET_MIN_WORKERS=Math.max(1,Math.min(16,Number(process.env.TARGET_MIN_WO
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
 const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
+const STRICT_AUDIO_FLOOR=process.env.STRICT_AUDIO_FLOOR==='true';
 const LECTURE_INITIAL_OUTGOING_BITRATE=Math.max(400000,Number(process.env.LECTURE_INITIAL_OUTGOING_BITRATE||900000));
 
 const mediaCodecs=[
@@ -43,16 +44,17 @@ function broadcast(room,name,data,exceptPeerId=null){for(const p of room.peers.v
 function normalizeProfile(value){const p=String(value||'standard');return LECTURE_LITE_ENABLED&&p==='lecture-lite'?'lecture-lite':p==='seminar'?'seminar':'standard'}
 function studentAudioCount(room){let n=0;for(const p of room.peers.values())if(p.user?.role==='student')for(const producer of p.producers.values())if(producer.kind==='audio'&&!producer.closed&&!producer.paused)n++;return n}
 function clearAudioFloor(room,peerId='',producerId=''){
-  if(!room?.audioFloor)return;
+  if(!STRICT_AUDIO_FLOOR||!room?.audioFloor)return;
   if((peerId&&room.audioFloor.peerId!==peerId)||(producerId&&room.audioFloor.producerId!==producerId))return;
   room.audioFloor=null;broadcast(room,'audioFloor',{active:false});
 }
 function claimAudioFloor(room,peer,producerId){
+  if(!STRICT_AUDIO_FLOOR)return;
   if(room.audioFloor&&room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
   room.audioFloor={peerId:peer.id,producerId,user:peer.user,at:Date.now()};
   broadcast(room,'audioFloor',{active:true,peerId:peer.id,user:peer.user,at:room.audioFloor.at});
 }
-function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>({peerId:p.id,user:p.user})),count:room.peers.size,audioFloor:room.audioFloor||null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:1,studentAudioActive:studentAudioCount(room)}}}
+function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>({peerId:p.id,user:p.user})),count:room.peers.size,audioFloor:STRICT_AUDIO_FLOOR?(room.audioFloor||null):null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:STRICT_AUDIO_FLOOR?1:(room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null),studentAudioActive:studentAudioCount(room)}}}
 
 async function verifyTicket(ticket){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
@@ -161,7 +163,7 @@ async function handleRequest(ws,msg){
     if(method==='produce'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
       const appData={...(data.appData||{}),peerId:peer.id,role:peer.user.role};
-      if(data.kind==='audio'&&peer.room.audioFloor&&peer.room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
+      if(STRICT_AUDIO_FLOOR&&data.kind==='audio'&&peer.room.audioFloor&&peer.room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
       const producer=await t.produce({kind:data.kind,rtpParameters:data.rtpParameters,appData});
       peer.producers.set(producer.id,producer);
       if(producer.kind==='audio'){claimAudioFloor(peer.room,peer,producer.id);try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}}
