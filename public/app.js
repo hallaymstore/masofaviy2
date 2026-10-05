@@ -848,7 +848,7 @@ $('#callCamera').onclick=async()=>{
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
-$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const enabled=!$('#echoGuard').classList.contains('active-control');mediaRoomClient.setEchoGuard(enabled);toast(enabled?'Echo himoya yoqildi':'Echo himoya o‘chirildi')});
+$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const enabled=!$('#echoGuard').classList.contains('active-control');mediaRoomClient.setEchoGuard(enabled);toast(enabled?'Echo himoya yoqildi':'Diqqat: echo himoya o‘chirildi. Yaqin qurilmalarda chiyillash xavfi oshadi.')});
 $('#callChat').onclick=()=>showLessonSide('chat');
 function applyInclusivePrefs(){
   document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
