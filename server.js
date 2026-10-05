@@ -1310,23 +1310,6 @@ socket.on('mic:enable-result',async({lessonId,accepted})=>{
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('mic:student-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,accepted:Boolean(accepted)});
   }catch{}
 });
-socket.on('camera:permission-request',async({lessonId})=>{
-  try{
-    if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
-    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
-    for(const s of lessonRoomSockets(lessonId)){
-      if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('camera:permission-request',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,login:socket.user.login});
-    }
-  }catch{}
-});
-socket.on('camera:permission-response',async({lessonId,userId,approved})=>{
-  try{
-    if(!mongoose.isValidObjectId(lessonId)||!mongoose.isValidObjectId(userId)||!socket.rooms.has('lesson:'+lessonId))return;
-    const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
-    if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
-    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId))s.emit('camera:permission-result',{lessonId,approved:Boolean(approved),teacherName:socket.user.fullName});
-  }catch{}
-});
 socket.on('camera:request-enable',async({lessonId,userId})=>{
   try{
     if(!mongoose.isValidObjectId(lessonId)||!mongoose.isValidObjectId(userId)||!socket.rooms.has('lesson:'+lessonId))return;
