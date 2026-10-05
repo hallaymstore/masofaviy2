@@ -1774,3 +1774,66 @@ dialog::backdrop{background:rgba(3,13,32,.58);backdrop-filter:blur(3px)}
     min-height:110px!important;
   }
 }
+
+
+/* v42 attendance metrics + stable classroom rail */
+#lesson .attendance-summary{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:6px!important;
+  margin:0 0 8px!important;
+  padding:0!important;
+}
+#lesson .attendance-summary>span{
+  display:grid!important;
+  place-items:center!important;
+  gap:2px!important;
+  min-width:0!important;
+  padding:8px 5px!important;
+  border:1px solid var(--line)!important;
+  border-radius:10px!important;
+  background:var(--surface)!important;
+}
+#lesson .attendance-summary b{font-size:15px!important;line-height:1!important}
+#lesson .attendance-summary small{font-size:8px!important;color:var(--muted)!important;font-weight:800!important}
+#lesson .participant-presence-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:4px!important;
+}
+#lesson .participant-presence-meta span{
+  padding:3px 6px!important;
+  border-radius:999px!important;
+  background:color-mix(in srgb,var(--muted) 8%,var(--surface))!important;
+  border:1px solid var(--line)!important;
+  color:var(--muted)!important;
+  font-size:8px!important;
+  font-weight:800!important;
+  white-space:nowrap!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus){
+  max-height:100%!important;
+  overscroll-behavior:contain!important;
+  scrollbar-width:thin!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout):not(.has-focus) .ms-tile.role-student{
+  transition:none!important;
+}
+#videoMount .ms-grid.teacher-stage-layout .ms-tile.pinned::after{
+  content:'PIN'!important;
+  position:absolute!important;
+  top:7px!important;
+  left:7px!important;
+  z-index:10!important;
+  padding:3px 6px!important;
+  border-radius:999px!important;
+  background:#2563eb!important;
+  color:#fff!important;
+  font-size:8px!important;
+  font-weight:900!important;
+}
+@media(max-width:680px){
+  #lesson .attendance-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  #lesson .attendance-summary>span{padding:7px 4px!important}
+  #lesson .participant-presence-meta span{font-size:7px!important}
+}
