@@ -24,7 +24,7 @@ const TARGET_MIN_WORKERS=Math.max(1,Math.min(16,Number(process.env.TARGET_MIN_WO
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
 const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
-const STRICT_AUDIO_FLOOR=process.env.STRICT_AUDIO_FLOOR==='true';
+const STRICT_AUDIO_FLOOR=process.env.STRICT_AUDIO_FLOOR!=='false';
 const LECTURE_INITIAL_OUTGOING_BITRATE=Math.max(400000,Number(process.env.LECTURE_INITIAL_OUTGOING_BITRATE||900000));
 
 const mediaCodecs=[
