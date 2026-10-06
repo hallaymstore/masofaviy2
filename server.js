@@ -450,6 +450,18 @@ app.get('/api/admin/instance-overview',auth,async(req,res)=>{
     User.countDocuments({active:true}),Structure.countDocuments({type:'faculty',active:true}),Structure.countDocuments({type:'department',active:true}),
     Structure.countDocuments({type:'group',active:true}),User.countDocuments({role:'teacher',active:true}),User.countDocuments({role:'student',active:true})
   ]):[0,0,0,0,0,0];
+  const db=mongoose.connection.readyState===1?mongoose.connection.db:null;
+  const [courses,resources,assignments,quizzes,proctoredQuizzes,videoTopics,schedules,attendanceRows,quizAttempts]=db?await Promise.all([
+    db.collection('courses').countDocuments({active:true}),
+    db.collection('resources').countDocuments({published:true}),
+    db.collection('assignments').countDocuments({published:true}),
+    db.collection('quizzes').countDocuments({published:true}),
+    db.collection('quizzes').countDocuments({published:true,proctorRequired:true}),
+    db.collection('videolessons').countDocuments({published:true,courseId:{$ne:null}}),
+    db.collection('schedules').countDocuments({}),
+    db.collection('attendances').countDocuments({}),
+    db.collection('quizattempts').countDocuments({})
+  ]):[0,0,0,0,0,0,0,0,0];
   const checks=[
     {key:'identity',label:'Tashkilot profili',ready:Boolean(row.institutionName&&row.shortName&&row.organizationType)},
     {key:'domain',label:'Domen',ready:Boolean(row.domain||row.website)},
@@ -461,12 +473,25 @@ app.get('/api/admin/instance-overview',auth,async(req,res)=>{
     {key:'license',label:'Shartnoma/litsenziya',ready:Boolean(row.contractLabel||row.licensePlan)}
   ];
   const ready=checks.filter(x=>x.ready).length;
+  const evaluation=[
+    {criterion:2,label:'Avtoproktoring tizimi',status:mods.proctoring&&proctoredQuizzes>0?'ready':'needs_data',evidence:{proctoredQuizzes},note:'Fullscreen, kamera/mikrofon, yuz holati, sahifadan chiqish va kritik qoidabuzarlikda auto-terminate mavjud.'},
+    {criterion:3,label:'Raqamli o‘qitish / virtual classroom',status:mods.live&&SFU_BRIDGE_URLS.length&&TURN_URLS.length?'ready':'needs_config',evidence:{sfuNodes:SFU_BRIDGE_URLS.length,turnServers:TURN_URLS.length},note:'WebRTC/mediasoup SFU, TURN, 1080p teacher priority va screen share.'},
+    {criterion:4,label:'Umumiy, guruh va individual ta’lim shakllari',status:courses>0&&groups>0&&schedules>0?'ready':'needs_data',evidence:{courses,groups,schedules},note:'Fan, guruh, jadval, topshiriq, individual reja va mustaqil ta’lim modullari.'},
+    {criterion:7,label:'Tashkiliy-me’yoriy materiallarning ochiqligi',status:row.website?'external_evidence':'needs_config',evidence:{website:row.website||''},note:'Platformada rasmiy sayt havolasi mavjud; hujjatlarning rasmiy saytda to‘liq joylashtirilgani alohida tekshiriladi.'},
+    {criterion:8,label:'Kurslarni boshqarish komponenti',status:courses>0&&(resources>0||videoTopics>0)?'ready':'needs_data',evidence:{courses,resources,videoTopics},note:'Fan → modul → mavzu → videodars → mavzu testi learning path va resurslar.'},
+    {criterion:9,label:'O‘qitishni boshqarish komponenti',status:schedules>0&&assignments>0?'ready':'needs_data',evidence:{schedules,assignments,attendanceRows},note:'Jadval, topshiriqlar, live dars, davomat va monitoring.'},
+    {criterion:10,label:'Statistika komponenti',status:mods.analytics&&mods.reports?'ready':'needs_config',evidence:{attendanceRows,quizAttempts},note:'Davomat, faollik, test natijalari, audit va monitoring hisobotlari.'},
+    {criterion:11,label:'Talabalar bilimini nazorat qilish',status:quizzes>0||assignments>0?'ready':'needs_data',evidence:{quizzes,assignments,quizAttempts},note:'Test, topshiriq, baholash, yakuniy natija va proktoring.'},
+    {criterion:12,label:'Raqamli hukumat yagona reyestri',status:'external_required',evidence:{},note:'Kod bilan avtomatik bajarilmaydi. Vakolatli davlat reyestrida ro‘yxatdan o‘tganlik hujjati talab qilinadi.'},
+    {criterion:13,label:'Kiberxavfsizlik markazi ijobiy ekspert xulosasi',status:'external_required',evidence:{},note:'Kod bilan avtomatik bajarilmaydi. Rasmiy ekspertiza va ijobiy xulosa talab qilinadi.'}
+  ];
   res.json({
     profile:{organizationType:row.organizationType||'university',tenantCode:row.tenantCode||'',domain:row.domain||'',defaultLanguage:row.defaultLanguage||'uz',licensePlan:row.licensePlan||'standard',licenseExpiresAt:row.licenseExpiresAt||null,contractLabel:row.contractLabel||''},
     limits:{maxUsers:row.maxUsers||5000,maxConcurrentRooms:row.maxConcurrentRooms||6,maxRoomParticipants:row.maxRoomParticipants||120},
-    modules:mods,counts:{users,faculties,departments,groups,teachers,students},
+    modules:mods,counts:{users,faculties,departments,groups,teachers,students,courses,resources,assignments,quizzes,proctoredQuizzes,videoTopics,schedules,attendanceRows,quizAttempts},
     infrastructure:{sfuConfigured:Boolean(SFU_BRIDGE_URLS.length),turnConfigured:Boolean(TURN_URLS.length),database:mongoose.connection.readyState===1?'connected':'disconnected',node:process.version},
-    readiness:{percent:Math.round(ready/checks.length*100),checks}
+    readiness:{percent:Math.round(ready/checks.length*100),checks},
+    evaluation
   });
 });
 app.get('/api/system/metrics', auth, async(req,res)=>{
