@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -82,7 +82,7 @@ export class MediaRoomClient{
     await this.createTransports();
     this.onState({mic:false,camera:false,studentMediaLocked:false,viewMode:this.viewMode,lowBandwidth:this.lowBandwidthMode});
     this.setViewMode(this.viewMode);
-    if(this.lowBandwidthMode||this.ultraLite)await this.setReceiveQuality('240');
+    if(this.lowBandwidthMode)await this.setReceiveQuality('240');else await this.setReceiveQuality(this.receiveQuality==='240'?'auto':this.receiveQuality);
     this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
@@ -427,7 +427,7 @@ export class MediaRoomClient{
       for(const [producerId,existing] of [...this.consumers]){const oldMeta=existing.appData?.meta;if(existing.kind==='audio'&&String(oldMeta?.peerId||'')===String(meta.peerId||'')&&producerId!==meta.producerId)this.removeConsumer(producerId)}
       this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(meta.peerId||''))a.remove()});
     }
-    const priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen';const requestedQuality=this.receiveQuality==='auto'?(priorityVideo?'auto':(this.ultraLite?'360':this.lowEnd?'480':'auto')):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
+    const priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen';const requestedQuality=this.receiveQuality==='auto'?(priorityVideo?'1080':(this.lowEnd?'480':'auto')):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
     await this.attachRemote(consumer,meta);
