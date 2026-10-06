@@ -6,7 +6,7 @@ import { installLibrary } from './library.js';
 import { installCommunications } from './communications.js';
 import { installFinalExams } from './final-exams.js';
 import { installCurriculum } from './curriculum.js';
-import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady } from './proctoring.js';
+import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady, evaluateProctorTermination } from './proctoring.js';
 import { installMonitoringExport } from './monitoring-export.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
@@ -17,7 +17,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const submissionSchema=new mongoose.Schema({assignmentId:{type:id,ref:'Assignment',required:true},studentId:{type:id,ref:'User',required:true},text:String,url:String,submittedAt:Date,score:{type:Number,min:0},feedback:String,gradedBy:{type:id,ref:'User'},gradedAt:Date},{timestamps:true});
   submissionSchema.index({assignmentId:1,studentId:1},{unique:true});
   const quizSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},durationMinutes:{type:Number,min:1,max:240,default:30},maxAttempts:{type:Number,min:1,max:10,default:1},published:{type:Boolean,default:false},proctorRequired:{type:Boolean,default:false},questions:[{prompt:{type:String,required:true},options:[String],correctIndex:{type:Number,required:true,min:0}}]},{timestamps:true});
-  const attemptSchema=new mongoose.Schema({quizId:{type:id,ref:'Quiz',required:true},studentId:{type:id,ref:'User',required:true},startedAt:{type:Date,default:Date.now},submittedAt:Date,answers:[Number],score:Number,proctorConsentAt:Date,proctorEvents:[{type:{type:String,enum:PROCTOR_EVENT_TYPES},at:Date}],proctorSummary:{riskScore:{type:Number,min:0,max:100},reviewPriority:{type:String,enum:['low','medium','high']},eventCounts:mongoose.Schema.Types.Mixed,cameraReady:Boolean,microphoneReady:Boolean,warnings:[String],generatedAt:Date},reviewDecision:{type:String,enum:['pending','cleared','needs_review'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
+  const attemptSchema=new mongoose.Schema({quizId:{type:id,ref:'Quiz',required:true},studentId:{type:id,ref:'User',required:true},startedAt:{type:Date,default:Date.now},submittedAt:Date,terminatedAt:Date,terminationReason:String,terminationEvent:String,autoTerminated:{type:Boolean,default:false},answers:[Number],score:Number,proctorConsentAt:Date,proctorEvents:[{type:{type:String,enum:PROCTOR_EVENT_TYPES},at:Date}],proctorSummary:{riskScore:{type:Number,min:0,max:100},reviewPriority:{type:String,enum:['low','medium','high']},eventCounts:mongoose.Schema.Types.Mixed,cameraReady:Boolean,microphoneReady:Boolean,warnings:[String],generatedAt:Date},reviewDecision:{type:String,enum:['pending','cleared','needs_review'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
   const gradeChangeSchema=new mongoose.Schema({submissionId:{type:id,ref:'Submission',required:true},requestedBy:{type:id,ref:'User',required:true},oldScore:{type:Number,required:true},newScore:{type:Number,required:true},reason:{type:String,required:true},status:{type:String,enum:['pending','approved','rejected'],default:'pending'},reviewedBy:{type:id,ref:'User'},reviewedAt:Date,reviewNote:String},{timestamps:true});
   const Course=mongoose.model('Course',courseSchema),Resource=mongoose.model('Resource',resourceSchema),Assignment=mongoose.model('Assignment',assignmentSchema),Submission=mongoose.model('Submission',submissionSchema),Quiz=mongoose.model('Quiz',quizSchema),Attempt=mongoose.model('QuizAttempt',attemptSchema),GradeChange=mongoose.model('GradeChange',gradeChangeSchema);
   const fail=(res,e)=>res.status(e.status||400).json({message:e.message||'So‘rov bajarilmadi'});
@@ -133,15 +133,20 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     if(req.user.role!=='student')return res.status(403).json({message:'Faqat talaba topshiradi'});checkId(req.params.id);const quiz=await Quiz.findById(req.params.id);if(!quiz?.published)throw Object.assign(new Error('Test topilmadi'),{status:404});await courseAccess(req,quiz.courseId);
     const count=await Attempt.countDocuments({quizId:quiz._id,studentId:req.user._id});if(count>=quiz.maxAttempts)return res.status(409).json({message:'Urinishlar tugagan'});
     if(quiz.proctorRequired&&req.body.consent!==true)return res.status(400).json({message:'Kamera va imtihon oynasini kuzatish haqida xabardor bo‘lib rozilik bering'});
-    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id);res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
+    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id);res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,proctorPolicy:quiz.proctorRequired?{requireFullscreen:true,terminateOnPageLeave:true,maxFaceMissing:2,maxFaceTurns:2,maxWindowBlur:2,blockClipboard:true,detectScreenshotKey:true}:null,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
   }));
   app.post('/api/lms/attempts/:id/proctor-events',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const type=String(req.body.type||'');
     if(!PROCTOR_EVENT_TYPES.includes(type))throw new Error('Hodisa turi noto‘g‘ri');const row=await Attempt.findOne({_id:req.params.id,studentId:req.user._id,submittedAt:null,proctorConsentAt:{$exists:true}});if(!row)return res.status(403).json({message:'Faol nazorat sessiyasi yo‘q'});
     const quiz=await Quiz.findById(row.quizId).select('durationMinutes');if(!quiz||Date.now()-row.startedAt.getTime()>(quiz.durationMinutes*60+30)*1000)return res.status(409).json({message:'Imtihon tugagan'});
     if(row.proctorEvents.length>=200)return res.status(429).json({message:'Hodisa chegarasi tugadi'});
-    const last=row.proctorEvents.at(-1);if(last?.type===type&&Date.now()-last.at.getTime()<10000)return res.json({ok:true});
-    row.proctorEvents.push({type,at:new Date()});const summary=summarizeProctorEvents(row.proctorEvents);row.proctorSummary={...summary,generatedAt:new Date()};await row.save();res.json({ok:true,reviewPriority:summary.reviewPriority});
+    const critical=new Set(['face_missing','face_turned','window_blur','clipboard_attempt']);const debounceMs=critical.has(type)?1200:3500;
+    const last=row.proctorEvents.at(-1);if(last?.type===type&&Date.now()-last.at.getTime()<debounceMs)return res.json({ok:true});
+    row.proctorEvents.push({type,at:new Date()});const summary=summarizeProctorEvents(row.proctorEvents),termination=evaluateProctorTermination(row.proctorEvents);row.proctorSummary={...summary,generatedAt:new Date()};
+    if(termination.terminate){row.terminatedAt=new Date();row.terminationReason=termination.reason;row.terminationEvent=termination.type;row.autoTerminated=true;row.submittedAt=row.terminatedAt;row.score=0;row.reviewDecision='needs_review'}
+    await row.save();
+    if(termination.terminate){audit(req,'PROCTOR_AUTO_TERMINATE','QuizAttempt',row.id,{event:termination.type,reason:termination.reason,riskScore:summary.riskScore});return res.json({ok:true,terminated:true,reason:termination.reason,event:termination.type,reviewPriority:'high'})}
+    res.json({ok:true,terminated:false,reviewPriority:summary.reviewPriority});
   }));
   app.get('/api/lms/quizzes/:id/attempts',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const quiz=await Quiz.findById(req.params.id).select('-questions');if(!quiz)return res.status(404).json({message:'Test topilmadi'});await courseAccess(req,quiz.courseId,true);
@@ -154,7 +159,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   }));
   app.post('/api/lms/attempts/:id/submit',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const row=await Attempt.findById(req.params.id);if(!row||String(row.studentId)!==String(req.user._id))return res.status(404).json({message:'Urinish topilmadi'});
-    if(row.submittedAt)return res.status(409).json({message:'Test allaqachon yakunlangan'});const quiz=await Quiz.findById(row.quizId);if(!quiz)throw new Error('Test topilmadi');
+    if(row.autoTerminated||row.terminatedAt)return res.status(409).json({message:'Test avtoproktoring tomonidan yakunlangan: '+String(row.terminationReason||'qoidabuzarlik'),terminated:true,reason:row.terminationReason});if(row.submittedAt)return res.status(409).json({message:'Test allaqachon yakunlangan'});const quiz=await Quiz.findById(row.quizId);if(!quiz)throw new Error('Test topilmadi');
     if(Date.now()-row.startedAt.getTime()>(quiz.durationMinutes*60+30)*1000)return res.status(409).json({message:'Test vaqti tugagan; urinish baholanmaydi'});
     if(quiz.proctorRequired){const ready=proctorSubmissionReady(row.proctorEvents||[]);if(!ready.ok)return res.status(409).json({message:'Nazorat uchun kamera va mikrofon tayyorligi tasdiqlanmagan. Qurilmalarni yoqing va qayta urinib ko‘ring.',proctorSummary:ready.summary});row.proctorSummary={...ready.summary,generatedAt:new Date()};if(ready.summary.reviewPriority==='high')row.reviewDecision='needs_review'}
     const answers=req.body.answers;if(!Array.isArray(answers)||answers.length!==quiz.questions.length||answers.some((x,i)=>!Number.isInteger(x)||x<0||x>=quiz.questions[i].options.length))throw new Error('Javoblar noto‘g‘ri');
