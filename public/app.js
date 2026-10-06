@@ -895,7 +895,7 @@ function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.c
 function videoThumb(v){const id=youtubeId(v.sourceUrl);return v.thumbnailUrl||(id?'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg':'')}
 function videoCard(v,recommended=false){
   const thumb=videoThumb(v),course=(v.courseYears||[]).map(x=>x+'-kurs').join(', '),groups=(v.groupIds||[]).map(g=>g.externalId||g.code||g.name).join(', '),mine=String(v.teacherId?._id||'')===String(user?._id||''),canDelete=can('videos.manage')||mine;
-  return '<article class="video-card" data-video-id="'+esc(v._id)+'"><button class="video-cover" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="video-no-thumb">'+icon('play','▶')+'</div>')+'<span class="play-badge">'+icon('play','▶')+'</span>'+(recommended?'<span class="recommend-badge">Tavsiya</span>':'')+'</button><div class="video-card-body"><div class="video-card-top"><span>'+esc(v.subject||'Videodars')+'</span><small>'+esc(v.durationMinutes?Math.round(v.durationMinutes)+' daq':'')+'</small></div><h2>'+esc(v.title)+'</h2><p>'+esc(v.description||'Mustaqil o‘rganish uchun videodars.')+'</p><div class="video-tags">'+(course?'<span>'+esc(course)+'</span>':'')+(v.direction?'<span>'+esc(v.direction)+'</span>':'')+(groups?'<span>'+esc(groups)+'</span>':'')+'</div><div class="video-footer"><small>'+icon('user','◎')+' '+esc(v.teacherId?.fullName||'Ta’lim platformasi')+' · '+esc(v.views||0)+' ko‘rish · '+esc(v.commentCount||0)+' izoh</small><div>'+(canDelete?'<button class="ghost danger-text" data-video-delete="'+esc(v._id)+'" title="Arxivlash">'+icon('trash','×')+'</button>':'')+'</div></div></div></article>';
+  return '<article class="video-card" data-video-id="'+esc(v._id)+'"><button class="video-cover" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="video-no-thumb">'+icon('play','▶')+'</div>')+'<span class="play-badge">'+icon('play','▶')+'</span>'+(recommended?'<span class="recommend-badge">Tavsiya</span>':'')+'</button><div class="video-card-body"><div class="video-card-top"><span>'+esc(v.subject||'Videodars')+'</span><small>'+esc(v.durationMinutes?Math.round(v.durationMinutes)+' daq':'')+'</small></div><h2>'+esc(v.title)+'</h2><p>'+esc(v.description||'Mustaqil o‘rganish uchun videodars.')+'</p><div class="video-tags">'+(v.courseId?.title?'<span>'+esc(v.courseId.title)+'</span>':'')+(v.moduleTitle?'<span>'+esc(v.moduleTitle)+'</span>':'')+(course?'<span>'+esc(course)+'</span>':'')+(v.direction?'<span>'+esc(v.direction)+'</span>':'')+(groups?'<span>'+esc(groups)+'</span>':'')+'</div><div class="video-footer"><small>'+icon('user','◎')+' '+esc(v.teacherId?.fullName||'Ta’lim platformasi')+' · '+esc(v.views||0)+' ko‘rish · '+esc(v.commentCount||0)+' izoh</small><div>'+(canDelete?'<button class="ghost" data-video-structure="'+esc(v._id)+'" title="Fan/modul/mavzu bo‘yicha tartiblash">Tartiblash</button><button class="ghost danger-text" data-video-delete="'+esc(v._id)+'" title="Arxivlash">'+icon('trash','×')+'</button>':'')+'</div></div></div></article>';
 }
 function compactRelatedCard(v){
   const thumb=videoThumb(v);
@@ -935,6 +935,7 @@ async function loadVideoLessons(){
 }
 function bindVideoActions(root=document){
   root.querySelectorAll?.('[data-video-play]').forEach(b=>b.onclick=()=>openVideoLesson(b.dataset.videoPlay));
+  root.querySelectorAll?.('[data-video-structure]').forEach(b=>b.onclick=e=>{e.stopPropagation();editVideoLessonStructure(b.dataset.videoStructure)});
   root.querySelectorAll?.('[data-video-delete]').forEach(b=>b.onclick=e=>{e.stopPropagation();deleteVideoLesson(b.dataset.videoDelete)});
 }
 function renderWatchPlayer(v){
@@ -1007,6 +1008,14 @@ $('#commentForm').onsubmit=async e=>{
   try{await api('/videos/'+activeVideoId+'/comments',{method:'POST',body:JSON.stringify({text,parentId:commentReplyTo||undefined})});input.value='';clearCommentReply();await loadVideoComments(activeVideoId);toast('Izoh qo‘shildi')}catch(err){toast(err.message)}
 };
 async function deleteVideoComment(id){if(!confirm('Izoh o‘chirilsinmi?'))return;try{await api('/video-comments/'+id,{method:'DELETE'});await loadVideoComments(activeVideoId);toast('Izoh o‘chirildi')}catch(e){toast(e.message)}}
+async function editVideoLessonStructure(id){
+  try{
+    const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)throw Error('Videodars topilmadi');
+    const courses=await api('/lms/courses'),details=await Promise.all(courses.slice(0,80).map(x=>api('/lms/courses/'+x._id).catch(()=>null)));
+    const quizOptions=details.flatMap((d,i)=>(d?.quizzes||[]).map(q=>({id:q._id,courseId:courses[i]?._id,label:(courses[i]?.title||'Fan')+' · '+q.title})));
+    modal('Videodarsni kurs bo‘yicha tartiblash','<label>Fan<select name="courseId"><option value="">Umumiy videodars</option>'+courses.map(x=>'<option value="'+esc(x._id)+'" '+(String(v.courseId?._id||v.courseId||'')===String(x._id)?'selected':'')+'>'+esc(x.code)+' · '+esc(x.title)+'</option>').join('')+'</select></label><label>Modul<input name="moduleTitle" value="'+esc(v.moduleTitle||'Asosiy modul')+'" required></label><label>Mavzu<input name="topicTitle" value="'+esc(v.topicTitle||v.title)+'" required></label><label>Ketma-ketlik<input name="sequence" type="number" min="0" value="'+esc(v.sequence||1)+'"></label><label>Mavzu testi<select name="checkpointQuizId"><option value="">Test biriktirilmagan</option>'+quizOptions.map(q=>'<option value="'+esc(q.id)+'" '+(String(v.checkpointQuizId?._id||v.checkpointQuizId||'')===String(q.id)?'selected':'')+'>'+esc(q.label)+'</option>').join('')+'</select></label><label>Fan nomi/teg<input name="subject" value="'+esc(v.subject||'')+'"></label>',async d=>{await api('/videos/'+id,{method:'PATCH',body:JSON.stringify(d)});await loadVideoLessons()})
+  }catch(e){toast(e.message)}
+}
 async function deleteVideoLesson(id){if(!confirm('Videodars arxivga olinsinmi?'))return;try{await api('/videos/'+id,{method:'DELETE'});toast('Videodars arxivga olindi');if(activeVideoId===String(id)){clearWatchPage();go('videos')}loadVideoLessons()}catch(e){toast(e.message)}}
 $('#applyVideoFilter').onclick=loadVideoLessons;$('#videoSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadVideoLessons()});
 $('#addVideoLesson').onclick=async()=>{
