@@ -296,12 +296,11 @@ export class MediaRoomClient{
       for(let i=6;i<bins.length;i++){avg+=bins[i];if(bins[i]>peak){peak=bins[i];peakIdx=i}}
       avg/=Math.max(1,bins.length-6);
       const freq=peakIdx*(a.context.sampleRate/a.fftSize);
-      const tonal=peak>190&&peak-avg>72&&freq>650&&freq<7800;
-      const veryLoud=rms>.34;
-      if(tonal||veryLoud){
+      const tonal=peak>195&&peak-avg>78&&freq>700&&freq<7600&&rms>.10;
+      if(tonal){
         if(!this.feedbackToneSince)this.feedbackToneSince=Date.now();
-        if(Date.now()-this.feedbackToneSince>180)this.triggerFeedbackGuard(6500,true);
-      }else if(rms<.2)this.feedbackToneSince=0;
+        if(Date.now()-this.feedbackToneSince>260)this.triggerFeedbackGuard(4200,true);
+      }else this.feedbackToneSince=0;
     },120);
   }
   stopFeedbackMonitor(){
@@ -478,8 +477,6 @@ export class MediaRoomClient{
   }
   applyAudioLevels(levels){
     this.tiles.forEach(t=>t.classList.remove('speaking'));
-    const loud=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))&&Number(x.volume)>-28);
-    if(loud.length>=2&&this.producers.get('mic')&&!this.producers.get('mic').paused)this.triggerFeedbackGuard(5000);
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
     for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
     if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
