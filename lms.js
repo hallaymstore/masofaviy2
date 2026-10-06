@@ -44,8 +44,8 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
     else if(req.user.role==='teacher')filter.teacherId=req.user._id;
-    else if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    res.json(await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId').sort({title:1}).lean());
+    else if(!['superadmin','admin','tech','rectorate','dean','department','tutor'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+    res.json(await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId parentId').sort({title:1}).lean());
   }));
   app.get('/api/lms/compliance',auth,wrap(async(req,res)=>{
     if(!['admin','superadmin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
