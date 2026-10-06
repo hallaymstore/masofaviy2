@@ -127,10 +127,12 @@ $('#institutionSettingsForm')?.addEventListener('submit',async e=>{
 async function loadInstanceOverview(){
   if(!['admin','superadmin','tech'].includes(user?.role))return;
   const x=await api('/admin/instance-overview'),box=$('#instanceReadiness');if(!box)return;
+  const evalHtml=(x.evaluation||[]).map(i=>{const ready=i.status==='ready',external=i.status==='external_required'||i.status==='external_evidence';return '<div class="evaluation-row '+(ready?'ready':external?'external':'pending')+'"><span class="evaluation-num">'+esc(i.criterion)+'</span><div><b>'+esc(i.label)+'</b><small>'+esc(i.note||'')+'</small><em>'+esc(Object.entries(i.evidence||{}).map(([k,v])=>k+': '+v).join(' · '))+'</em></div><strong>'+(ready?'✓ Tayyor':external?'Hujjat/tekshiruv':'○ To‘ldirish kerak')+'</strong></div>'}).join('');
   box.innerHTML='<div class="instance-score"><b>'+esc(x.readiness?.percent||0)+'%</b><span>o‘rnatish tayyorligi</span></div>'+
-    '<div class="instance-counts"><span>Foydalanuvchi <b>'+esc(x.counts?.users||0)+'</b></span><span>O‘qituvchi <b>'+esc(x.counts?.teachers||0)+'</b></span><span>Talaba <b>'+esc(x.counts?.students||0)+'</b></span><span>Guruh <b>'+esc(x.counts?.groups||0)+'</b></span></div>'+
+    '<div class="instance-counts"><span>Foydalanuvchi <b>'+esc(x.counts?.users||0)+'</b></span><span>O‘qituvchi <b>'+esc(x.counts?.teachers||0)+'</b></span><span>Talaba <b>'+esc(x.counts?.students||0)+'</b></span><span>Guruh <b>'+esc(x.counts?.groups||0)+'</b></span><span>Fan <b>'+esc(x.counts?.courses||0)+'</b></span><span>Test <b>'+esc(x.counts?.quizzes||0)+'</b></span></div>'+
     '<div class="instance-checks">'+(x.readiness?.checks||[]).map(i=>'<span class="'+(i.ready?'ready':'pending')+'">'+(i.ready?'✓':'○')+' '+esc(i.label)+'</span>').join('')+'</div>'+
-    '<div class="instance-infra"><span>DB: '+esc(x.infrastructure?.database||'—')+'</span><span>SFU: '+(x.infrastructure?.sfuConfigured?'tayyor':'yo‘q')+'</span><span>TURN: '+(x.infrastructure?.turnConfigured?'tayyor':'yo‘q')+'</span><span>Limit: '+esc(x.limits?.maxConcurrentRooms||0)+' xona / '+esc(x.limits?.maxUsers||0)+' user</span></div>';
+    '<div class="instance-infra"><span>DB: '+esc(x.infrastructure?.database||'—')+'</span><span>SFU: '+(x.infrastructure?.sfuConfigured?'tayyor':'yo‘q')+'</span><span>TURN: '+(x.infrastructure?.turnConfigured?'tayyor':'yo‘q')+'</span><span>Limit: '+esc(x.limits?.maxConcurrentRooms||0)+' xona / '+esc(x.limits?.maxUsers||0)+' user</span></div>'+
+    '<div class="evaluation-readiness"><div class="section-title"><div><h3>Baholash mezonlari bo‘yicha dalillar</h3><small>2, 3, 4, 7, 8, 9, 10, 11, 12 va 13-bandlar</small></div></div>'+evalHtml+'</div>';
 }
 $('#refreshInstanceOverview')?.addEventListener('click',()=>loadInstanceOverview().catch(e=>toast(e.message)));
 $('#instanceSettingsForm')?.addEventListener('submit',async e=>{
