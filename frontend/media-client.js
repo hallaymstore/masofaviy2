@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=true;this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=this.ultraLite?'240':(localStorage.getItem('m2-video-quality')||'auto');this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=this.ultraLite||localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -50,7 +50,7 @@ export class MediaRoomClient{
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
     if(kind==='audio'){
-      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05},advanced:[{echoCancellation:true,noiseSuppression:true,autoGainControl:true},{googEchoCancellation:true,googEchoCancellation2:true,googNoiseSuppression:true,googNoiseSuppression2:true,googAutoGainControl:true,googAutoGainControl2:true,googHighpassFilter:true,googTypingNoiseDetection:true}]};
+      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05},advanced:[{echoCancellation:true,noiseSuppression:true,autoGainControl:true},{googEchoCancellation:true,googEchoCancellation2:true,googNoiseSuppression:true,googNoiseSuppression2:true,googAutoGainControl:true,googAutoGainControl2:true,googHighpassFilter:true,googTypingNoiseDetection:true}]};const supported=navigator.mediaDevices?.getSupportedConstraints?.()||{};if(supported.voiceIsolation)a.voiceIsolation={ideal:true};
       return id?{deviceId:{ideal:id},...a}:a;
     }
     const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
@@ -330,7 +330,7 @@ export class MediaRoomClient{
   async startMicrophone(){
     if(this.mediaBusy?.mic)return false;
     if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shagach qayta bosing.'));return false}
-    this.enterZeroFeedbackMode();
+    if(this.proximityGuard)this.enterZeroFeedbackMode();
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.mic=true;this.onState({micBusy:true});
     try{
       const stream=await this.getMediaOnce('audio');
@@ -338,7 +338,7 @@ export class MediaRoomClient{
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true;
+      this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});this.exitZeroFeedbackMode();return false;
@@ -349,16 +349,16 @@ export class MediaRoomClient{
     if(!p)return this.startMicrophone();
     if(p.paused){
       if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti.'));return false}
-      this.enterZeroFeedbackMode();
+      if(this.proximityGuard)this.enterZeroFeedbackMode();
       try{
         await this.request('resumeProducer',{producerId:p.id});
         p.track.enabled=true;p.resume();
-        this.onState({mic:true,halfDuplex:true,zeroFeedback:true});return true
+        this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true
       }catch(e){
         p.track.enabled=false;this.exitZeroFeedbackMode();this.onError(e);return false
       }
     }
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.exitZeroFeedbackMode();this.onState({mic:false,halfDuplex:false,zeroFeedback:true});return false;
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
   }
   async toggleCamera(){
     const p=this.producers.get('camera');
@@ -423,6 +423,10 @@ export class MediaRoomClient{
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
+    if(meta.kind==='audio'){
+      for(const [producerId,existing] of [...this.consumers]){const oldMeta=existing.appData?.meta;if(existing.kind==='audio'&&String(oldMeta?.peerId||'')===String(meta.peerId||'')&&producerId!==meta.producerId)this.removeConsumer(producerId)}
+      this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(meta.peerId||''))a.remove()});
+    }
     const priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen';const requestedQuality=this.receiveQuality==='auto'?(priorityVideo?'auto':(this.ultraLite?'360':this.lowEnd?'480':'auto')):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
@@ -433,7 +437,7 @@ export class MediaRoomClient{
   async attachRemote(consumer,meta){
     const user=meta.user||{fullName:meta.peerName,role:meta.appData?.role},isScreen=meta.appData?.mediaTag==='screen',tileKey=isScreen?String(meta.peerId)+':screen':meta.peerId,tile=this.ensureTile(tileKey,isScreen?{...user,fullName:(user.fullName||user.login||'O‘qituvchi')+' · Ekran'}:user,false);
     if(consumer.kind==='audio'){
-      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=this.computeRemoteAudioVolume(audio.dataset.role);this.audioBin.appendChild(audio);
+      const audio=el('audio',{autoplay:true,playsInline:true});audio.srcObject=new MediaStream([consumer.track]);audio.dataset.producerId=meta.producerId;audio.dataset.peerId=String(meta.peerId||'');audio.dataset.role=meta.appData?.role||meta.user?.role||'';audio.volume=this.computeRemoteAudioVolume(audio.dataset.role);this.audioBin.appendChild(audio);
       const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
       if(active&&this.proximityGuard){audio.muted=true;audio.volume=0;audio.dataset.hardMuted='1';audio.pause()}
       else audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});
@@ -467,7 +471,7 @@ export class MediaRoomClient{
       }
     }
   }
-  removePeerTile(peerId){for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
+  removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   speakerTile(peerId){
     if(String(peerId||'')===String(this.room?.peerId||''))return this.tiles.get('local');
     return this.tiles.get(peerId);
@@ -498,25 +502,16 @@ export class MediaRoomClient{
   }
   computeRemoteAudioVolume(role=''){
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),risk=Date.now()<this.feedbackRiskUntil;
-    if(active&&this.proximityGuard)return 0;
-    if(!this.echoGuard)return 1;
     if(risk)return 0;
-    if(active)return 0;
-    return role==='teacher' ? .82 : .62;
+    if(!this.echoGuard)return 1;
+    if(active)return role==='teacher' ? .82 : .72;
+    return role==='teacher' ? .96 : .9;
   }
   refreshRemoteAudioVolume(){
-    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
+    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),hardStop=Date.now()<this.feedbackRiskUntil||(active&&this.proximityGuard);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{
-      if(active&&this.proximityGuard){
-        try{a.muted=true;a.volume=0;a.pause()}catch{}
-        a.dataset.hardMuted='1';
-        return;
-      }
-      try{
-        a.muted=false;a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');
-        a.dataset.hardMuted='0';
-        a.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});
-      }catch{}
+      if(hardStop){try{a.muted=true;a.volume=0;a.pause()}catch{};a.dataset.hardMuted='1';return}
+      try{a.muted=false;a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');a.dataset.hardMuted='0';a.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})})}catch{}
     });
   }
   triggerFeedbackGuard(ms=4500,severe=false){
