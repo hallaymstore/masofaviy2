@@ -1946,3 +1946,31 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
   .evaluation-row{grid-template-columns:28px minmax(0,1fr)}
   .evaluation-row strong{grid-column:2;justify-self:start}
 }
+
+
+/* v49 evaluator readiness */
+.evaluation-readiness{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.evaluation-readiness .section-title{margin-bottom:8px}
+.evaluation-row{
+  display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:9px;align-items:start;
+  padding:9px 10px;margin:5px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+}
+.evaluation-num{
+  width:26px;height:26px;display:grid;place-items:center;border-radius:8px;font-size:10px;font-weight:900;
+  background:color-mix(in srgb,var(--muted) 9%,var(--surface));
+}
+.evaluation-row>div{display:grid;gap:2px}
+.evaluation-row b{font-size:10px}
+.evaluation-row small{font-size:8px;color:var(--muted);line-height:1.45}
+.evaluation-row em{font-style:normal;font-size:8px;color:var(--muted)}
+.evaluation-row strong{font-size:8px;white-space:nowrap;padding:4px 6px;border-radius:999px}
+.evaluation-row.ready{border-color:color-mix(in srgb,#16a34a 30%,var(--line))}
+.evaluation-row.ready .evaluation-num,.evaluation-row.ready strong{background:color-mix(in srgb,#16a34a 10%,var(--surface));color:#15803d}
+.evaluation-row.pending{border-color:color-mix(in srgb,#f59e0b 28%,var(--line))}
+.evaluation-row.pending .evaluation-num,.evaluation-row.pending strong{background:color-mix(in srgb,#f59e0b 10%,var(--surface));color:#b45309}
+.evaluation-row.external{border-color:color-mix(in srgb,#6366f1 28%,var(--line))}
+.evaluation-row.external .evaluation-num,.evaluation-row.external strong{background:color-mix(in srgb,#6366f1 10%,var(--surface));color:#4f46e5}
+@media(max-width:680px){
+  .evaluation-row{grid-template-columns:28px minmax(0,1fr)}
+  .evaluation-row>strong{grid-column:2;justify-self:start}
+}
