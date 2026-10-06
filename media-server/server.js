@@ -22,6 +22,9 @@ const SFU_NODE_ID=String(process.env.SFU_NODE_ID||os.hostname());
 const MAX_ROOMS_PER_WORKER=Math.max(2,Number(process.env.MAX_ROOMS_PER_WORKER||8));
 const TARGET_MIN_WORKERS=Math.max(1,Math.min(16,Number(process.env.TARGET_MIN_WORKERS||Math.ceil(TARGET_PARALLEL_ROOMS/7))));
 const MAX_INCOMING_BITRATE=Math.max(200000,Number(process.env.MAX_INCOMING_BITRATE||1800000));
+const TEACHER_MAX_INCOMING_BITRATE=Math.max(2500000,Number(process.env.TEACHER_MAX_INCOMING_BITRATE||4500000));
+const STUDENT_MAX_INCOMING_BITRATE=Math.max(900000,Number(process.env.STUDENT_MAX_INCOMING_BITRATE||1800000));
+const MIN_LECTURE_OUTGOING_BITRATE=Math.max(1200000,Number(process.env.MIN_LECTURE_OUTGOING_BITRATE||2200000));
 const LECTURE_LITE_ENABLED=process.env.LECTURE_LITE_ENABLED!=='false';
 const LECTURE_MAX_STUDENT_AUDIO=Math.max(1,Math.min(Number(process.env.LECTURE_MAX_STUDENT_AUDIO||6),12));
 const STRICT_AUDIO_FLOOR=process.env.STRICT_AUDIO_FLOOR!=='false';
@@ -120,10 +123,13 @@ async function createTransport(peer,direction){
     preferUdp:true,
     enableSctp:true,
     numSctpStreams:{OS:1024,MIS:1024},
-    initialAvailableOutgoingBitrate:peer.room.profile==='lecture-lite'?LECTURE_INITIAL_OUTGOING_BITRATE:900000,
+    initialAvailableOutgoingBitrate:peer.room.profile==='lecture-lite'?Math.max(LECTURE_INITIAL_OUTGOING_BITRATE,MIN_LECTURE_OUTGOING_BITRATE):Math.max(2200000,LECTURE_INITIAL_OUTGOING_BITRATE),
     appData:{peerId:peer.id,direction}
   });
-  try{await t.setMaxIncomingBitrate(MAX_INCOMING_BITRATE)}catch{}
+  if(direction==='send'){
+    const incoming=peer.user?.role==='teacher'?Math.max(MAX_INCOMING_BITRATE,TEACHER_MAX_INCOMING_BITRATE):Math.max(MAX_INCOMING_BITRATE,STUDENT_MAX_INCOMING_BITRATE);
+    try{await t.setMaxIncomingBitrate(incoming)}catch{}
+  }
   peer.transports.set(t.id,t);
   t.on('dtlsstatechange',state=>{if(state==='closed')try{t.close()}catch{}});
   t.on('routerclose',()=>peer.transports.delete(t.id));
