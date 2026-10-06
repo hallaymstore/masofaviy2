@@ -1191,6 +1191,24 @@ app.post('/api/videos', auth, async(req,res)=>{
   const item=await VideoLesson.create({title,description:String(req.body.description||'').trim(),subject:String(req.body.subject||'').trim(),courseId,moduleTitle:String(req.body.moduleTitle||'Asosiy modul').trim().slice(0,180)||'Asosiy modul',topicTitle:String(req.body.topicTitle||title).trim().slice(0,220),sequence:Math.max(0,Number(req.body.sequence)||0),checkpointQuizId,teacherId,groupIds,direction:String(req.body.direction||'').trim(),courseYears,tags,sourceType,sourceUrl,thumbnailUrl:String(req.body.thumbnailUrl||'').trim(),durationMinutes:Number(req.body.durationMinutes)||0,published:req.body.published!==false,featured:Boolean(req.body.featured)&&hasPermission(req.user,'videos.manage'),createdBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined});
   audit(req,'VIDEO_CREATE','VideoLesson',item.id,{title:item.title,groups:groupIds.length});res.status(201).json(item);
 });
+app.patch('/api/videos/:id',auth,async(req,res)=>{
+  const item=mongoose.isValidObjectId(req.params.id)?await VideoLesson.findById(req.params.id):null;if(!item)return res.status(404).json({message:'Videodars topilmadi'});
+  const allowed=hasPermission(req.user,'videos.manage')||(req.user.role==='teacher'&&String(item.teacherId)===String(req.user._id));if(!allowed)return res.status(403).json({message:'Videodarsni tahrirlash huquqi yo‘q'});
+  if(req.body.courseId!==undefined){
+    if(!req.body.courseId)item.courseId=undefined;
+    else{if(!mongoose.isValidObjectId(req.body.courseId))return res.status(400).json({message:'Fan ID noto‘g‘ri'});const Course=mongoose.models.Course,course=Course?await Course.findById(req.body.courseId).lean():null;if(!course?.active)return res.status(404).json({message:'Fan topilmadi'});if(req.user.role==='teacher'&&String(course.teacherId)!==String(req.user._id))return res.status(403).json({message:'Bu fan sizga biriktirilmagan'});item.courseId=course._id}
+  }
+  if(req.body.checkpointQuizId!==undefined){
+    if(!req.body.checkpointQuizId)item.checkpointQuizId=null;
+    else{if(!mongoose.isValidObjectId(req.body.checkpointQuizId))return res.status(400).json({message:'Test ID noto‘g‘ri'});const Quiz=mongoose.models.Quiz,quiz=Quiz?await Quiz.findById(req.body.checkpointQuizId).lean():null;if(!quiz)return res.status(404).json({message:'Test topilmadi'});if(item.courseId&&String(quiz.courseId)!==String(item.courseId))return res.status(400).json({message:'Test tanlangan fanga tegishli emas'});item.checkpointQuizId=quiz._id}
+  }
+  if(req.body.moduleTitle!==undefined)item.moduleTitle=String(req.body.moduleTitle||'Asosiy modul').trim().slice(0,180)||'Asosiy modul';
+  if(req.body.topicTitle!==undefined)item.topicTitle=String(req.body.topicTitle||item.title).trim().slice(0,220);
+  if(req.body.sequence!==undefined)item.sequence=Math.max(0,Math.min(10000,Number(req.body.sequence)||0));
+  if(req.body.subject!==undefined)item.subject=String(req.body.subject||'').trim().slice(0,200);
+  await item.save();audit(req,'VIDEO_STRUCTURE_UPDATE','VideoLesson',item.id,{courseId:item.courseId?String(item.courseId):'',moduleTitle:item.moduleTitle,sequence:item.sequence,checkpointQuizId:item.checkpointQuizId?String(item.checkpointQuizId):''});
+  res.json(await VideoLesson.findById(item._id).populate('teacherId','fullName login').populate('groupIds','name externalId code').populate('courseId','code title language credits teacherId groupId').populate('checkpointQuizId','title durationMinutes proctorRequired published').lean());
+});
 app.delete('/api/videos/:id', auth, async(req,res)=>{
   const item=mongoose.isValidObjectId(req.params.id)?await VideoLesson.findById(req.params.id):null;if(!item)return res.status(404).json({message:'Videodars topilmadi'});
   const allowed=hasPermission(req.user,'videos.manage')||(req.user.role==='teacher'&&String(item.teacherId)===String(req.user._id));if(!allowed)return res.status(403).json({message:'Bu videodarsni o‘chirish huquqi yo‘q'});
