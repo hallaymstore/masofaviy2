@@ -27,7 +27,8 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     const teacher=String(course.teacherId)===String(req.user._id);
     const admin=['superadmin','admin'].includes(req.user.role);
     const student=req.user.role==='student'&&String(await resolveUserGroupId(req.user))===String(course.groupId);
-    if(!(teacher||admin||(!write&&student)))throw Object.assign(new Error('Bu fanga ruxsat yo‘q'),{status:403});
+    const oversight=!write&&['tech','rectorate','dean','department','tutor'].includes(req.user.role);
+    if(!(teacher||admin||oversight||(!write&&student)))throw Object.assign(new Error('Bu fanga ruxsat yo‘q'),{status:403});
     return course;
   };
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
