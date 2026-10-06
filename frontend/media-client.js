@@ -53,10 +53,12 @@ export class MediaRoomClient{
       const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05},advanced:[{echoCancellation:true,noiseSuppression:true,autoGainControl:true},{googEchoCancellation:true,googEchoCancellation2:true,googNoiseSuppression:true,googNoiseSuppression2:true,googAutoGainControl:true,googAutoGainControl2:true,googHighpassFilter:true,googTypingNoiseDetection:true}]};
       return id?{deviceId:{ideal:id},...a}:a;
     }
-    const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
-    const video=this.ultraLite
-      ?{width:{ideal:320,max:426},height:{ideal:180,max:240},frameRate:{ideal:10,max:12},facingMode:{ideal:this.facingMode}}
-      :(lite?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:this.facingMode}}:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},frameRate:{ideal:24,max:30},facingMode:{ideal:this.facingMode}});
+    const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
+    const video=teacher&&!this.ultraLite
+      ?{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:30,max:30},facingMode:{ideal:this.facingMode}}
+      :this.ultraLite
+        ?{width:{ideal:640,max:960},height:{ideal:360,max:540},frameRate:{ideal:15,max:20},facingMode:{ideal:this.facingMode}}
+        :(lite?{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:24,max:30},facingMode:{ideal:this.facingMode}}:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:30,max:30},facingMode:{ideal:this.facingMode}});
     return id?{deviceId:{ideal:id},...video}:video;
   }
   async getMediaOnce(kind){
@@ -369,8 +371,13 @@ export class MediaRoomClient{
     try{
       const stream=await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
       if(!track)throw new Error('Kamera trek topilmadi');
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',encodings=this.ultraLite?[{maxBitrate:180000,scaleResolutionDownBy:1,maxFramerate:10}]:(lite?[{maxBitrate:100000,scaleResolutionDownBy:4,maxFramerate:10},{maxBitrate:280000,scaleResolutionDownBy:2,maxFramerate:12},{maxBitrate:550000,scaleResolutionDownBy:1,maxFramerate:15}]:[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:700000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2500000,scaleResolutionDownBy:1,maxFramerate:30}]);
-      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?120:(lite?240:600)},appData:{mediaTag:'camera',role:this.user.role}});
+      const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
+      const encodings=teacher&&!this.ultraLite
+        ?[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]
+        :this.ultraLite?[{maxBitrate:420000,scaleResolutionDownBy:1,maxFramerate:15}]
+        :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]:[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]);
+      try{track.contentHint='motion'}catch{}
+      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:teacher?1200:(this.ultraLite?300:(lite?650:1000))},appData:{mediaTag:'camera',role:this.user.role,quality:teacher?'1080p':'adaptive'}});
       this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
@@ -384,8 +391,9 @@ export class MediaRoomClient{
     const p=this.producers.get('screen');
     if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
     try{
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:this.ultraLite?5:(lite?8:12),max:this.ultraLite?8:(lite?12:20)}},audio:false}),track=stream.getVideoTracks()[0];
-      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?450000:(lite?750000:2200000)}],appData:{mediaTag:'screen',role:this.user.role}});
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:2560},height:{ideal:1080,max:1440},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false}),track=stream.getVideoTracks()[0];
+      try{track.contentHint='detail'}catch{}
+      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?900000:(lite?2800000:4500000),maxFramerate:this.ultraLite?20:30}],appData:{mediaTag:'screen',role:this.user.role,quality:'1080p'}});
       this.producers.set('screen',producer);
       const screenTile=this.ensureTile('local:screen',{fullName:(this.user.fullName||this.user.login)+' · Ekran',role:this.user.role},true);
       screenTile.classList.add('screen-share','local-screen','has-video');
@@ -415,7 +423,7 @@ export class MediaRoomClient{
   }
   async maybeConsume(meta){
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
-    const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:this.receiveQuality==='auto'?(this.lowEnd?'240':'auto'):this.receiveQuality});
+    const priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen';const requestedQuality=this.receiveQuality==='auto'?(priorityVideo?'auto':(this.ultraLite?'360':this.lowEnd?'480':'auto')):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
     await this.attachRemote(consumer,meta);
