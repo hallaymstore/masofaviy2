@@ -1358,48 +1358,117 @@ $('#manageAcademic')?.addEventListener('click',()=>modal('Talabani topish','<lab
 
 let scormListener=null;
 async function launchScorm(id,scoId=''){try{const launch=await api('/lms/scorm/'+id+'/launch',{method:'POST',body:JSON.stringify({scoId})});if(scormListener)removeEventListener('message',scormListener);const frame=document.createElement('iframe');frame.sandbox='allow-scripts';frame.referrerPolicy='no-referrer';frame.title='SCORM dars · '+(launch.sco?.title||'');frame.style.cssText='width:100%;height:65vh;border:1px solid #bbb;border-radius:10px';$('#scormPlayer').replaceChildren(frame);scormListener=event=>{if(event.source!==frame.contentWindow||event.data?.token!==launch.token)return;if(event.data.kind==='scorm-progress')api('/lms/scorm/'+id+'/progress',{method:'POST',body:JSON.stringify({token:launch.token,values:event.data.values})}).catch(e=>toast(e.message))};addEventListener('message',scormListener);frame.src=launch.url}catch(e){toast(e.message)}}
-async function startCourseQuiz(id,proctorExpected=false){try{const consent=confirm('Agar nazorat talab qilinsa, kamera, mikrofon, oynadan chiqish, yuz mavjudligi va texnik uzilish signallari qayd etiladi. Foto/video yozib olinmaydi. Davom etasizmi?');if(!consent)return;if(proctorExpected){try{const probe=await navigator.mediaDevices.getUserMedia({video:true,audio:true});probe.getTracks().forEach(t=>t.stop())}catch{return toast('Nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}}const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:true})});const stop=x.proctorRequired?await startExamSignals(x.attemptId):()=>{};const fields=x.questions.map((q,i)=>'<fieldset><legend>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label><input type="radio" name="q'+i+'" value="'+j+'" required> '+esc(option)+'</label>').join('')+'</fieldset>').join('');modal('Test: '+x.durationMinutes+' daqiqa',fields,async d=>{const answers=x.questions.map((_,i)=>Number(d['q'+i]));const result=await api('/lms/attempts/'+x.attemptId+'/submit',{method:'POST',body:JSON.stringify({answers})});stop();toast('Natija: '+Math.round(result.score)+'%')});$('#editor').addEventListener('close',stop,{once:true})}catch(e){toast(e.message)}}
+async function startCourseQuiz(id,proctorExpected=false){
+  let stop=()=>{},terminated=false;
+  try{
+    const consent=confirm('Nazoratli testda kamera, mikrofon, fullscreen, sahifadan chiqish, yuz holati va texnik signallar qayd etiladi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Foto/video yozib olinmaydi. Davom etasizmi?');
+    if(!consent)return;
+    if(proctorExpected){
+      try{
+        const probe=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        probe.getTracks().forEach(t=>t.stop());
+      }catch{return toast('Nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
+      if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
+        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{return toast('Nazoratli test uchun to‘liq ekran rejimiga ruxsat bering')}
+      }
+    }
+    const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:true})});
+    const fields='<div class="proctor-exam-banner '+(x.proctorRequired?'strict':'')+'"><b>'+(x.proctorRequired?'🔒 Avtoproktoring faol':'Test')+'</b><span>'+(x.proctorRequired?'Sahifadan chiqish, yuzni burish, kamera uzilishi va ekran olish urinishlari nazorat qilinadi.':'Savollarni belgilang va yakunlang.')+'</span><strong id="examCountdown"></strong></div>'+x.questions.map((q,i)=>'<fieldset><legend>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label><input type="radio" name="q'+i+'" value="'+j+'" required> '+esc(option)+'</label>').join('')+'</fieldset>').join('');
+    modal('Test · '+x.durationMinutes+' daqiqa',fields,async d=>{
+      if(terminated)throw Error('Test avtoproktoring tomonidan yakunlangan');
+      const answers=x.questions.map((_,i)=>Number(d['q'+i]));
+      const result=await api('/lms/attempts/'+x.attemptId+'/submit',{method:'POST',body:JSON.stringify({answers})});
+      stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast('Natija: '+Math.round(result.score)+'%')
+    });
+    let left=Math.max(1,Number(x.durationMinutes)||30)*60;
+    const countdown=setInterval(()=>{const el=$('#examCountdown');if(!el)return;const m=Math.floor(left/60),s=left%60;el.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');left=Math.max(0,left-1)},1000);
+    const onTerminate=reason=>{
+      if(terminated)return;terminated=true;clearInterval(countdown);stop();
+      $('#modalSave')?.classList.add('hidden');
+      const fields=$('#modalFields');if(fields)fields.innerHTML='<div class="proctor-terminated"><b>Test avtomatik yakunlandi</b><p>'+esc(reason||'Avtoproktoring qoidasi buzildi')+'</p><button type="button" class="primary" id="leaveTerminatedExam">Fanlarga qaytish</button></div>';
+      $('#leaveTerminatedExam')?.addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});closeEditor()});
+      toast('Avtoproktoring: test yakunlandi');
+    };
+    stop=x.proctorRequired?await startExamSignals(x.attemptId,x.proctorPolicy||{},onTerminate):()=>{};
+    $('#editor').addEventListener('close',()=>{clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})},{once:true});
+  }catch(e){stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast(e.message)}
+}
 async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div><button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
-async function startExamSignals(attemptId){
-  let camera=null,microphone=null,timer=null,detector=null,audioContext=null,analyser=null,busy=false,stopped=false,lastSound=0;
-  const send=type=>api('/lms/attempts/'+attemptId+'/proctor-events',{method:'POST',body:JSON.stringify({type})}).catch(()=>{});
-  const visibility=()=>{if(document.hidden)send('page_hidden')},blur=()=>send('window_blur'),networkOffline=()=>send('network_offline'),networkOnline=()=>send('network_online'),fullscreen=()=>send(document.fullscreenElement?'fullscreen_enter':'fullscreen_exit');
-  document.addEventListener('visibilitychange',visibility);document.addEventListener('fullscreenchange',fullscreen);window.addEventListener('blur',blur);window.addEventListener('offline',networkOffline);window.addEventListener('online',networkOnline);
-  const nativeOffCenter=(face,video)=>{const b=face?.boundingBox;if(!b||!video.videoWidth||!video.videoHeight)return false;const cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;return Math.abs(cx-.5)>.28||Math.abs(cy-.5)>.28};
-  const mediaPipeOffCenter=d=>{const b=d?.boundingBox;if(!b||!Number.isFinite(b.xCenter)||!Number.isFinite(b.yCenter))return false;return Math.abs(b.xCenter-.5)>.28||Math.abs(b.yCenter-.5)>.28};
+async function startExamSignals(attemptId,policy={},onTerminate=()=>{}){
+  let camera=null,microphone=null,timer=null,detector=null,audioContext=null,analyser=null,busy=false,stopped=false,lastSound=0,turnStreak=0,missingStreak=0;
+  document.body.classList.add('proctored-exam-active');
+  const send=async type=>{
+    if(stopped)return null;
+    try{const x=await api('/lms/attempts/'+attemptId+'/proctor-events',{method:'POST',body:JSON.stringify({type})});if(x?.terminated){stopped=true;onTerminate(x.reason||'Nazorat qoidasi buzildi')}return x}catch{return null}
+  };
+  const visibility=()=>{if(document.hidden)send('page_hidden')};
+  const blur=()=>send('window_blur');
+  const networkOffline=()=>send('network_offline'),networkOnline=()=>send('network_online');
+  const fullscreen=()=>{if(document.fullscreenElement)send('fullscreen_enter');else if(policy.requireFullscreen)send('fullscreen_exit')};
+  const keydown=e=>{
+    const key=String(e.key||'').toLowerCase(),clipboard=(e.ctrlKey||e.metaKey)&&['c','v','x'].includes(key);
+    if(key==='printscreen'){e.preventDefault();send('screenshot_attempt')}
+    if(clipboard){e.preventDefault();send('clipboard_attempt')}
+  };
+  const copyPaste=e=>{e.preventDefault();send('clipboard_attempt')};
+  const contextmenu=e=>e.preventDefault();
+  document.addEventListener('visibilitychange',visibility);document.addEventListener('fullscreenchange',fullscreen);window.addEventListener('blur',blur);window.addEventListener('offline',networkOffline);window.addEventListener('online',networkOnline);window.addEventListener('keydown',keydown,true);document.addEventListener('copy',copyPaste,true);document.addEventListener('cut',copyPaste,true);document.addEventListener('paste',copyPaste,true);document.addEventListener('contextmenu',contextmenu,true);
+  const nativeOffCenter=(face,video)=>{const b=face?.boundingBox;if(!b||!video.videoWidth||!video.videoHeight)return false;const cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;return Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24};
+  const mediaPipeOffCenter=d=>{const b=d?.boundingBox;if(!b||!Number.isFinite(b.xCenter)||!Number.isFinite(b.yCenter))return false;return Math.abs(b.xCenter-.5)>.24||Math.abs(b.yCenter-.5)>.24};
+  const mediaPipeTurned=d=>{
+    const pts=d?.landmarks||d?.keypoints||d?.locationData?.relativeKeypoints||[];
+    if(!Array.isArray(pts)||pts.length<3)return false;
+    const p=x=>({x:Number(x?.x??x?.xCenter),y:Number(x?.y??x?.yCenter)}),a=p(pts[0]),b=p(pts[1]),nose=p(pts[2]);
+    if(![a.x,b.x,nose.x].every(Number.isFinite))return false;
+    const eye=Math.abs(a.x-b.x);if(eye<.02)return false;
+    const mid=(a.x+b.x)/2,ratio=Math.abs(nose.x-mid)/eye;
+    return ratio>.46;
+  };
   try{
-    camera=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240},audio:false});send('camera_ready');
+    camera=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:false});await send('camera_ready');
     camera.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('camera_track_ended')},{once:true}));
-  }catch{send('camera_unavailable')}
+  }catch{await send('camera_unavailable')}
   try{
-    microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:true});send('microphone_ready');
+    microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});await send('microphone_ready');
     microphone.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('microphone_track_ended')},{once:true}));
-    const AudioContext=window.AudioContext||window.webkitAudioContext;if(AudioContext){audioContext=new AudioContext();analyser=audioContext.createAnalyser();analyser.fftSize=2048;audioContext.createMediaStreamSource(microphone).connect(analyser)}
-  }catch{send('microphone_unavailable')}
+    const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioContext=new AC();analyser=audioContext.createAnalyser();analyser.fftSize=1024;audioContext.createMediaStreamSource(microphone).connect(analyser)}
+  }catch{await send('microphone_unavailable')}
   if(camera){
     const video=document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
     try{
-      if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
-      else{
-        if(!window.FaceDetection){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-detection/face_detection.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
-        const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:0.5});
-        instance.onResults(result=>{if(stopped)return;const faces=result.detections||[],n=faces.length;if(n===0)send('face_missing');if(n>1)send('multiple_faces');if(n===1&&mediaPipeOffCenter(faces[0]))send('face_off_center')});detector={kind:'mediapipe',instance};
-      }
-    }catch{send('face_detector_unavailable')}
+      if(!window.FaceDetection){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-detection/face_detection.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
+      const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
+      instance.onResults(result=>{
+        if(stopped)return;const faces=result.detections||[],n=faces.length;
+        if(n===0){missingStreak++;turnStreak=0;if(missingStreak>=2){send('face_missing');missingStreak=0}}
+        else{missingStreak=0}
+        if(n>1)send('multiple_faces');
+        if(n===1){
+          if(mediaPipeOffCenter(faces[0]))send('face_off_center');
+          if(mediaPipeTurned(faces[0])){turnStreak++;if(turnStreak>=2){send('face_turned');turnStreak=0}}else turnStreak=0;
+        }
+      });detector={kind:'mediapipe',instance};
+    }catch{
+      try{if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};else throw Error()}catch{send('face_detector_unavailable')}
+    }
     timer=setInterval(async()=>{
       if(stopped||busy)return;busy=true;
       try{
         if(detector&&video.readyState>=2){
-          if(detector.kind==='native'){const faces=await detector.instance.detect(video),n=faces.length;if(n===0)send('face_missing');if(n>1)send('multiple_faces');if(n===1&&nativeOffCenter(faces[0],video))send('face_off_center')}
-          else await detector.instance.send({image:video});
+          if(detector.kind==='native'){
+            const faces=await detector.instance.detect(video),n=faces.length;
+            if(n===0){missingStreak++;if(missingStreak>=2){await send('face_missing');missingStreak=0}}else missingStreak=0;
+            if(n>1)await send('multiple_faces');if(n===1&&nativeOffCenter(faces[0],video))await send('face_off_center');
+          }else await detector.instance.send({image:video});
         }
-        if(analyser){const samples=new Uint8Array(analyser.fftSize);analyser.getByteTimeDomainData(samples);let power=0;for(const value of samples)power+=(value-128)**2;const rms=Math.sqrt(power/samples.length)/128;if(rms>0.3&&Date.now()-lastSound>30000){lastSound=Date.now();send('ambient_sound')}}
-      }catch{if(detector){detector.instance.close?.();detector=null;send('face_detector_unavailable')}}finally{busy=false}
-    },8000);
+        if(analyser){const samples=new Uint8Array(analyser.fftSize);analyser.getByteTimeDomainData(samples);let power=0;for(const value of samples)power+=(value-128)**2;const rms=Math.sqrt(power/samples.length)/128;if(rms>.34&&Date.now()-lastSound>20000){lastSound=Date.now();await send('ambient_sound')}}
+      }catch{if(detector){detector.instance.close?.();detector=null;await send('face_detector_unavailable')}}finally{busy=false}
+    },1500);
   }
   return ()=>{
-    if(stopped)return;stopped=true;clearInterval(timer);detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});
-    document.removeEventListener('visibilitychange',visibility);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('blur',blur);window.removeEventListener('offline',networkOffline);window.removeEventListener('online',networkOnline);
+    if(stopped&&document.body.classList.contains('proctored-exam-active')===false)return;
+    stopped=true;clearInterval(timer);detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});document.body.classList.remove('proctored-exam-active');
+    document.removeEventListener('visibilitychange',visibility);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('blur',blur);window.removeEventListener('offline',networkOffline);window.removeEventListener('online',networkOnline);window.removeEventListener('keydown',keydown,true);document.removeEventListener('copy',copyPaste,true);document.removeEventListener('cut',copyPaste,true);document.removeEventListener('paste',copyPaste,true);document.removeEventListener('contextmenu',contextmenu,true);
   };
 }
 $('#addCourse').onclick=async()=>{try{const [groups,teachers]=await Promise.all([api('/structure?type=group'),api('/teachers')]);modal('Yangi fan qo‘shish','<label>Kod<input name="code" required></label><label>Fan nomi<input name="title" required></label><label>Ta’lim tili<input name="language" value="uz" required></label><label>Kredit<input name="credits" type="number" min="0"></label><label>Fan dasturi HTTPS havolasi<input name="syllabusUrl" type="url"></label><label>Guruh<select name="groupId">'+groups.map(g=>'<option value="'+esc(g._id)+'">'+esc(g.name)+'</option>').join('')+'</select></label><label>O‘qituvchi<select name="teacherId">'+teachers.map(t=>'<option value="'+esc(t._id)+'">'+esc(t.fullName)+'</option>').join('')+'</select></label>',async d=>{await api('/lms/courses',{method:'POST',body:JSON.stringify(d)});loadCourses()})}catch(e){toast(e.message)}};
