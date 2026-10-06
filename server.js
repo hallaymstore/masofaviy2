@@ -498,6 +498,37 @@ app.get('/api/presentation/readiness', auth, async(req,res)=>{
   res.json({generatedAt:new Date(),percent,official:{faculties,departments,distanceGroups},presentation:{teachers:presentationTeachers,students:presentationStudents,courses:sampleCourses,schedules:sampleSchedules,curricula:sampleCurricula,libraryItems,videos},checks:checks.map(([label,value,target])=>({label,value,target,ready:value>=target}))});
 });
 
+app.get('/api/evaluation/readiness',auth,async(req,res)=>{
+  if(!['superadmin','admin','tech','rectorate'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
+  const Course=mongoose.models.Course,Quiz=mongoose.models.Quiz,Assignment=mongoose.models.Assignment,StudyPlan=mongoose.models.StudyPlan;
+  const [courses,proctorQuizzes,allQuizzes,assignments,structuredVideos,checkpointVideos,schedules,studyPlans]=await Promise.all([
+    Course?Course.countDocuments({active:true}):0,
+    Quiz?Quiz.countDocuments({published:true,proctorRequired:true}):0,
+    Quiz?Quiz.countDocuments({published:true}):0,
+    Assignment?Assignment.countDocuments({published:true}):0,
+    VideoLesson.countDocuments({published:true,courseId:{$ne:null},topicTitle:{$nin:['',null]}}),
+    VideoLesson.countDocuments({published:true,checkpointQuizId:{$ne:null}}),
+    Schedule.countDocuments({liveEnabled:{$ne:false},kind:{$ne:'final_exam'}}),
+    StudyPlan?StudyPlan.countDocuments():0
+  ]);
+  const settings=await InstitutionSettings.findOne({key:'primary'}).lean();
+  const registryNo=String(process.env.DIGITAL_GOV_REGISTRY_NUMBER||'').trim(),cyberNo=String(process.env.CYBERSECURITY_CONCLUSION_NUMBER||'').trim();
+  const criteria=[
+    {no:2,title:'Avtoproktoring tizimi',ready:proctorQuizzes>0,evidence:proctorQuizzes+' ta proktoringli test · fullscreen/page/face nazorati'},
+    {no:3,title:'Raqamli o‘qitish (virtual classroom)',ready:Boolean(SFU_BRIDGE_URLS.length&&TURN_URLS.length),evidence:'WebRTC/SFU + TURN · adaptiv 1080p teacher/screen'},
+    {no:4,title:'Umumiy, guruh va individual ta’lim',ready:courses>0&&schedules>0&&studyPlans>0,evidence:courses+' fan · '+schedules+' live jadval · '+studyPlans+' individual reja'},
+    {no:7,title:'Tashkiliy-me’yoriy materiallar',ready:Boolean(settings?.website),evidence:settings?.website||'Rasmiy sayt kiritilmagan'},
+    {no:8,title:'Kurslarni boshqarish',ready:courses>0&&structuredVideos>0,evidence:courses+' fan · '+structuredVideos+' strukturali videomavzu · '+checkpointVideos+' oraliq test'},
+    {no:9,title:'O‘qitishni boshqarish',ready:schedules>0&&assignments>0,evidence:schedules+' jadval · '+assignments+' topshiriq'},
+    {no:10,title:'Statistika komponenti',ready:true,evidence:'Davomat, live, user, kurs va audit analitikasi'},
+    {no:11,title:'Talabalar bilimini nazorat qilish',ready:allQuizzes>0||assignments>0,evidence:allQuizzes+' test · '+assignments+' topshiriq'},
+    {no:12,title:'Raqamli hukumat yagona reyestri',ready:Boolean(registryNo),external:true,evidence:registryNo?('Reyestr: '+registryNo):'Tashqi rasmiy ro‘yxatdan o‘tkazish talab qilinadi'},
+    {no:13,title:'Kiberxavfsizlik ekspert xulosasi',ready:Boolean(cyberNo),external:true,evidence:cyberNo?('Xulosa: '+cyberNo):'Vakolatli tashkilotning ijobiy ekspert xulosasi talab qilinadi'}
+  ];
+  const internal=criteria.filter(x=>!x.external),percent=Math.round(internal.filter(x=>x.ready).length/Math.max(1,internal.length)*100);
+  res.json({generatedAt:new Date(),percent,criteria});
+});
+
 app.post('/api/auth/login', async (req,res) => {
   const login=String(req.body.login||'').toLowerCase().trim(),password=String(req.body.password||''),key=loginAttemptKey(req,login);
   if(loginBlocked(key))return res.status(429).json({message:'Juda ko‘p noto‘g‘ri urinish. Birozdan keyin qayta urinib ko‘ring.'});
