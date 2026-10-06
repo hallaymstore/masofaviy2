@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {summarizeProctorEvents,proctorSubmissionReady} from '../proctoring.js';
+import {summarizeProctorEvents,proctorSubmissionReady,evaluateProctorTermination} from '../proctoring.js';
 
 test('proctoring readiness requires camera and microphone',()=>{
   assert.equal(proctorSubmissionReady([{type:'camera_ready'}]).ok,false);
@@ -19,4 +19,14 @@ test('risk summary raises review priority for repeated integrity signals',()=>{
 test('risk summary stays low for clean ready session',()=>{
   const x=summarizeProctorEvents([{type:'camera_ready'},{type:'microphone_ready'},{type:'fullscreen_enter'}]);
   assert.equal(x.riskScore,0);assert.equal(x.reviewPriority,'low');
+});
+
+test('strict proctoring terminates on page leave and screenshot attempt',()=>{
+  assert.equal(evaluateProctorTermination([{type:'page_hidden'}]).terminate,true);
+  assert.equal(evaluateProctorTermination([{type:'screenshot_attempt'}]).terminate,true);
+});
+test('strict proctoring requires repeated face-turn signal before termination',()=>{
+  assert.equal(evaluateProctorTermination([{type:'face_turned'}]).terminate,false);
+  const x=evaluateProctorTermination([{type:'face_turned'},{type:'face_turned'}]);
+  assert.equal(x.terminate,true);assert.equal(x.type,'face_turned');
 });
