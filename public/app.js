@@ -898,6 +898,27 @@ function compactRelatedCard(v){
   const thumb=videoThumb(v);
   return '<button class="related-card" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="related-no-thumb">'+icon('play','▶')+'</div>')+'<span><b>'+esc(v.title)+'</b><small>'+esc(v.teacherId?.fullName||'Ta’lim platformasi')+'</small><small>'+esc(v.views||0)+' ko‘rish · '+esc(v.likes||0)+' yoqdi</small></span></button>';
 }
+function renderVideoLearningPaths(rows){
+  const groups=new Map();
+  for(const v of rows){
+    const courseKey=String(v.courseId?._id||v.courseId||('subject:'+String(v.subject||'Boshqa'))),courseTitle=v.courseId?.title||v.subject||'Mustaqil videodarslar';
+    if(!groups.has(courseKey))groups.set(courseKey,{title:courseTitle,code:v.courseId?.code||'',modules:new Map()});
+    const course=groups.get(courseKey),module=String(v.moduleTitle||'Asosiy modul');
+    if(!course.modules.has(module))course.modules.set(module,[]);
+    course.modules.get(module).push(v);
+  }
+  if(!groups.size)return '<div class="empty"><b>Videodars topilmadi</b><p>O‘qituvchi yoki administrator videodars qo‘shishi mumkin.</p></div>';
+  return [...groups.values()].map(course=>{
+    const modules=[...course.modules.entries()].map(([name,items])=>{
+      items.sort((a,b)=>(Number(a.sequence)||0)-(Number(b.sequence)||0)||new Date(a.createdAt)-new Date(b.createdAt));
+      return '<div class="learning-module"><div class="learning-module-head"><b>'+esc(name)+'</b><small>'+esc(items.length)+' mavzu</small></div><div class="learning-topic-list">'+items.map((v,i)=>{
+        const quiz=v.checkpointQuizId;
+        return '<article class="learning-topic"><div class="learning-topic-order">'+esc(v.sequence||i+1)+'</div><div class="learning-topic-main"><small>'+esc(v.topicTitle||v.title)+'</small><h3>'+esc(v.title)+'</h3><p>'+esc(v.description||'')+'</p><div class="video-tags">'+(v.durationMinutes?'<span>'+esc(Math.round(v.durationMinutes))+' daq</span>':'')+(quiz?'<span class="topic-quiz-badge">Test: '+esc(quiz.title)+'</span>':'')+'</div></div><div class="learning-topic-actions"><button class="primary" data-video-play="'+esc(v._id)+'">▶ Ko‘rish</button>'+(quiz?'<button data-video-checkpoint="'+esc(quiz._id)+'" data-proctor="'+(quiz.proctorRequired?'1':'0')+'">Test</button>':'')+'</div></article>'
+      }).join('')+'</div></div>';
+    }).join('');
+    return '<section class="video-course-path"><div class="video-course-path-head"><div><small>'+esc(course.code||'Kurs')+'</small><h2>'+esc(course.title)+'</h2></div><span>'+esc([...course.modules.values()].reduce((n,x)=>n+x.length,0))+' videomavzu</span></div>'+modules+'</section>';
+  }).join('');
+}
 async function loadVideoLessons(){
   try{
     videoLessonsCache=await api('/videos');
@@ -905,8 +926,8 @@ async function loadVideoLessons(){
     const rows=videoLessonsCache.filter(v=>(!q||[v.title,v.subject,v.description,...(v.tags||[])].join(' ').toLowerCase().includes(q))&&(!course||(v.courseYears||[]).includes(course))&&(!direction||String(v.direction||'').toLowerCase().includes(direction)));
     const rec=rows.filter(v=>v.recommendationScore>0).slice(0,10);
     $('#recommendedVideos').innerHTML=(rec.length?rec:rows.slice(0,10)).map(v=>videoCard(v,true)).join('')||'<div class="empty"><b>Tavsiya topilmadi</b><p>Kurs yoki yo‘nalish filtrlari bilan qidiring.</p></div>';
-    $('#videoLessons').innerHTML=rows.map(v=>videoCard(v,false)).join('')||'<div class="empty"><b>Videodars topilmadi</b><p>O‘qituvchi yoki administrator videodars qo‘shishi mumkin.</p></div>';
-    bindVideoActions();hydrateIcons($('#videos'));
+    $('#videoLessons').innerHTML=renderVideoLearningPaths(rows);
+    bindVideoActions();all('[data-video-checkpoint]').forEach(b=>b.onclick=()=>startCourseQuiz(b.dataset.videoCheckpoint,b.dataset.proctor==='1'));hydrateIcons($('#videos'));
   }catch(e){$('#videoLessons').innerHTML='<div class="empty"><b>Videodarslarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
 function bindVideoActions(root=document){
@@ -936,8 +957,9 @@ async function openVideoLesson(id,pushHistory=true){
   $('#watchLikeBtn').classList.toggle('liked',Boolean(v.progress?.liked));
   $('#watchTeacher').innerHTML='<div class="avatar">'+esc((v.teacherId?.fullName||'T').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase())+'</div><div><b>'+esc(v.teacherId?.fullName||'Ta’lim platformasi')+'</b><small>'+esc(v.subject||'Videodars')+'</small></div>';
   const tags=[...(v.tags||[]),...(v.courseYears||[]).map(x=>x+'-kurs'),v.direction].filter(Boolean);
-  $('#watchDescription').innerHTML='<div class="watch-description-meta">'+tags.map(x=>'<span>'+esc(x)+'</span>').join('')+'</div><p>'+esc(v.description||'Videodars uchun tavsif kiritilmagan.')+'</p>';
+  $('#watchDescription').innerHTML='<div class="watch-description-meta">'+[v.courseId?.title,v.moduleTitle,v.topicTitle,...tags].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div><p>'+esc(v.description||'Videodars uchun tavsif kiritilmagan.')+'</p>'+(v.checkpointQuizId?'<div class="video-checkpoint-box"><div><b>Mavzu nazorati</b><small>'+esc(v.checkpointQuizId.title)+' · '+esc(v.checkpointQuizId.durationMinutes||30)+' daqiqa'+(v.checkpointQuizId.proctorRequired?' · avtoproktoring':'')+'</small></div><button class="primary" id="watchCheckpointQuiz">Testni boshlash</button></div>':'');
   renderWatchPlayer(v);
+  $('#watchCheckpointQuiz')?.addEventListener('click',()=>startCourseQuiz(v.checkpointQuizId._id,v.checkpointQuizId.proctorRequired));
   const related=videoLessonsCache.filter(x=>String(x._id)!==activeVideoId).sort((a,b)=>(b.recommendationScore||0)-(a.recommendationScore||0)).slice(0,30);
   $('#watchRelated').innerHTML=related.map(compactRelatedCard).join('')||'<p class="muted">Boshqa videodars yo‘q.</p>';
   bindVideoActions($('#watchRelated'));hydrateIcons($('#videoWatch'));
@@ -985,8 +1007,11 @@ async function deleteVideoComment(id){if(!confirm('Izoh o‘chirilsinmi?'))retur
 async function deleteVideoLesson(id){if(!confirm('Videodars arxivga olinsinmi?'))return;try{await api('/videos/'+id,{method:'DELETE'});toast('Videodars arxivga olindi');if(activeVideoId===String(id)){clearWatchPage();go('videos')}loadVideoLessons()}catch(e){toast(e.message)}}
 $('#applyVideoFilter').onclick=loadVideoLessons;$('#videoSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadVideoLessons()});
 $('#addVideoLesson').onclick=async()=>{
-  await api('/structure?type=group').catch(()=>[]);
-  modal('Videodars qo‘shish','<label>Nomi<input name="title" required></label><label>Video havolasi<input name="sourceUrl" type="url" required placeholder="YouTube yoki MP4 URL"></label><label>Fan<input name="subject"></label><label>Guruh ID lar<input name="groupIds" placeholder="ATT-101, ATT-102"></label><label>Kurslar<input name="courseYears" placeholder="1,2"></label><label>Yo‘nalish<input name="direction" placeholder="Dasturiy injiniring"></label><label>Teglar<input name="tags" placeholder="algoritm, amaliyot, nazariya"></label><label>Muqova URL<input name="thumbnailUrl" type="url"></label><label>Davomiyligi (daq)<input name="durationMinutes" type="number" min="0"></label><label>Tavsif<textarea name="description" rows="4"></textarea></label>',async d=>{await api('/videos',{method:'POST',body:JSON.stringify(d)});loadVideoLessons()})
+  try{
+    const courses=await api('/lms/courses').catch(()=>[]),details=await Promise.all(courses.slice(0,80).map(x=>api('/lms/courses/'+x._id).catch(()=>null)));
+    const quizOptions=details.flatMap((d,i)=>(d?.quizzes||[]).map(q=>({id:q._id,label:(courses[i]?.title||'Fan')+' · '+q.title})));
+    modal('Videodars qo‘shish','<label>Nomi<input name="title" required></label><label>Video havolasi<input name="sourceUrl" type="url" required placeholder="YouTube yoki MP4 URL"></label><label>LMS fan<select name="courseId"><option value="">Umumiy videodars</option>'+courses.map(x=>'<option value="'+esc(x._id)+'">'+esc(x.code)+' · '+esc(x.title)+'</option>').join('')+'</select></label><label>Modul<input name="moduleTitle" value="Asosiy modul" placeholder="1-modul. Kirish"></label><label>Mavzu<input name="topicTitle" required placeholder="1-mavzu. ..."></label><label>Ketma-ketlik<input name="sequence" type="number" min="0" value="1"></label><label>Mavzudan keyingi test<select name="checkpointQuizId"><option value="">Test biriktirilmagan</option>'+quizOptions.map(q=>'<option value="'+esc(q.id)+'">'+esc(q.label)+'</option>').join('')+'</select></label><label>Fan nomi / teg<input name="subject"></label><label>Guruh ID lar<input name="groupIds" placeholder="ATT-101, ATT-102"></label><label>Kurslar<input name="courseYears" placeholder="1,2"></label><label>Yo‘nalish<input name="direction" placeholder="Dasturiy injiniring"></label><label>Teglar<input name="tags" placeholder="algoritm, amaliyot, nazariya"></label><label>Muqova URL<input name="thumbnailUrl" type="url"></label><label>Davomiyligi (daq)<input name="durationMinutes" type="number" min="0"></label><label>Tavsif<textarea name="description" rows="4"></textarea></label>',async d=>{await api('/videos',{method:'POST',body:JSON.stringify(d)});loadVideoLessons()})
+  }catch(e){toast(e.message)}
 };
 
 let analyticsCache=null;
