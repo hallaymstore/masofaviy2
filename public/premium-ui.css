@@ -1974,3 +1974,6 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
   .evaluation-row{grid-template-columns:28px minmax(0,1fr)}
   .evaluation-row>strong{grid-column:2;justify-self:start}
 }
+
+#videoLessons.video-card-grid{grid-template-columns:1fr!important}
+#videoLessons.video-card-grid>.video-course-path{grid-column:1/-1;width:100%}
