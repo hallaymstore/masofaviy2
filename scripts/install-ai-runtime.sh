@@ -14,21 +14,23 @@ if command -v nvidia-smi >/dev/null 2>&1; then
   GPU_VRAM_MB="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -dc '0-9' || echo 0)"
 fi
 
-MAIN_MODEL="llama3.2:3b"
-FAST_MODEL="llama3.2:3b"
+MAIN_MODEL="llama3.2:1b"
+FAST_MODEL="llama3.2:1b"
 EMBED_MODEL="nomic-embed-text"
-PROFILE="cpu-lite"
+PROFILE="cpu-ultralite"
 AI_CONCURRENCY=1
-AI_QUEUE=80
+AI_QUEUE=60
 
 if [ "$GPU_VRAM_MB" -ge 20000 ]; then
   MAIN_MODEL="qwen3:14b"; PROFILE="gpu-strong"; AI_CONCURRENCY=4; AI_QUEUE=220
 elif [ "$GPU_VRAM_MB" -ge 10000 ]; then
   MAIN_MODEL="qwen3:8b"; PROFILE="gpu-balanced"; AI_CONCURRENCY=2; AI_QUEUE=140
 elif [ "$RAM_GB" -ge 48 ]; then
-  MAIN_MODEL="qwen3:8b"; PROFILE="cpu-strong"; AI_CONCURRENCY=1; AI_QUEUE=100
+  MAIN_MODEL="qwen3:8b"; FAST_MODEL="llama3.2:3b"; PROFILE="cpu-strong"; AI_CONCURRENCY=1; AI_QUEUE=100
 elif [ "$RAM_GB" -ge 24 ]; then
-  MAIN_MODEL="qwen3:4b"; PROFILE="cpu-balanced"; AI_CONCURRENCY=1; AI_QUEUE=80
+  MAIN_MODEL="qwen3:4b"; FAST_MODEL="llama3.2:3b"; PROFILE="cpu-balanced"; AI_CONCURRENCY=1; AI_QUEUE=80
+elif [ "$RAM_GB" -ge 8 ]; then
+  MAIN_MODEL="llama3.2:3b"; FAST_MODEL="llama3.2:1b"; PROFILE="cpu-lite"; AI_CONCURRENCY=1; AI_QUEUE=70
 fi
 
 echo "RAM: ${RAM_GB} GB"
