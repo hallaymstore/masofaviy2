@@ -77,6 +77,7 @@ for(const key of ['DI','AI']){const group=key==='DI'?gDI:gAI,direction=key==='DI
 let videoCount=0,quizCount=0,proctorCount=0,assignmentCount=0;
 for(const key of ['DI','AI']){const group=key==='DI'?gDI:gAI,students=key==='DI'?sDI:sAI,direction=key==='DI'?'Dasturiy injiniring':'Sun’iy intellekt';for(const course of rows[key]){
  for(const [title,url] of course.links)await upsert(resources,{courseId:course._id,title},{courseId:course._id,title,kind:'link',url,description:course.title+' uchun o‘quv manbasi',published:true,accessCount:12,lastAccessedAt:now,createdBy:course.teacher._id});
+ await quizzes.updateMany({courseId:course._id,title:{$in:['Mavzu testi · '+course.title,'PROKTORING TEST · '+course.title]}},{$set:{published:false,updatedAt:now}});
  const a1=await upsert(assignments,{courseId:course._id,title:'Amaliy topshiriq · '+course.title},{courseId:course._id,title:'Amaliy topshiriq · '+course.title,category:'practice',instructions:'Mavzu bo‘yicha kichik amaliy loyiha tayyorlang.',dueAt:future(7,18),maxScore:100,published:true});
  const a2=await upsert(assignments,{courseId:course._id,title:'Mustaqil ish · '+course.title},{courseId:course._id,title:'Mustaqil ish · '+course.title,category:'independent_work',instructions:'Nazariy xulosa va amaliy misol tayyorlang.',dueAt:future(14,18),maxScore:100,published:true});assignmentCount+=2;
  const topicQuizzes=[],made=[];for(let i=0;i<course.topics.length;i++){
