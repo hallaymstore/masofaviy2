@@ -1491,12 +1491,24 @@ socket.on('lesson:camera-off-all',async({lessonId})=>{
     for(const s of lessonRoomSockets(lessonId))if(s.user?.role==='student')s.emit('lesson:force-camera-off',{lessonId,by:socket.user.fullName});
   }catch{}
 });
-socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId){liveProctorStates.delete(String(lessonId)+':'+String(socket.user._id));if(liveProctorBroadcastByLesson.get(String(lessonId))===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(lessonId));socket.leave('lesson:'+lessonId);}if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId){socket.data.activeLessonId=null;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}}catch{} });
+socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId){
+  liveProctorStates.delete(String(lessonId)+':'+String(socket.user._id));
+  const currentBroadcast=liveProctorBroadcastByLesson.get(String(lessonId));
+  if(socket.user.role==='teacher'||hasPermission(socket.user,'live.manage')||hasPermission(socket.user,'lessons.monitor')){
+    if(currentBroadcast)for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(currentBroadcast))s.emit('lesson:proctor-camera-stop',{lessonId,by:socket.user.fullName});
+    liveProctorBroadcastByLesson.delete(String(lessonId));
+  }else if(currentBroadcast===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(lessonId));
+  socket.leave('lesson:'+lessonId);
+}if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId){socket.data.activeLessonId=null;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}}catch{} });
 socket.on('disconnect', async()=>{
   const activeLesson=socket.data.activeLessonId;
   if(activeLesson){
     liveProctorStates.delete(String(activeLesson)+':'+String(socket.user._id));
-    if(liveProctorBroadcastByLesson.get(String(activeLesson))===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(activeLesson));
+    const currentBroadcast=liveProctorBroadcastByLesson.get(String(activeLesson));
+    if(socket.user.role==='teacher'||hasPermission(socket.user,'live.manage')||hasPermission(socket.user,'lessons.monitor')){
+      if(currentBroadcast)for(const s of lessonRoomSockets(activeLesson))if(String(s.user?._id)===String(currentBroadcast))s.emit('lesson:proctor-camera-stop',{lessonId:String(activeLesson),by:socket.user.fullName});
+      liveProctorBroadcastByLesson.delete(String(activeLesson));
+    }else if(currentBroadcast===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(activeLesson));
     const payload={lessonId:String(activeLesson),userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:false,faceState:'missing',at:new Date().toISOString()};
     for(const s of lessonRoomSockets(activeLesson))if(s.user?.role==='teacher'||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor'))s.emit('lesson:proctor-state',payload);
   }
