@@ -1218,14 +1218,16 @@ app.delete('/api/videos/:id', auth, async(req,res)=>{
 });
 app.post('/api/videos/:id/view', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
-  const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds??req.body.watchedSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0));
-  const watchedSeconds=Math.max(position,Math.max(0,Math.min(24*3600,Number(req.body.watchedSeconds)||0)));
-  const completed=Boolean(req.body.completed)||(duration>0&&position>=Math.max(3,duration-5));
+  const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0)),reportedDelta=Math.max(0,Math.min(30,Number(req.body.watchDeltaSeconds)||0));
   let progress=null;
   if(mongoose.isValidObjectId(req.user._id)){
-    const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean();
-    const update={$max:{watchedSeconds,durationSeconds:duration},$set:{lastPositionSeconds:position,lastViewedAt:new Date()}};
-    if(completed){update.$set.completed=true;update.$set.completedAt=new Date()}
+    const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean(),now=new Date();
+    const elapsed=existing?.lastViewedAt?Math.max(0,Math.min(30,(now-new Date(existing.lastViewedAt))/1000)):Math.min(5,reportedDelta);
+    const credit=Math.max(0,Math.min(reportedDelta,elapsed+1.5,15));
+    const previousWatched=Math.max(0,Number(existing?.watchedSeconds)||0),nextWatched=Math.min(duration||24*3600,previousWatched+credit);
+    const completed=Boolean(existing?.completed)||(duration>0&&nextWatched>=Math.max(5,duration*.9));
+    const update={$set:{watchedSeconds:nextWatched,lastPositionSeconds:position,lastViewedAt:now},$max:{durationSeconds:duration}};
+    if(completed){update.$set.completed=true;if(!existing?.completedAt)update.$set.completedAt=now}
     progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},update,{new:true,upsert:true,setDefaultsOnInsert:true});
     if(!existing)await VideoLesson.findByIdAndUpdate(item._id,{$inc:{views:1}});
   }
