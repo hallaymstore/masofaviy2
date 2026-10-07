@@ -23,6 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.participantStrip=null;this.participantCards=new Map();this.selectedStagePeerId='';
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -45,7 +46,7 @@ export class MediaRoomClient{
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
     else if(msg.event==='audioFloor'){this.audioFloor=msg.data?.active?msg.data:null;this.onState({audioFloor:this.audioFloor})}
-    else if(msg.event==='roomState'){this.audioFloor=msg.data?.audioFloor||null;this.onState(msg.data||{});}
+    else if(msg.event==='roomState'){this.audioFloor=msg.data?.audioFloor||null;this.syncParticipantTiles(msg.data?.participants||[]);this.onState(msg.data||{});}
   }
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
@@ -78,6 +79,7 @@ export class MediaRoomClient{
     const joined=await this.request('join',{ticket:this.joinPayload.mediaTicket});
     this.room=joined.room;this.mediaProfile=joined.mediaProfile||this.joinPayload.mediaProfile||'standard';this.device=new Device();await this.device.load({routerRtpCapabilities:joined.routerRtpCapabilities});
     this.renderShell();
+    this.syncParticipantTiles(joined.participants||[]);
     this.mount.classList.toggle('ultra-lite-media',this.ultraLite);this.mount.classList.toggle('low-end-media',this.lowEnd);
     await this.createTransports();
     this.onState({mic:false,camera:false,studentMediaLocked:false,viewMode:this.viewMode,lowBandwidth:this.lowBandwidthMode});
@@ -102,9 +104,9 @@ export class MediaRoomClient{
   }
   renderShell(){
     this.mount.innerHTML='';
-    const grid=el('div',{className:'ms-grid'}),audioBin=el('div',{className:'ms-audio-bin'});
-    this.mount.append(grid,audioBin);this.grid=grid;this.audioBin=audioBin;
-    const local=this.ensureTile('local',{fullName:this.user.fullName||this.user.login,role:this.user.role},true);local.classList.add('local');
+    const grid=el('div',{className:'ms-grid'}),strip=el('div',{className:'ms-participant-strip',role:'list','aria-label':'Dars ishtirokchilari'}),audioBin=el('div',{className:'ms-audio-bin'});
+    this.mount.append(grid,strip,audioBin);this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;
+    const local=this.ensureTile('local',{fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
   }
   ensureTile(peerId,user={},local=false){
     if(this.tiles.has(peerId))return this.tiles.get(peerId);
@@ -115,30 +117,78 @@ export class MediaRoomClient{
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
     const pin=el('button',{className:'ms-pin-btn',type:'button',title:'Pin / unpin'});pin.textContent='📌';
     pin.addEventListener('click',e=>{e.stopPropagation();this.pinUser(tile.dataset.userId||'',tile.dataset.peerId)});
-    tile.title='Bosib kattalashtirish';
+    tile.title='Bosib asosiy ekranga chiqarish';
     tile.addEventListener('click',e=>{
       if(e.target.closest('button,select,input,label'))return;
-      const focused=tile.classList.contains('focused')&&this.grid?.classList.contains('has-focus');
-      for(const x of this.tiles.values())x.classList.remove('focused');
-      if(focused){
-        this.grid?.classList.remove('has-focus');
-        this.onState({focusedUserId:''});
-        return;
-      }
-      tile.classList.add('focused');
-      this.grid?.classList.add('has-focus');
-      this.resetZoom(tile);
-      this.onState({focusedUserId:tile.dataset.userId||tile.dataset.peerId||''});
+      this.selectStagePeer(local?(this.room?.peerId||'local'):peerId);
     });
     tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
     this.installPinchZoom(tile,video);
-    tile.append(video,avatar,label,mic,pin);this.grid.appendChild(tile);this.tiles.set(peerId,tile);return tile;
+    tile.append(video,avatar,label,mic,pin);this.grid.appendChild(tile);this.tiles.set(peerId,tile);
+    if(!String(peerId).includes(':screen'))this.upsertParticipantCard(local?(this.room?.peerId||'local'):peerId,user,local);
+    return tile;
+  }
+  participantTile(peerId){
+    const id=String(peerId||'');
+    if(id&&id===String(this.room?.peerId||''))return this.tiles.get('local')||null;
+    return this.tiles.get(id)||null;
+  }
+  participantRoleLabel(role=''){
+    return role==='teacher'?'O‘qituvchi':role==='student'?'Talaba':role||'Ishtirokchi';
+  }
+  participantInitials(user={}){
+    return String(user.fullName||user.login||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'?';
+  }
+  upsertParticipantCard(peerId,user={},local=false){
+    const id=String(peerId||'');if(!id||id.includes(':screen')||!this.participantStrip)return null;
+    let card=this.participantCards.get(id);
+    if(!card){
+      card=el('button',{className:'ms-participant-mini camera-off',type:'button'});card.dataset.peerId=id;card.setAttribute('role','listitem');
+      const avatar=el('span',{className:'ms-mini-avatar'}),img=el('img',{className:'ms-mini-photo',alt:''}),initials=el('span',{className:'ms-mini-initials'}),camera=el('span',{className:'ms-mini-camera','aria-label':'Kamera o‘chiq'}),text=el('span',{className:'ms-mini-text'}),name=el('b'),role=el('small');
+      camera.textContent='📷';text.append(name,role);avatar.append(img,initials,camera);card.append(avatar,text);
+      card.addEventListener('click',()=>this.selectStagePeer(card.dataset.peerId));
+      this.participantStrip.appendChild(card);this.participantCards.set(id,card);
+    }
+    const name=qs('.ms-mini-text b',card),role=qs('.ms-mini-text small',card),initials=qs('.ms-mini-initials',card),img=qs('.ms-mini-photo',card);
+    if(name)name.textContent=user.fullName||user.login||(local?'Siz':'Ishtirokchi');if(role)role.textContent=this.participantRoleLabel(user.role);
+    if(initials)initials.textContent=this.participantInitials(user);
+    if(img){const src=String(user.avatarUrl||'');img.src=src;img.classList.toggle('has-photo',Boolean(src));}
+    card.classList.toggle('role-teacher',user.role==='teacher');card.classList.toggle('role-student',user.role==='student');card.classList.toggle('is-local',Boolean(local));
+    const tile=this.participantTile(id);this.updateParticipantCardCamera(id,Boolean(tile?.classList.contains('has-video')));
+    this.refreshParticipantCardSelection();return card;
+  }
+  syncParticipantTiles(participants=[]){
+    const rows=Array.isArray(participants)?participants:[],alive=new Set();
+    for(const row of rows){
+      const peerId=String(row?.peerId||'');if(!peerId)continue;alive.add(peerId);
+      const u=row?.user||{},local=peerId===String(this.room?.peerId||'');
+      if(local){const tile=this.tiles.get('local');if(tile){tile.dataset.userId=String(u.id||this.user?.id||'');tile.dataset.role=u.role||this.user?.role||'';}this.upsertParticipantCard(peerId,{...this.user,...u},true);}
+      else{this.ensureTile(peerId,u,false);this.upsertParticipantCard(peerId,u,false);}
+    }
+    for(const [id,card] of [...this.participantCards])if(!alive.has(id)){card.remove();this.participantCards.delete(id)}
+    if(this.viewMode==='speaker'&&!this.selectedStagePeerId){
+      const preferred=rows.find(x=>x?.user?.role==='teacher')||rows[0];if(preferred?.peerId)this.selectStagePeer(String(preferred.peerId),false);
+    }else this.refreshParticipantCardSelection();
+  }
+  updateParticipantCardCamera(peerId,on){
+    const card=this.participantCards.get(String(peerId||''));if(!card)return;
+    card.classList.toggle('camera-on',Boolean(on));card.classList.toggle('camera-off',!on);
+    const icon=qs('.ms-mini-camera',card);if(icon){icon.textContent=on?'●':'📷';icon.setAttribute('aria-label',on?'Kamera yoqilgan':'Kamera o‘chiq');}
+  }
+  refreshParticipantCardSelection(){
+    for(const [id,card] of this.participantCards)card.classList.toggle('selected',String(id)===String(this.selectedStagePeerId||''));
+  }
+  selectStagePeer(peerId,emitState=true){
+    const id=String(peerId||''),target=this.participantTile(id);if(!target)return false;
+    for(const t of this.tiles.values())t.classList.remove('focused');target.classList.add('focused');this.grid?.classList.add('has-focus');this.selectedStagePeerId=id;this.resetZoom(target);this.refreshParticipantCardSelection();
+    if(emitState)this.onState({focusedUserId:target.dataset.userId||id});return true;
   }
   setViewMode(mode){
     this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
     this.grid?.classList.toggle('gallery-view',this.viewMode==='gallery');
     this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');this.grid?.classList.toggle('teacher-stage-layout',this.viewMode==='speaker');
-    if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side')}
+    if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout','has-focus');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side','focused')}
+    else if(this.selectedStagePeerId)this.selectStagePeer(this.selectedStagePeerId,false);
     this.onState({viewMode:this.viewMode});return this.viewMode;
   }
   pinUser(userId='',peerId=''){
@@ -417,8 +467,8 @@ export class MediaRoomClient{
   async toggleCamera(){
     const p=this.producers.get('camera');
     if(p){
-      if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:true});return true}
-      p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.onState({camera:false});return false;
+      if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.updateParticipantCardCamera(this.room?.peerId,true);this.onState({camera:true});return true}
+      p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.updateParticipantCardCamera(this.room?.peerId,false);this.onState({camera:false});return false;
     }
     if(this.mediaBusy?.camera)return false;
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.camera=true;this.onState({cameraBusy:true});
@@ -439,7 +489,7 @@ export class MediaRoomClient{
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
   attachLocalVideo(track){
-    const tile=this.ensureTile('local',{fullName:this.user.fullName,role:this.user.role},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');
+    const tile=this.ensureTile('local',{fullName:this.user.fullName,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');this.updateParticipantCardCamera(this.room?.peerId,true);
   }
   async toggleScreen(){
     const p=this.producers.get('screen');
@@ -462,7 +512,7 @@ export class MediaRoomClient{
     try{await this.request('closeProducer',{producerId:p.id})}catch{}
     try{p.close()}catch{};try{p.track?.stop()}catch{};this.producers.delete(tag);
     if(tag==='mic'){this.stopFeedbackMonitor();this.clearFeedbackProtection();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.refreshRemoteAudioVolume()}
-    if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}}
+    if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}this.updateParticipantCardCamera(this.room?.peerId,false)}
     if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip')}
   }
   shouldConsume(meta){
@@ -498,7 +548,7 @@ export class MediaRoomClient{
       else audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});
       return;
     }
-    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');
+    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');this.updateParticipantCardCamera(meta.peerId,true);
     if(isScreen){
       tile.classList.add('screen-share');
       this.grid?.classList.add('screen-layout');
@@ -517,6 +567,7 @@ export class MediaRoomClient{
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
     try{c.close()}catch{};this.consumers.delete(producerId);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.producerId===producerId)a.remove()});
+    if(c.kind==='video'&&meta?.appData?.mediaTag!=='screen'&&meta?.mediaTag!=='screen')this.updateParticipantCardCamera(meta?.peerId,false);
     if(meta?.appData?.mediaTag==='screen'||meta?.mediaTag==='screen'){
       const key=String(meta.peerId||'')+':screen',tile=this.tiles.get(key);if(tile){tile.remove();this.tiles.delete(key)}
       this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');
@@ -526,15 +577,15 @@ export class MediaRoomClient{
       }
     }
   }
-  removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
+  removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}const card=this.participantCards.get(String(peerId));if(card){card.remove();this.participantCards.delete(String(peerId))}if(String(this.selectedStagePeerId)===String(peerId)){this.selectedStagePeerId='';const next=[...this.participantCards.keys()][0];if(next)this.selectStagePeer(next,false)}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   speakerTile(peerId){
     if(String(peerId||'')===String(this.room?.peerId||''))return this.tiles.get('local');
     return this.tiles.get(peerId);
   }
   applyAudioLevels(levels){
-    this.tiles.forEach(t=>t.classList.remove('speaking'));
+    this.tiles.forEach(t=>t.classList.remove('speaking'));this.participantCards.forEach(c=>c.classList.remove('speaking'));
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
-    for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking')}
+    for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking');this.participantCards.get(String(x.peerId||''))?.classList.add('speaking')}
     if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
     const strongest=valid[0],peer=String(strongest?.peerId||''),now=Date.now();
     if(!peer){this.activeSpeakerCandidate='';return}
