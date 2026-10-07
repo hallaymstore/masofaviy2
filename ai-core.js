@@ -123,10 +123,13 @@ export function installHallaymAi(app,deps){
   const actionSchema=new mongoose.Schema({createdBy:{type:id,ref:'User',required:true,index:true},tool:{type:String,required:true,index:true},title:String,payload:mongoose.Schema.Types.Mixed,status:{type:String,enum:['pending','approved','rejected','executed','failed'],default:'pending',index:true},approvedBy:{type:id,ref:'User'},approvedAt:Date,executedAt:Date,result:mongoose.Schema.Types.Mixed,error:String},{timestamps:true});
   const transcriptSchema=new mongoose.Schema({lessonId:{type:String,index:true},dateKey:{type:String,index:true},userId:{type:id,ref:'User'},fullName:String,lang:String,text:{type:String,required:true,maxlength:1500},at:{type:Date,default:Date.now,index:true}},{timestamps:true});
   transcriptSchema.index({lessonId:1,dateKey:1,at:1});
+  const lessonSummarySchema=new mongoose.Schema({lessonId:{type:String,required:true,index:true},dateKey:{type:String,required:true,index:true},status:{type:String,enum:['pending','processing','ready','failed'],default:'pending'},summary:{type:String,maxlength:30000},model:String,transcriptSegments:{type:Number,default:0},error:String,generatedAt:Date},{timestamps:true});
+  lessonSummarySchema.index({lessonId:1,dateKey:1},{unique:true});
   const Conversation=mongoose.models.AiConversation||mongoose.model('AiConversation',conversationSchema);
   const Knowledge=mongoose.models.AiKnowledgeChunk||mongoose.model('AiKnowledgeChunk',knowledgeSchema);
   const Action=mongoose.models.AiAction||mongoose.model('AiAction',actionSchema);
   const Transcript=mongoose.models.AiTranscript||mongoose.model('AiTranscript',transcriptSchema);
+  const LessonSummary=mongoose.models.AiLessonSummary||mongoose.model('AiLessonSummary',lessonSummarySchema);
 
   const fail=(res,e)=>res.status(e?.status||400).json({message:e?.message||'AI so‘rovi bajarilmadi'});
   const aiAllowed=user=>AI_ENABLED&&Boolean(user)&&hasPermission(user,'ai.use');
@@ -311,12 +314,38 @@ export function installHallaymAi(app,deps){
     }
     return {intent,toolResults,actions};
   }
-  async function answerWithModel(req,message,agentPack,history=[]){
-    const status=await providerStatus();
-    if(!status.ready){
-      const readable=agentPack.toolResults.map(x=>x.tool+': '+shortResult(x.data,2500)).join('\n\n');
-      return {answer:readable?('AI model hali lokal runtime bilan ulanmagan, lekin agentlar bazadan quyidagini topdi:\n\n'+readable):'AI agentlar tayyor, lekin lokal model runtime hali ishga tushmagan. Administrator AI runtime ni yoqqach to‘liq tabiiy til javobi ishlaydi.',status};
+  function fallbackAgentAnswer(agentPack){
+    const parts=[];
+    for(const row of agentPack.toolResults||[]){
+      const d=row.data;
+      if(row.tool==='schedule'&&Array.isArray(d)){
+        parts.push(d.length?'Darslar:\n'+d.slice(0,12).map(x=>'• '+(x.start||'--:--')+'–'+(x.end||'--:--')+' · '+(x.subject||x.title||'Dars')+(x.groupId?.name?' · '+x.groupId.name:'')).join('\n'):'Bugun dars topilmadi.');
+      }else if(row.tool==='attendance'&&d){
+        parts.push((d.days||7)+' kunlik davomat: jami '+(d.total||0)+' yozuv, qatnashgan '+(d.present||0)+', kechikkan '+(d.late||0)+', jami '+(d.minutes||0)+' daqiqa.');
+      }else if(row.tool==='overview'&&d){
+        parts.push('Universitet: '+(d.students||0)+' talaba, '+(d.teachers||0)+' o‘qituvchi, '+(d.groups||0)+' guruh. Bugun '+(d.todaySchedules||0)+' dars, '+(d.activeSessions||0)+' faol xona, '+(d.lateToday||0)+' kechikish.');
+      }else if(row.tool==='tech'&&d){
+        const cl=d.cluster||{};parts.push('Texnik holat: SFU '+(cl.healthyNodes||0)+'/'+(cl.totalNodes||0)+' sog‘lom, faol xona '+(d.activeRooms||0)+', Node uptime '+Math.round((d.node?.uptimeSeconds||0)/60)+' daqiqa, RSS '+Math.round((d.node?.memory?.rss||0)/1048576)+' MB.');
+      }else if(row.tool==='students'&&Array.isArray(d)){
+        parts.push(d.length?'Topilgan talabalar:\n'+d.slice(0,15).map(x=>'• '+x.fullName+' · '+x.login+(x.groupId?.name?' · '+x.groupId.name:'')).join('\n'):'Talaba topilmadi.');
+      }else if(row.tool==='schedule_preflight'&&d?.blocked){
+        parts.push(d.reason+(d.conflict?' — '+(d.conflict.title||'Dars')+' '+(d.conflict.start||'')+'–'+(d.conflict.end||''):'')+'. O‘zgarish yaratilmagan.');
+      }else if(row.tool==='lesson_summary'&&d){
+        parts.push(d.transcript?'Dars transcripti mavjud: '+(d.segments||0)+' segment. Model bo‘shashi bilan xulosa tayyorlanadi.':(d.message||'Dars transcripti mavjud emas.'));
+      }else if(row.tool==='quiz_draft'&&d){
+        parts.push(d.draft?.questions?.length?'Test draft tayyor: '+d.draft.questions.length+' savol.':(d.message||'Test draft uchun lokal model kerak.'));
+      }else if(row.tool==='notification_draft'&&d){
+        parts.push('Xabar drafti tayyor'+(d.action?' va tasdiqlash kutilmoqda.':'.'));
+      }else if(row.tool==='knowledge'&&Array.isArray(d)&&d.length){
+        parts.push('Bilim bazasidan topildi:\n'+d.slice(0,5).map(x=>'• '+x.title+': '+clean(x.text).slice(0,180)).join('\n'));
+      }
     }
+    if(agentPack.actions?.length)parts.push('Tasdiqlash kutilmoqda: '+agentPack.actions.map(x=>x.title||'AI amali').join(', ')+'.');
+    return parts.filter(Boolean).join('\n\n');
+  }
+  async function answerWithModel(req,message,agentPack,history=[]){
+    const status=await providerStatus(),fallback=fallbackAgentAnswer(agentPack);
+    if(!status.ready)return {answer:fallback||'AI agentlar tayyor, lekin lokal model runtime hali ishga tushmagan.',status};
     const system=[
       'Siz HALLAYM EDU universitet platformasining lokal AI agentisiz.',
       'Foydalanuvchi roli: '+req.user.role+'. Ismi: '+clean(req.user.fullName||req.user.login)+'.',
@@ -329,8 +358,13 @@ export function installHallaymAi(app,deps){
     const ctx=agentPack.toolResults.map(x=>'TOOL '+x.tool+'\n'+shortResult(x.data,8000)).join('\n\n');
     const actionText=agentPack.actions.length?'PENDING ACTIONS\n'+shortResult(agentPack.actions,4000):'';
     const recent=(history||[]).slice(-8).map(x=>({role:x.role==='assistant'?'assistant':'user',content:clean(x.content).slice(0,5000)}));
-    const content=await chatModel([{role:'system',content:system},...recent,{role:'user',content:'Savol:\n'+message+'\n\nKontekst:\n'+ctx+'\n\n'+actionText}],{fast:false,temperature:.18});
-    return {answer:content||'Javob tayyorlanmadi.',status};
+    const fast=['schedule','attendance','overview','tech','students','notification_draft'].includes(agentPack.intent?.tool);
+    try{
+      const content=await chatModel([{role:'system',content:system},...recent,{role:'user',content:'Savol:\n'+message+'\n\nKontekst:\n'+ctx+'\n\n'+actionText}],{fast,temperature:.18});
+      return {answer:content||fallback||'Javob tayyorlanmadi.',status};
+    }catch(e){
+      return {answer:(fallback||'Agent ma’lumotlarni tayyorladi.')+'\n\nAI model hozir band; modelsiz agent javobi ko‘rsatildi.',status:{...status,queued:aiQueue.length,active:aiActive,degraded:true}};
+    }
   }
 
   app.get('/api/ai/status',auth,async(req,res)=>{try{if(!aiAllowed(req.user))return res.status(403).json({message:'AI moduliga ruxsat yo‘q'});const [status,knowledge,actions]=await Promise.all([providerStatus(),Knowledge.countDocuments(),Action.countDocuments({createdBy:req.user._id,status:'pending'})]);res.json({...status,knowledgeChunks:knowledge,pendingActions:actions,agent:roleAgent(req.user.role),features:['chat','rag','schedule','attendance','quiz-draft','lesson-summary','analytics','tech-agent','approval-actions']})}catch(e){fail(res,e)}});
@@ -388,18 +422,43 @@ export function installHallaymAi(app,deps){
     }
     audit(req,'AI_KNOWLEDGE_REINDEX','AiKnowledgeChunk','bulk',{sources,chunks});res.json({ok:true,sources,chunks,note:'Embeddings chat paytida mavjud bo‘lsa semantik qidiruv bilan boyitiladi; matn indeks darhol tayyor.'});
   }catch(e){fail(res,e)}});
+  async function generateLessonSummary(lessonId,dateKey=localDateKey()){
+    const lid=clean(lessonId),day=clean(dateKey||localDateKey());if(!mongoose.isValidObjectId(lid))return null;
+    const existing=await LessonSummary.findOne({lessonId:lid,dateKey:day}).lean();if(existing?.status==='ready'&&existing.summary)return existing;
+    const rows=await Transcript.find({lessonId:lid,dateKey:day}).sort({at:1}).limit(5000).lean();
+    if(!rows.length)return null;
+    const transcript=rows.map(x=>(x.fullName?x.fullName+': ':'')+x.text).join('\n').slice(0,70000);
+    const status=await providerStatus();
+    if(!status.ready){
+      return LessonSummary.findOneAndUpdate({lessonId:lid,dateKey:day},{$set:{status:'pending',transcriptSegments:rows.length,error:'AI runtime offline'}},{new:true,upsert:true,setDefaultsOnInsert:true}).lean();
+    }
+    await LessonSummary.findOneAndUpdate({lessonId:lid,dateKey:day},{$set:{status:'processing',transcriptSegments:rows.length,error:''}},{upsert:true,setDefaultsOnInsert:true});
+    try{
+      const summary=await chatModel([{role:'system',content:'Universitet darsi transcriptidan aniq konspekt tuzing. Bo‘limlar: qisqa xulosa, asosiy mavzular, muhim tushunchalar, savollar, talabalar qiynalgan nuqtalar, uyga/keyingi darsga tavsiya. Faqat transcriptga tayaning, uydirma qo‘shmang.'},{role:'user',content:transcript}],{temperature:.12});
+      const saved=await LessonSummary.findOneAndUpdate({lessonId:lid,dateKey:day},{$set:{status:'ready',summary:clean(summary).slice(0,30000),model:AI_MODEL_MAIN,transcriptSegments:rows.length,generatedAt:new Date(),error:''}},{new:true,upsert:true,setDefaultsOnInsert:true}).lean();
+      const lesson=await Schedule.findById(lid).select('title subject groupId teacherId').lean();
+      if(saved?.summary&&lesson){
+        const sourceType='lesson-summary',sourceId=lid+':'+day,parts=chunkText(saved.summary);
+        await Knowledge.deleteMany({sourceType,sourceId});
+        if(parts.length)await Knowledge.insertMany(parts.map((text,i)=>({sourceType,sourceId,title:(lesson.subject||lesson.title||'Dars')+' · '+day,subject:lesson.subject||lesson.title||'',visibility:'group',groupIds:lesson.groupId?[lesson.groupId]:[],ownerId:lesson.teacherId,chunkIndex:i,text,embedding:[],embeddingModel:''})));
+      }
+      return saved;
+    }catch(e){
+      return LessonSummary.findOneAndUpdate({lessonId:lid,dateKey:day},{$set:{status:'failed',transcriptSegments:rows.length,error:clean(e.message).slice(0,1000)}},{new:true,upsert:true,setDefaultsOnInsert:true}).lean();
+    }
+  }
+
   app.post('/api/ai/lesson-summary/:lessonId',auth,async(req,res)=>{try{
     if(!aiAllowed(req.user))return res.status(403).json({message:'Ruxsat yo‘q'});
-    const data=await lessonSummaryTool(req.user,{lessonId:req.params.lessonId,dateKey:req.body.dateKey||localDateKey()});
+    const dateKey=req.body.dateKey||localDateKey(),data=await lessonSummaryTool(req.user,{lessonId:req.params.lessonId,dateKey});
     if(!data.transcript)return res.json({...data,summary:'Dars transkripti hali mavjud emas.'});
-    const status=await providerStatus();if(!status.ready)return res.json({...data,summary:'Transcript saqlandi. Lokal AI model runtime ishga tushgach avtomatik xulosa yaratiladi.'});
-    const summary=await chatModel([{role:'system',content:'Universitet darsi transcriptidan aniq konspekt tuzing: asosiy mavzular, tushunchalar, savollar, talabalar qiynalgan nuqtalar va keyingi qadamlar. Uydirma qo‘shmang.'},{role:'user',content:data.transcript}],{temperature:.15});
-    res.json({...data,summary});
+    const saved=await generateLessonSummary(req.params.lessonId,dateKey);
+    res.json({...data,summary:saved?.summary||(saved?.status==='pending'?'Transcript saqlandi. Lokal AI runtime ishga tushgach avtomatik xulosa tayyorlanadi.':'Xulosa navbatda.'),summaryStatus:saved?.status||'pending',generatedAt:saved?.generatedAt});
   }catch(e){fail(res,e)}});
 
   async function recordTranscript({lessonId,userId,fullName,text,lang,dateKey}={}){
     const t=clean(text).slice(0,1500);if(!AI_ENABLED||!lessonId||!t)return;
     await Transcript.create({lessonId:String(lessonId),dateKey:clean(dateKey||localDateKey()),userId:mongoose.isValidObjectId(userId)?userId:undefined,fullName:clean(fullName).slice(0,240),lang:clean(lang).slice(0,20),text:t}).catch(()=>{});
   }
-  return {status:providerStatus,recordTranscript,searchKnowledge};
+  return {status:providerStatus,recordTranscript,searchKnowledge,generateLessonSummary};
 }
