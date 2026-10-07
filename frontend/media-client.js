@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
@@ -340,7 +340,7 @@ export class MediaRoomClient{
     return false;
   }
   async prepareSpeechTrack(rawTrack){
-    try{await rawTrack.applyConstraints({echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}).catch(()=>{})}catch{}
+    try{await rawTrack.applyConstraints({echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1}).catch(()=>{})}catch{}
     try{rawTrack.contentHint='speech'}catch{}
     const AC=window.AudioContext||window.webkitAudioContext;
     if(!AC)return {track:rawTrack,rawTrack,processed:false};
@@ -354,7 +354,7 @@ export class MediaRoomClient{
       const notch2=ctx.createBiquadFilter();notch2.type='notch';notch2.frequency.value=2400;notch2.Q.value=24;
       const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=this.ultraLite?8500:10500;low.Q.value=.55;
       const comp=ctx.createDynamicsCompressor();comp.threshold.value=-34;comp.knee.value=12;comp.ratio.value=10;comp.attack.value=.0015;comp.release.value=.09;
-      const gain=ctx.createGain();gain.gain.value=.78;
+      const gain=ctx.createGain();gain.gain.value=.62;
       const analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.48;
       const dest=ctx.createMediaStreamDestination();
       source.connect(high);high.connect(notch1);notch1.connect(notch2);notch2.connect(low);low.connect(comp);comp.connect(gain);gain.connect(analyser);analyser.connect(dest);
@@ -378,14 +378,14 @@ export class MediaRoomClient{
       for(let i=6;i<bins.length;i++){avg+=bins[i];if(bins[i]>peak){peak=bins[i];peakIdx=i}}
       avg/=Math.max(1,bins.length-6);
       const freq=peakIdx*(a.context.sampleRate/a.fftSize);
-      const tonal=peak>188&&peak-avg>68&&freq>520&&freq<8200&&rms>.075;
+      const tonal=peak>164&&peak-avg>48&&freq>430&&freq<9000&&rms>.038;
       if(tonal){
         this.tuneFeedbackNotches(freq);
         if(!this.feedbackToneSince)this.feedbackToneSince=Date.now();
         const held=Date.now()-this.feedbackToneSince;
-        if(held>140)this.triggerFeedbackGuard(3000,true,freq);
+        if(held>45)this.triggerFeedbackGuard(12000,true,freq);
       }else this.feedbackToneSince=0;
-    },120);
+    },50);
   }
   stopFeedbackMonitor(){
     if(this.feedbackMonitorTimer){clearInterval(this.feedbackMonitorTimer);this.feedbackMonitorTimer=null}
@@ -410,11 +410,11 @@ export class MediaRoomClient{
     const now=g.context.currentTime;
     try{
       g.gain.cancelScheduledValues(now);
-      g.gain.setValueAtTime(Math.max(.02,Math.min(.9,g.gain.value||.78)),now);
-      g.gain.linearRampToValueAtTime(severe?.035:.18,now+.018);
-      g.gain.setTargetAtTime(severe?.30:.48,now+.12,.09);
-      g.gain.setTargetAtTime(.72,now+1.35,.28);
-    }catch{g.gain.value=severe?.18:.4}
+      g.gain.setValueAtTime(Math.max(.005,Math.min(.72,g.gain.value||.62)),now);
+      g.gain.linearRampToValueAtTime(severe?.002:.08,now+.006);
+      g.gain.setTargetAtTime(severe?.12:.30,now+.18,.12);
+      g.gain.setTargetAtTime(.58,now+2.2,.45);
+    }catch{g.gain.value=severe?.01:.22}
   }
     enterZeroFeedbackMode(){
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
@@ -435,6 +435,7 @@ export class MediaRoomClient{
     if(this.mediaBusy?.mic)return false;
     if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shagach qayta bosing.'));return false}
     if(this.proximityGuard)this.enterZeroFeedbackMode();
+    this.micWarmupUntil=Date.now()+2600;
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.mic=true;this.onState({micBusy:true});
     try{
       const stream=await this.getMediaOnce('audio');
@@ -454,6 +455,7 @@ export class MediaRoomClient{
     if(p.paused){
       if(this.floorBusyForMe()){this.onError(new Error('Hozir boshqa ishtirokchi gapiryapti.'));return false}
       if(this.proximityGuard)this.enterZeroFeedbackMode();
+      this.micWarmupUntil=Date.now()+2200;
       try{
         await this.request('resumeProducer',{producerId:p.id});
         p.track.enabled=true;p.resume();
@@ -645,14 +647,15 @@ export class MediaRoomClient{
     document.addEventListener('keydown',this.audioUnlockHandler,{passive:true});
   }
   computeRemoteAudioVolume(role=''){
-    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),risk=Date.now()<this.feedbackRiskUntil;
-    if(risk)return 0;
+    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),now=Date.now(),risk=now<this.feedbackRiskUntil,safe=now<this.feedbackSafeUntil,warm=now<this.micWarmupUntil;
+    if(risk||(safe&&active))return 0;
     if(!this.echoGuard)return 1;
-    if(active)return role==='teacher' ? .82 : .72;
-    return role==='teacher' ? .96 : .9;
+    if(active&&warm)return role==='teacher' ? .18 : .12;
+    if(active)return role==='teacher' ? .46 : .34;
+    return role==='teacher' ? .94 : .86;
   }
   refreshRemoteAudioVolume(){
-    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),hardStop=Date.now()<this.feedbackRiskUntil||(active&&this.proximityGuard);
+    const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),now=Date.now(),hardStop=now<this.feedbackRiskUntil||(active&&(this.proximityGuard||now<this.feedbackSafeUntil));
     this.audioBin?.querySelectorAll('audio').forEach(a=>{
       if(hardStop){try{a.muted=true;a.volume=0;a.pause()}catch{};a.dataset.hardMuted='1';return}
       try{a.muted=false;a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');a.dataset.hardMuted='0';a.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})})}catch{}
@@ -662,6 +665,7 @@ export class MediaRoomClient{
     const now=Date.now();
     if(now<(this.lastFeedbackGuardAt||0)+220)return;
     this.lastFeedbackGuardAt=now;this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+ms);
+    if(severe)this.feedbackSafeUntil=Math.max(this.feedbackSafeUntil,now+30000);
     if(freq)this.tuneFeedbackNotches(freq);
     this.applyFastFeedbackGate(severe);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
@@ -672,29 +676,31 @@ export class MediaRoomClient{
   hasActiveMicrophone(){
     const mic=this.producers.get('mic');return Boolean(mic&&!mic.paused&&mic.track?.enabled!==false);
   }
-  engageCoordinatedFeedbackGuard(ms=3800,freq=0){
+  engageCoordinatedFeedbackGuard(ms=120000,freq=0){
     if(!this.echoGuard||!this.hasActiveMicrophone())return false;
-    const now=Date.now(),duration=Math.max(1800,Math.min(20000,Number(ms)||3800));
-    this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+duration);
+    const now=Date.now(),duration=Math.max(15000,Math.min(600000,Number(ms)||120000));
+    this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+Math.min(duration,12000));
+    this.feedbackSafeUntil=Math.max(this.feedbackSafeUntil,now+duration);
     if(freq)this.tuneFeedbackNotches(freq);
     this.applyFastFeedbackGate(true);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
     clearTimeout(this.coordinatedFeedbackTimer);
     this.coordinatedFeedbackTimer=setTimeout(()=>{
-      this.setMicGuardGain(.72,.28);this.refreshRemoteAudioVolume();
-      this.onState({feedbackGuard:false,coordinatedFeedback:false});
+      this.setMicGuardGain(.58,.35);this.refreshRemoteAudioVolume();
+      this.onState({feedbackGuard:false,coordinatedFeedback:false,feedbackSafe:false});
     },duration+180);
-    this.onState({feedbackGuard:true,severeFeedback:true,coordinatedFeedback:true,feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
+    this.onState({feedbackGuard:true,severeFeedback:true,coordinatedFeedback:true,feedbackSafe:true,feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
     return true;
   }
   clearFeedbackProtection(){
     this.feedbackRiskUntil=0;this.feedbackToneSince=0;
     clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);
-    this.setMicGuardGain(.72,.12);this.refreshRemoteAudioVolume();
-    this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false});
+    this.setMicGuardGain(.58,.16);this.refreshRemoteAudioVolume();
+    this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false,feedbackSafe:Date.now()<this.feedbackSafeUntil});
   }
-  setEchoGuard(enabled){
-    this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
+  setEchoGuard(){
+    this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.refreshRemoteAudioVolume();this.onState({echoGuard:true});
+    return true;
   }
   async setReceiveQuality(value){
     const allowed=['auto','240','360','480','720','1080'];this.receiveQuality=allowed.includes(String(value))?String(value):'auto';localStorage.setItem('m2-video-quality',this.receiveQuality);
