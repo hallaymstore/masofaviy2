@@ -81,6 +81,14 @@ async function loadAi(){
   if(!can('ai.use'))return;
   $('#aiKnowledgePanel')?.classList.toggle('hidden',!['teacher','tech','admin','superadmin'].includes(user.role));
   $('#aiReindexBtn')?.classList.toggle('hidden',!['tech','admin','superadmin'].includes(user.role));
+  all('[data-ai-prompt]').forEach(b=>{
+    const p=String(b.dataset.aiPrompt||'').toLowerCase();
+    let visible=true;
+    if(/test savoli/.test(p)&&user.role==='student')visible=false;
+    if(/universitet bo‘yicha bugungi asosiy statistika/.test(p)&&!['tutor','department','dean','rectorate','tech','admin','superadmin'].includes(user.role))visible=false;
+    if(/platforma va sfu texnik holati/.test(p)&&!(['tech','admin','superadmin'].includes(user.role)||can('lessons.monitor')))visible=false;
+    b.classList.toggle('hidden',!visible);
+  });
   await Promise.all([loadAiStatus(),loadAiActions()]);
 }
 async function askAi(message){
