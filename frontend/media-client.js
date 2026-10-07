@@ -363,7 +363,7 @@ export class MediaRoomClient{
     this.externalCameraTrack=track?.readyState==='live'?track:null;
     return Boolean(this.externalCameraTrack);
   }
-  async startCameraFromExternalTrack(sourceTrack=this.externalCameraTrack){
+  async startCameraFromExternalTrack(sourceTrack=this.externalCameraTrack,viewerUserId=''){
     if(!sourceTrack||sourceTrack.readyState!=='live')throw new Error('Proktor kamera treki tayyor emas');
     const existing=this.producers.get('camera');
     if(existing){
@@ -378,7 +378,7 @@ export class MediaRoomClient{
       const encodings=this.ultraLite?[{maxBitrate:420000,scaleResolutionDownBy:1,maxFramerate:15}]
         :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]
         :[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2600000,scaleResolutionDownBy:1,maxFramerate:30}]);
-      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?300:(lite?650:900)},appData:{mediaTag:'camera',role:this.user.role,quality:'proctor-on-demand',proctorBroadcast:true}});
+      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?300:(lite?650:900)},appData:{mediaTag:'camera',role:this.user.role,quality:'proctor-on-demand',proctorBroadcast:true,proctorViewerUserId:String(viewerUserId||'')}});
       this.producers.set('camera',producer);this.proctorCameraBroadcast=true;this.attachLocalVideo(track);
       producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>{this.producers.delete('camera');this.proctorCameraBroadcast=false});
       this.onState({camera:true,proctorBroadcast:true});return true;
