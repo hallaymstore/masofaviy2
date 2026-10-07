@@ -382,7 +382,7 @@ export class MediaRoomClient{
         p.track.enabled=false;this.exitZeroFeedbackMode();this.onError(e);return false
       }
     }
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.clearFeedbackProtection();this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
   }
   setExternalCameraTrack(track){
     this.externalCameraTrack=track?.readyState==='live'?track:null;
@@ -461,7 +461,7 @@ export class MediaRoomClient{
     const p=this.producers.get(tag);if(!p)return;
     try{await this.request('closeProducer',{producerId:p.id})}catch{}
     try{p.close()}catch{};try{p.track?.stop()}catch{};this.producers.delete(tag);
-    if(tag==='mic'){this.stopFeedbackMonitor();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.setMicGuardGain?.(.72);this.refreshRemoteAudioVolume()}
+    if(tag==='mic'){this.stopFeedbackMonitor();this.clearFeedbackProtection();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.refreshRemoteAudioVolume()}
     if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}}
     if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip')}
   }
@@ -595,6 +595,12 @@ export class MediaRoomClient{
     },duration+180);
     this.onState({feedbackGuard:true,severeFeedback:true,coordinatedFeedback:true,feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
     return true;
+  }
+  clearFeedbackProtection(){
+    this.feedbackRiskUntil=0;this.feedbackToneSince=0;
+    clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);
+    this.setMicGuardGain(.72,.12);this.refreshRemoteAudioVolume();
+    this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false});
   }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
