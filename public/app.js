@@ -1071,9 +1071,12 @@ async function renderWatchPlayer(v){
       activeWatchPlayer=new YT.Player('watchYoutubePlayer',{videoId:yt,playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1,start:Math.floor(resume)},events:{
         onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(()=>{}),5000)},
         onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false).catch(()=>{})},
-        onError:()=>{player.innerHTML='<div class="video-player-error"><b>Videoni ichki playerda ochib bo‘lmadi</b><a class="primary" href="'+esc(v.sourceUrl)+'" target="_blank" rel="noopener">YouTube’da ochish</a></div>'}
+        onError:()=>{const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">YouTube API xatosi · fallback player</div>'}
       }});
-    }catch(e){player.innerHTML='<div class="video-player-error"><b>'+esc(e.message)+'</b><a class="primary" href="'+esc(v.sourceUrl)+'" target="_blank" rel="noopener">Videoni ochish</a></div>'}
+    }catch(e){
+      const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));
+      player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">Progress kuzatuvi vaqtincha cheklangan · fallback player</div>';
+    }
   }else if(v.sourceType==='mp4'){
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
     const video=player.querySelector('video');activeWatchKind='mp4';activeWatchPlayer=video;
