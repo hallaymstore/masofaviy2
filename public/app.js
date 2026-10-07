@@ -505,9 +505,9 @@ $('#testDevices').onclick=async()=>{
 
 function liveStatusLabel(room){
   const st=room.session?.status||'scheduled';
-  if(st==='active')return '<span class="live-status active">Jonli</span>';
+  if(st==='active'||room.canJoin)return '<span class="live-status active">Jonli</span>';
   if(st==='ended')return '<span class="live-status ended">Yakunlangan</span>';
-  return '<span class="live-status waiting">Kutilmoqda</span>';
+  return '<span class="live-status waiting">Rejalashtirilgan</span>';
 }
 async function loadLiveRooms(){
   try{
@@ -520,10 +520,9 @@ async function loadLiveRooms(){
     const card=r=>{
       const s=r.schedule,g=s.groupId,t=s.teacherId,active=r.session?.status==='active',ended=r.session?.status==='ended',startMinute=Number(r.startMinute??0),endMinute=Number(r.endMinute??1440),isNow=now>=startMinute&&now<endMinute;
       let actions='';
-      if(active&&r.canJoin)actions+='<button class="primary" data-live-join="'+esc(s._id)+'">'+icon('external','↗')+' Kirish</button>';
-      else if(r.canStart&&isNow)actions+='<button class="primary" data-live-start="'+esc(s._id)+'">'+icon('video','▶')+' '+(ended?'Qayta boshlash':'Boshlash')+'</button>';
-      else if(now<startMinute)actions+='<span class="room-note">Boshlanishi '+esc(s.start)+'</span>';
-      else actions+='<span class="room-note">'+(ended||now>=endMinute?'Vaqti tugagan':'O‘qituvchi boshlashini kuting')+'</span>';
+      if(r.canJoin)actions+='<button class="primary" data-live-join="'+esc(s._id)+'">'+icon('external','↗')+' Kirish</button>';
+      else if(now<startMinute)actions+='<span class="room-note">Avtomatik ochiladi · '+esc(s.start)+'</span>';
+      else actions+='<span class="room-note">'+(ended||now>=endMinute?'Vaqti tugagan':'Xona ochilmoqda…')+'</span>';
       const state=active?'is-live':(isNow?'is-current':(now<startMinute?'is-upcoming':'is-finished'));
       return '<article class="live-room-card '+state+'"><div class="live-room-top">'+liveStatusLabel(r)+'<span class="room-time">'+esc(s.start)+'–'+esc(s.end)+'</span></div><h2>'+esc(s.title)+'</h2><p class="room-subject">'+esc(s.subject||'')+'</p><div class="room-meta"><span>'+icon('users','♙')+' '+esc(g?.name||'Guruh')+' <b>'+esc(g?.externalId||g?.code||'')+'</b></span><span>'+icon('user','◎')+' '+esc(t?.fullName||'O‘qituvchi')+'</span><span>'+icon('users','•')+' '+esc(r.session?.currentParticipants||0)+' xonada</span></div><div class="room-actions">'+actions+'</div></article>';
     };
@@ -547,7 +546,6 @@ async function loadLiveRooms(){
       '<section class="live-section"><div class="live-section-head"><div><b>Keyingi kunlar</b><small>Haftalik jadval bo‘yicha keladigan darslar</small></div><span>'+upcoming.length+'</span></div><div class="live-upcoming-scroll">'+(upcoming.map(upcomingCard).join('')||'<div class="empty compact">Keladigan dars topilmadi</div>')+'</div></section>'+
       (finished.length?'<details class="live-finished"><summary>Bugun tugagan darslar · '+finished.length+'</summary><div class="live-scroll-list">'+finished.map(card).join('')+'</div></details>':'');
 
-    all('[data-live-start]').forEach(b=>b.onclick=()=>startLiveRoom(b.dataset.liveStart));
     all('[data-live-join]').forEach(b=>b.onclick=()=>enterLiveRoom(b.dataset.liveJoin));
     hydrateIcons($('#liveRooms'));
   }catch(e){$('#liveRooms').innerHTML='<div class="empty"><b>Jonli xonalarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
