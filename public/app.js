@@ -990,7 +990,7 @@ async function renderWatchPlayer(v){
       activeWatchKind='youtube';
       activeWatchPlayer=new YT.Player('watchYoutubePlayer',{videoId:yt,playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1,start:Math.floor(resume)},events:{
         onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(()=>{}),5000)},
-        onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{})},
+        onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false).catch(()=>{})},
         onError:()=>{player.innerHTML='<div class="video-player-error"><b>Videoni ichki playerda ochib bo‘lmadi</b><a class="primary" href="'+esc(v.sourceUrl)+'" target="_blank" rel="noopener">YouTube’da ochish</a></div>'}
       }});
     }catch(e){player.innerHTML='<div class="video-player-error"><b>'+esc(e.message)+'</b><a class="primary" href="'+esc(v.sourceUrl)+'" target="_blank" rel="noopener">Videoni ochish</a></div>'}
@@ -999,6 +999,7 @@ async function renderWatchPlayer(v){
     const video=player.querySelector('video');activeWatchKind='mp4';activeWatchPlayer=video;
     video.addEventListener('loadedmetadata',()=>{if(resume>3&&resume<video.duration-2)video.currentTime=resume;video.play().catch(()=>{})},{once:true});
     video.addEventListener('timeupdate',()=>{if(Date.now()-watchLastSavedAt>4500)saveCurrentVideoProgress(false).catch(()=>{})});
+    video.addEventListener('pause',()=>saveCurrentVideoProgress(false).catch(()=>{}));
     video.addEventListener('ended',()=>saveCurrentVideoProgress(true).catch(()=>{}));
   }else{
     player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture" allowfullscreen></iframe><div class="video-progress-note">Bu tashqi player progressni avtomatik bera olmaydi.</div>';
