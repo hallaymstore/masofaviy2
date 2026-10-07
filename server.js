@@ -1507,8 +1507,8 @@ socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
   const now=Date.now(),key=String(lessonId),freq=Math.max(0,Math.min(12000,Number(frequency)||0)),base=Math.max(1800,Math.min(6500,Number(duration)||3800));
   const prev=liveFeedbackProtectionByLesson.get(key);
   const strikes=prev&&now-prev.at<9000?Math.min(4,(prev.strikes||1)+1):1;
-  const ms=strikes>=2?15000:base;
-  liveFeedbackProtectionByLesson.set(key,{at:now,strikes});
+  const ms=strikes>=2?600000:120000;
+  liveFeedbackProtectionByLesson.set(key,{at:now,strikes,until:now+ms});
   io.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,strikes,escalated:strikes>=2,by:String(socket.user._id),at:now});
 });
 socket.on('lesson:caption',({lessonId,text,lang,final})=>{
