@@ -197,9 +197,9 @@ function modal(title,fields,onSave){
     try{
       const fd=new FormData(form),data={};
       for(const key of new Set(fd.keys())){const values=fd.getAll(key);data[key]=values.length>1?values:values[0]}
-      await onSave(data);
+      const outcome=await onSave(data);
       closeEditor();
-      toast('Saqlandi');
+      if(outcome!==false)toast(typeof outcome==='string'?outcome:'Saqlandi');
     }catch(err){toast(err.message)}
   };
 }
@@ -1448,8 +1448,8 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
       const answers=x.questions.map((_,i)=>Number(d['q'+i]));
       const result=await api('/lms/attempts/'+x.attemptId+'/submit',{method:'POST',body:JSON.stringify({answers})});
       if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
-      toast('Natija: '+Math.round(result.score)+'%');
       if(videoId){const v=videoLessonsCache.find(v=>String(v._id)===String(videoId));if(v)v.lastQuizScore=result.score}
+      return 'Natija: '+Math.round(result.score)+'%';
     });
     let left=Math.max(1,Number(x.durationMinutes)||30)*60;
     countdown=setInterval(()=>{const el=$('#examCountdown');if(!el)return;const m=Math.floor(left/60),sec=left%60;el.textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');if(left<=0){clearInterval(countdown);toast('Test vaqti tugadi');return}left--},1000);
