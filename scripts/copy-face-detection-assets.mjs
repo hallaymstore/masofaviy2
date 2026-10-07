@@ -17,7 +17,7 @@ await fs.mkdir(path.dirname(dest),{recursive:true});
 await fs.cp(src,dest,{recursive:true,force:true});
 
 const files=await fs.readdir(dest);
-const required=['face_detection.js','face_detection_solution_packed_assets_loader.js','face_detection_solution_wasm_bin.js','face_detection_solution_wasm_bin.wasm'];
+const required=['face_detection.js','face_detection_short_range.tflite','face_detection_solution_wasm_bin.js','face_detection_solution_wasm_bin.wasm'];
 const missing=required.filter(name=>!files.includes(name));
 if(missing.length){
   console.error('Face detection assetlari to‘liq emas:',missing.join(', '));
