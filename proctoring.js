@@ -48,7 +48,10 @@ export function proctorSubmissionReady(events=[]){
 export function evaluateProctorTermination(events=[]){
   const counts={};for(const row of events){const type=String(row?.type||'');if(!PROCTOR_EVENT_TYPES.includes(type))continue;counts[type]=(counts[type]||0)+1}
   const rules=[
+    ['camera_unavailable',1,'Kamera ishga tushmadi yoki ruxsat berilmadi'],
+    ['microphone_unavailable',1,'Mikrofon ishga tushmadi yoki ruxsat berilmadi'],
     ['camera_track_ended',1,'Kamera sessiya davomida o‘chirildi'],
+    ['microphone_track_ended',1,'Mikrofon sessiya davomida o‘chirildi'],
     ['page_hidden',1,'Imtihon sahifasidan chiqildi yoki boshqa ilovaga o‘tildi'],
     ['fullscreen_exit',1,'Majburiy to‘liq ekran rejimidan chiqildi'],
     ['screenshot_attempt',1,'Ekran tasvirini olishga urinish qayd etildi'],
