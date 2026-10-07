@@ -1379,7 +1379,7 @@ function connectSocket(){
   socket.on('lesson:feedback-protect',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||!mediaRoomClient)return;
     const applied=mediaRoomClient.engageCoordinatedFeedbackGuard?.(x.duration||3800,x.frequency||0);
-    if(applied)toast('Kuchli feedback aniqlandi · ovoz halqasi avtomatik to‘xtatildi');
+    if(applied)toast(x.escalated?'Yaqin qurilmalar feedbacki · 15 soniya himoya rejimi':'Kuchli feedback aniqlandi · ovoz halqasi avtomatik to‘xtatildi');
   });
   socket.on('lesson:proctor-state',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
