@@ -50,7 +50,7 @@ if ! command -v ollama >/dev/null 2>&1; then
   fi
 fi
 
-if command -v systemctl >/dev/null 2>&1; then
+if [ "${AI_SKIP_SERVICE_SETUP:-0}" != "1" ] && command -v systemctl >/dev/null 2>&1; then
   sudo systemctl enable ollama >/dev/null 2>&1 || true
   sudo systemctl restart ollama >/dev/null 2>&1 || true
 fi
