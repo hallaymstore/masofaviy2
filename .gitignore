@@ -3,3 +3,4 @@ node_modules/
 public/media-client.bundle.js
 *.log
 inspection-seed-credentials.csv
+public/vendor/face-detection/
