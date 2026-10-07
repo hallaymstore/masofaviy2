@@ -120,7 +120,7 @@ const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type:
 const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0},lastAttendanceCheckpointMinute:{type:Number,default:0},lastAttendanceCheckpointAt:Date}, {timestamps:true});
 liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
 const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},courseId:{type:mongoose.Schema.Types.ObjectId,ref:'Course',index:true},moduleTitle:{type:String,trim:true,maxlength:180,default:'Asosiy modul'},topicTitle:{type:String,trim:true,maxlength:220},sequence:{type:Number,min:0,max:10000,default:0,index:true},checkpointQuizId:{type:mongoose.Schema.Types.ObjectId,ref:'Quiz',default:null},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
-const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},completed:{type:Boolean,default:false},liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
+const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},lastPositionSeconds:{type:Number,default:0,min:0},durationSeconds:{type:Number,default:0,min:0},completed:{type:Boolean,default:false},completedAt:Date,liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
 videoProgressSchema.index({videoId:1,userId:1},{unique:true});
 const videoCommentSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true,index:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},parentId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoComment',default:null,index:true},text:{type:String,required:true,trim:true,maxlength:1500},editedAt:Date},{timestamps:true});
 videoCommentSchema.index({videoId:1,createdAt:-1});
@@ -1216,9 +1216,18 @@ app.delete('/api/videos/:id', auth, async(req,res)=>{
 });
 app.post('/api/videos/:id/view', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
-  const watchedSeconds=Math.max(0,Math.min(24*3600,Number(req.body.watchedSeconds)||0)),completed=Boolean(req.body.completed);let progress=null;
-  if(mongoose.isValidObjectId(req.user._id))progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},{$max:{watchedSeconds},$set:{completed,lastViewedAt:new Date()}},{new:true,upsert:true,setDefaultsOnInsert:true});
-  await VideoLesson.findByIdAndUpdate(item._id,{$inc:{views:1}});res.json({ok:true,progress});
+  const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds??req.body.watchedSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0));
+  const watchedSeconds=Math.max(position,Math.max(0,Math.min(24*3600,Number(req.body.watchedSeconds)||0)));
+  const completed=Boolean(req.body.completed)||(duration>0&&position>=Math.max(3,duration*.9));
+  let progress=null;
+  if(mongoose.isValidObjectId(req.user._id)){
+    const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean();
+    const update={$max:{watchedSeconds,durationSeconds:duration},$set:{lastPositionSeconds:position,lastViewedAt:new Date()}};
+    if(completed){update.$set.completed=true;update.$set.completedAt=new Date()}
+    progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},update,{new:true,upsert:true,setDefaultsOnInsert:true});
+    if(!existing)await VideoLesson.findByIdAndUpdate(item._id,{$inc:{views:1}});
+  }
+  res.json({ok:true,progress});
 });
 app.post('/api/videos/:id/like', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.user._id)||!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Amal bajarilmadi'});
