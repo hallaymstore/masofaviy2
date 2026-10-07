@@ -216,6 +216,7 @@ const modulePathMap=[
 const onlineUsers = new Map();
 const liveProctorStates = new Map();
 const liveProctorBroadcastByLesson = new Map();
+const liveFeedbackProtectionByLesson = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 10));
@@ -1462,8 +1463,12 @@ socket.on('lesson:proctor-camera-result',async({lessonId,active})=>{
 });
 socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
   if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
-  const freq=Math.max(0,Math.min(12000,Number(frequency)||0)),ms=Math.max(1800,Math.min(6500,Number(duration)||3800));
-  socket.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,by:String(socket.user._id),at:Date.now()});
+  const now=Date.now(),key=String(lessonId),freq=Math.max(0,Math.min(12000,Number(frequency)||0)),base=Math.max(1800,Math.min(6500,Number(duration)||3800));
+  const prev=liveFeedbackProtectionByLesson.get(key);
+  const strikes=prev&&now-prev.at<9000?Math.min(4,(prev.strikes||1)+1):1;
+  const ms=strikes>=2?15000:base;
+  liveFeedbackProtectionByLesson.set(key,{at:now,strikes});
+  io.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,strikes,escalated:strikes>=2,by:String(socket.user._id),at:now});
 });
 socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
@@ -1507,6 +1512,7 @@ socket.on('lesson:camera-off-all',async({lessonId})=>{
 });
 socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId){
   liveProctorStates.delete(String(lessonId)+':'+String(socket.user._id));
+  if(lessonRoomSockets(lessonId).length<=1)liveFeedbackProtectionByLesson.delete(String(lessonId));
   const currentBroadcast=liveProctorBroadcastByLesson.get(String(lessonId));
   if(socket.user.role==='teacher'||hasPermission(socket.user,'live.manage')||hasPermission(socket.user,'lessons.monitor')){
     if(currentBroadcast)for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(currentBroadcast))s.emit('lesson:proctor-camera-stop',{lessonId,by:socket.user.fullName});
