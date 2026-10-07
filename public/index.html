@@ -7,8 +7,8 @@
   <meta name="description" content="Oliy ta’lim uchun yengil, nazorat va statistika markazli masofaviy ta’lim platformasi">
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20261007-18">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261007-18">
+  <link rel="stylesheet" href="/styles.css?v=20261007-19">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261007-19">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -57,6 +57,7 @@
         <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
         <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
         <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
+        <button data-page="ai" class="nav-ai"><span class="nav-ai-mark">✦</span>HALLAYM AI <small>LOCAL</small></button>
       </details>
       <details class="nav-group"><summary><span>Nazorat</span><i>⌄</i></summary>
         <button data-page="analytics"><span data-ico="chart" data-fallback="◫"></span>Statistika</button>
@@ -137,6 +138,60 @@
         <div class="section-title"><div><h2>Raqamli ekotizim</h2><small>Admin kiritgan tashqi universitet tizimlari</small></div></div>
         <div id="universityEcosystem" class="ecosystem-grid"></div>
       </article>
+    </section>
+    <section id="ai" class="page ai-page">
+      <div class="page-head ai-head">
+        <div><span class="eyebrow">Lokal sun’iy intellekt</span><h1>HALLAYM AI</h1><p>Talaba tutor, o‘qituvchi copilot, rektorat analitikasi va texnik agentlar — universitet serverida.</p></div>
+        <div class="ai-head-status"><span id="aiStatusDot" class="ai-status-dot"></span><span id="aiStatusBadge" class="badge">Tekshirilmoqda…</span><button id="aiRefreshBtn" class="icon-btn" title="AI holatini yangilash">↻</button></div>
+      </div>
+      <div class="ai-shell">
+        <article class="ai-chat">
+          <div class="ai-chat-top">
+            <div><b id="aiAgentName">HALLAYM AI</b><small id="aiModelName">Lokal agent</small></div>
+            <button id="aiNewChat" class="ghost" type="button">+ Yangi suhbat</button>
+          </div>
+          <div id="aiMessages" class="ai-messages">
+            <div class="ai-msg assistant"><div class="ai-avatar">AI</div><div class="ai-bubble"><b>Assalomu alaykum 👋</b><p>Jadval, davomat, dars materiallari, test, dars xulosasi yoki texnik holat bo‘yicha yordam bera olaman.</p></div></div>
+          </div>
+          <div id="aiThinking" class="ai-thinking hidden"><span></span><span></span><span></span><small>Agent ishlayapti…</small></div>
+          <form id="aiForm" class="ai-compose">
+            <button id="aiVoiceBtn" class="icon-btn" type="button" title="Ovoz bilan yozish">🎙</button>
+            <textarea id="aiInput" rows="1" maxlength="6000" placeholder="Masalan: Bugungi darslarimni ko‘rsat, 20 ta test tuz, davomatni tahlil qil…"></textarea>
+            <button class="primary ai-send" type="submit">Yuborish</button>
+          </form>
+          <div class="ai-privacy-note">AI lokal serverda ishlaydi. Yozuvchi amallar tasdiqlanmaguncha bajarilmaydi.</div>
+        </article>
+        <aside class="ai-side">
+          <article class="ai-side-card">
+            <div class="section-title"><div><h2>Tezkor agentlar</h2><small>Rolingizga mos yordamchilar</small></div></div>
+            <div class="ai-quick-grid">
+              <button data-ai-prompt="Bugungi darslarim va vaqtlarini ko‘rsat"><span>🗓</span><b>Jadval</b><small>Bugungi darslar</small></button>
+              <button data-ai-prompt="Oxirgi 7 kun davomatini tahlil qil"><span>✓</span><b>Davomat</b><small>Kechikish va qatnashish</small></button>
+              <button data-ai-prompt="Hozirgi platforma va SFU texnik holatini tahlil qil"><span>⚙</span><b>Tech agent</b><small>Server va media</small></button>
+              <button data-ai-prompt="Hozirgi dars bo‘yicha qisqa konspekt va asosiy fikrlarni chiqar"><span>✎</span><b>Dars xulosasi</b><small>Transcript asosida</small></button>
+              <button data-ai-prompt="Shu mavzu bo‘yicha 10 ta test savoli tayyorla"><span>?</span><b>Quiz agent</b><small>Test draft</small></button>
+              <button data-ai-prompt="Universitet bo‘yicha bugungi asosiy statistikani chiqar"><span>▥</span><b>Analytics</b><small>Rektorat ko‘rinishi</small></button>
+            </div>
+          </article>
+          <article class="ai-side-card">
+            <div class="section-title"><div><h2>Tasdiqlash kutilmoqda</h2><small>AI o‘zi bajarmaydigan amallar</small></div><span id="aiActionCount" class="badge">0</span></div>
+            <div id="aiActions" class="ai-actions"><div class="empty compact"><small>Pending amal yo‘q</small></div></div>
+          </article>
+          <article id="aiKnowledgePanel" class="ai-side-card hidden">
+            <details>
+              <summary><b>Bilim bazasi / RAG</b><span>▾</span></summary>
+              <form id="aiKnowledgeForm" class="ai-knowledge-form">
+                <input id="aiKnowledgeTitle" maxlength="500" placeholder="Material nomi" required>
+                <select id="aiKnowledgeVisibility"><option value="all">Barcha</option><option value="staff">Faqat xodimlar</option><option value="private">Shaxsiy</option></select>
+                <textarea id="aiKnowledgeText" rows="6" maxlength="100000" placeholder="Dars materiali yoki yo‘riqnoma matni…" required></textarea>
+                <button class="primary" type="submit">Bilim bazasiga qo‘shish</button>
+              </form>
+              <button id="aiReindexBtn" class="ghost hidden" type="button">Platforma materiallarini qayta indekslash</button>
+              <small id="aiKnowledgeStats">RAG holati yuklanmoqda…</small>
+            </details>
+          </article>
+        </aside>
+      </div>
     </section>
     <section id="communications" class="page"><div class="page-head"><div><h1>Xabarlar va forum</h1><p>Doimiy ichki xabarlar, kurs forumi va elektron pochta integratsiyasi</p></div><button id="newInternalMessage" class="primary">+ Xabar</button></div><div class="grid"><article><div class="section-title"><h2>Kiruvchi xabarlar</h2><button id="refreshMessages">Yangilash</button></div><div id="inboxList" class="list"></div></article><article><h2>Yuborilgan</h2><div id="sentList" class="list"></div></article></div><article><h2>Kurs forumlari</h2><div id="forumCourseList" class="quick"></div><div id="forumPanel" class="list"></div></article></section>
     <section id="library" class="page"><div class="page-head"><div><h1>Elektron kutubxona</h1><p>Darslik, monografiya, maqola, tadqiqot va boshqa ilmiy-o‘quv resurslari</p></div><button id="addLibraryItem" class="primary hidden">+ Resurs qo‘shish</button></div><div class="toolbar"><input id="librarySearch" placeholder="Nomi, muallif, mavzu bo‘yicha qidirish"><select id="libraryType"><option value="">Barcha turlar</option><option value="book">Kitob</option><option value="textbook">Darslik</option><option value="manual">Qo‘llanma</option><option value="monograph">Monografiya</option><option value="article">Ilmiy maqola</option><option value="research">Tadqiqot</option><option value="thesis">Dissertatsiya</option><option value="standard">Standart</option><option value="other">Boshqa</option></select><button id="libraryApply">Qidirish</button></div><div id="libraryList" class="list"></div></section>
@@ -434,5 +489,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261007-18"></script><script type="module" src="/app.js?v=20261007-18"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261007-19"></script><script type="module" src="/app.js?v=20261007-19"></script>
 </body></html>
