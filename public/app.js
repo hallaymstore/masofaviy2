@@ -1527,12 +1527,12 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
     if(proctorExpected){
       const consent=confirm('Kamera nazoratli test: kamera, mikrofon, fullscreen, sahifadan chiqish va yuz holati nazorat qilinadi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Davom etasizmi?');
       if(!consent)return;
+      if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
+        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{return toast('Nazoratli test uchun fullscreen ruxsatini bering')}
+      }
       try{
         preflight=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
-      }catch{return toast('Kamera nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
-      if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
-        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{preflight.getTracks().forEach(t=>t.stop());return toast('Nazoratli test uchun fullscreen ruxsatini bering')}
-      }
+      }catch{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});return toast('Kamera nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
     }
     const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:proctorExpected?true:undefined,videoId:videoId||undefined})});
     const cameraBox=x.proctorRequired?'<div class="proctor-camera-box"><video id="proctorPreviewVideo" autoplay muted playsinline></video><div><b>📷 Kamera nazorati faol</b><small id="proctorCameraStatus">Yuzni kamera markazida tuting · oynadan chiqmang</small></div></div>':'';
@@ -1543,7 +1543,9 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
       const result=await api('/lms/attempts/'+x.attemptId+'/submit',{method:'POST',body:JSON.stringify({answers})});
       if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
       if(videoId){const v=videoLessonsCache.find(v=>String(v._id)===String(videoId));if(v)v.lastQuizScore=result.score}
-      return 'Natija: '+Math.round(result.score)+'%';
+      toast('Test natijasi: '+Math.round(result.score)+'%');
+      if(videoId)loadVideoLessons().catch(()=>{});
+      return result;
     });
     let left=Math.max(1,Number(x.durationMinutes)||30)*60;
     countdown=setInterval(()=>{const el=$('#examCountdown');if(!el)return;const m=Math.floor(left/60),sec=left%60;el.textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');if(left<=0){clearInterval(countdown);toast('Test vaqti tugadi');return}left--},1000);
@@ -1598,12 +1600,14 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
     else camera=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:false});
     await send('camera_ready');camera.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('camera_track_ended')},{once:true}));
   }catch{await send('camera_unavailable')}
+  if(stopped)return ()=>{try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
   try{
     if(preflightStream?.getAudioTracks?.().length)microphone=new MediaStream(preflightStream.getAudioTracks());
     else microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
     await send('microphone_ready');microphone.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('microphone_track_ended')},{once:true}));
     const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioContext=new AC();analyser=audioContext.createAnalyser();analyser.fftSize=1024;audioContext.createMediaStreamSource(microphone).connect(analyser)}
   }catch{await send('microphone_unavailable')}
+  if(stopped)return ()=>{camera?.getTracks().forEach(t=>t.stop());try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
   if(camera){
     const video=$('#proctorPreviewVideo')||document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
     const status=$('#proctorCameraStatus');if(status)status.textContent='Kamera faol · yuzingiz markazda bo‘lsin';
@@ -1611,11 +1615,13 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
       if(!window.FaceDetection){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-detection/face_detection.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
       const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
       instance.onResults(result=>{
-        if(stopped)return;const faces=result.detections||[],n=faces.length;
-        if(n===0){missingStreak++;turnStreak=0;if(missingStreak>=2){send('face_missing');missingStreak=0}}
+        if(stopped)return;const faces=result.detections||[],n=faces.length,status=$('#proctorCameraStatus'),box=$('.proctor-camera-box');
+        if(n===0){if(status)status.textContent='⚠ Yuz ko‘rinmayapti';box?.classList.add('warning');missingStreak++;turnStreak=0;if(missingStreak>=2){send('face_missing');missingStreak=0}}
         else{missingStreak=0}
-        if(n>1)send('multiple_faces');
+        if(n>1){if(status)status.textContent='⚠ Kadrda bir nechta yuz';box?.classList.add('warning');send('multiple_faces')}
         if(n===1){
+          const away=mediaPipeOffCenter(faces[0])||mediaPipeTurned(faces[0]);
+          if(status)status.textContent=away?'⚠ Kameraga qarang':'✓ Yuz aniq · nazorat faol';box?.classList.toggle('warning',away);box?.classList.toggle('ok',!away);
           if(mediaPipeOffCenter(faces[0]))send('face_off_center');
           if(mediaPipeTurned(faces[0])){turnStreak++;if(turnStreak>=2){send('face_turned');turnStreak=0}}else turnStreak=0;
         }
@@ -1629,8 +1635,10 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
         if(detector&&video.readyState>=2){
           if(detector.kind==='native'){
             const faces=await detector.instance.detect(video),n=faces.length;
-            if(n===0){missingStreak++;if(missingStreak>=2){await send('face_missing');missingStreak=0}}else missingStreak=0;
-            if(n>1)await send('multiple_faces');if(n===1&&nativeOffCenter(faces[0],video))await send('face_off_center');
+            const status=$('#proctorCameraStatus'),box=$('.proctor-camera-box');
+            if(n===0){if(status)status.textContent='⚠ Yuz ko‘rinmayapti';box?.classList.add('warning');missingStreak++;if(missingStreak>=2){await send('face_missing');missingStreak=0}}else missingStreak=0;
+            if(n>1){if(status)status.textContent='⚠ Kadrda bir nechta yuz';box?.classList.add('warning');await send('multiple_faces')}
+            if(n===1){const away=nativeOffCenter(faces[0],video);if(status)status.textContent=away?'⚠ Kameraga qarang':'✓ Yuz aniq · nazorat faol';box?.classList.toggle('warning',away);box?.classList.toggle('ok',!away);if(away)await send('face_off_center')}
           }else await detector.instance.send({image:video});
         }
         if(analyser){const samples=new Uint8Array(analyser.fftSize);analyser.getByteTimeDomainData(samples);let power=0;for(const value of samples)power+=(value-128)**2;const rms=Math.sqrt(power/samples.length)/128;if(rms>.34&&Date.now()-lastSound>20000){lastSound=Date.now();await send('ambient_sound')}}
