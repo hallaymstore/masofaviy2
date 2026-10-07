@@ -50,7 +50,7 @@ app.use(helmet({
       objectSrc:["'none'"],
       formAction:["'self'"],
       frameAncestors:["'self'"],
-      scriptSrc:["'self'","'unsafe-eval'","blob:","https://www.youtube.com","https://s.ytimg.com"],
+      scriptSrc:["'self'","'unsafe-eval'","blob:","https://www.youtube.com","https://s.ytimg.com","https://cdn.jsdelivr.net"],
       styleSrc:["'self'","'unsafe-inline'"],
       imgSrc:["'self'","data:","blob:","https:"],
       mediaSrc:["'self'","blob:","https:"],
