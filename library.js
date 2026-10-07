@@ -7,6 +7,7 @@ export function installLibrary(app,{mongoose,User,Course,Resource,auth,audit,cou
     authors:[{type:String,trim:true,maxlength:160}],
     publicationYear:{type:Number,min:1000,max:3000},
     language:{type:String,trim:true,maxlength:40,index:true},
+    searchLanguage:{type:String,trim:true,maxlength:40,default:'none'},
     isbn:{type:String,trim:true,maxlength:40},
     doi:{type:String,trim:true,maxlength:200},
     description:{type:String,trim:true,maxlength:5000},
@@ -19,7 +20,7 @@ export function installLibrary(app,{mongoose,User,Course,Resource,auth,audit,cou
     accessCount:{type:Number,default:0,min:0},
     createdBy:{type:id,ref:'User'}
   },{timestamps:true});
-  librarySchema.index({title:'text',authors:'text',description:'text',tags:'text'});
+  librarySchema.index({title:'text',authors:'text',description:'text',tags:'text'},{default_language:'none',language_override:'searchLanguage'});
   const LibraryItem=mongoose.models.LibraryItem||mongoose.model('LibraryItem',librarySchema);
   const accessSchema=new mongoose.Schema({
     itemId:{type:id,ref:'LibraryItem',required:true,index:true},
