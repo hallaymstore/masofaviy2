@@ -1423,11 +1423,13 @@ socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState})=>{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const state=['present','away','missing'].includes(faceState)?faceState:'unknown',now=new Date(),key=String(lessonId)+':'+String(socket.user._id),prev=liveProctorStates.get(key),delta=prev?.at?Math.max(0,Math.min(10,Math.round((now-new Date(prev.at))/1000))):0;
     const next={cameraReady:Boolean(cameraReady),faceState:state,at:now};liveProctorStates.set(key,next);
+    let attendanceRow=null;
     if(socket.data.attendanceId){
       const inc={};if(delta>0){inc.proctorObservedSeconds=delta;if(state==='present')inc.proctorFacePresentSeconds=delta;else if(state==='away')inc.proctorFaceAwaySeconds=delta;else if(state==='missing')inc.proctorFaceMissingSeconds=delta;if(state!=='present')inc.proctorViolations=1}
-      const update={$set:{proctorCameraReady:Boolean(cameraReady),proctorFaceState:state,proctorLastAt:now}};if(Object.keys(inc).length)update.$inc=inc;await Attendance.updateOne({_id:socket.data.attendanceId},update);
+      const update={$set:{proctorCameraReady:Boolean(cameraReady),proctorFaceState:state,proctorLastAt:now}};if(Object.keys(inc).length)update.$inc=inc;attendanceRow=await Attendance.findByIdAndUpdate(socket.data.attendanceId,update,{new:true}).lean();
     }
-    const payload={lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:Boolean(cameraReady),faceState:state,at:now.toISOString()};
+    const observed=Number(attendanceRow?.proctorObservedSeconds||0),present=Number(attendanceRow?.proctorFacePresentSeconds||0);
+    const payload={lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:Boolean(cameraReady),faceState:state,at:now.toISOString(),observedSeconds:observed,presentSeconds:present,awaySeconds:Number(attendanceRow?.proctorFaceAwaySeconds||0),missingSeconds:Number(attendanceRow?.proctorFaceMissingSeconds||0),attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,violations:Number(attendanceRow?.proctorViolations||0)};
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)!==String(socket.user._id)&&(s.user?.role==='teacher'||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor')))s.emit('lesson:proctor-state',payload);
   }catch{}
 });
