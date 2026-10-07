@@ -17,6 +17,7 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 import { installCompliance } from './compliance.js';
+import { installHallaymAi } from './ai-core.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -89,14 +90,14 @@ app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,fil
 
 const permissionsByRole = {
   superadmin: ['*'],
-  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage'],
-  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage'],
-  rectorate: ['reports.view','lessons.monitor','analytics.view','videos.view'],
-  dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view','videos.view'],
-  department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view','lessons.monitor','videos.view'],
-  teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self','live.host','videos.upload','videos.view'],
-  student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view'],
-  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view']
+  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage','ai.use','ai.manage'],
+  tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage','ai.use','ai.manage'],
+  rectorate: ['reports.view','lessons.monitor','analytics.view','videos.view','ai.use'],
+  dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view','videos.view','ai.use'],
+  department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view','lessons.monitor','videos.view','ai.use'],
+  teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self','live.host','videos.upload','videos.view','ai.use'],
+  student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view','ai.use'],
+  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view','ai.use']
 };
 
 const userSchema = new mongoose.Schema({
@@ -157,7 +158,7 @@ const institutionSettingsSchema = new mongoose.Schema({
   maxUsers:{type:Number,min:10,max:1000000,default:5000},
   maxConcurrentRooms:{type:Number,min:1,max:500,default:6},
   maxRoomParticipants:{type:Number,min:2,max:500,default:120},
-  modules:{type:mongoose.Schema.Types.Mixed,default:()=>({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true})}
+  modules:{type:mongoose.Schema.Types.Mixed,default:()=>({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true,ai:true})}
 },{timestamps:true});
 const User = mongoose.model('User', userSchema), Structure = mongoose.model('Structure', structureSchema), Schedule = mongoose.model('Schedule', scheduleSchema), Audit = mongoose.model('Audit', auditSchema), Attendance = mongoose.model('Attendance', attendanceSchema), LiveSession=mongoose.model('LiveSession',liveSessionSchema), VideoLesson=mongoose.model('VideoLesson',videoLessonSchema), VideoProgress=mongoose.model('VideoProgress',videoProgressSchema), VideoComment=mongoose.model('VideoComment',videoCommentSchema), InstitutionSettings=mongoose.model('InstitutionSettings',institutionSettingsSchema);
 
@@ -194,7 +195,7 @@ const DEFAULT_BRANDING=Object.freeze({
   maxUsers:5000,
   maxConcurrentRooms:6,
   maxRoomParticipants:120,
-  modules:{live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true}
+  modules:{live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true,ai:true}
 });
 const brandingPublic=row=>Object.fromEntries(Object.keys(DEFAULT_BRANDING).map(k=>[k,k==='productName'?DEFAULT_BRANDING.productName:(row?.[k]??DEFAULT_BRANDING[k])]));
 const getBranding=async()=>mongoose.connection.readyState===1?brandingPublic(await InstitutionSettings.findOne({key:'primary'}).lean()):{...DEFAULT_BRANDING};
@@ -203,7 +204,7 @@ const brandingUrl=value=>{const s=String(value??'').trim();if(!s)return '';if(s.
 const brandingColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;
 const boolValue=(v,fallback=false)=>v===undefined?fallback:(v===true||v==='true'||v===1||v==='1'||v==='on');
 const intValue=(v,min,max,fallback)=>{const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.round(n))):fallback};
-const MODULE_DEFAULTS=Object.freeze({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true});
+const MODULE_DEFAULTS=Object.freeze({live:true,videos:true,analytics:true,reports:true,library:true,communications:true,curriculum:true,finalExams:true,scorm:true,proctoring:true,publicTimetable:true,ai:true});
 const normalizedModules=value=>Object.fromEntries(Object.keys(MODULE_DEFAULTS).map(k=>[k,boolValue(value?.[k],MODULE_DEFAULTS[k])]));
 const getInstanceSettings=async()=>mongoose.connection.readyState===1?(await InstitutionSettings.findOne({key:'primary'}).lean())||{...DEFAULT_BRANDING}:{...DEFAULT_BRANDING};
 const modulePathMap=[
@@ -211,7 +212,8 @@ const modulePathMap=[
   ['analytics',/^\/api\/analytics(?:\/|$)/],['reports',/^\/api\/(?:reports|audit)(?:\/|$)/],
   ['library',/^\/api\/(?:library|lms\/library)(?:\/|$)/],['communications',/^\/api\/(?:communications|lms\/communications)(?:\/|$)/],
   ['curriculum',/^\/api\/(?:curriculum|lms\/curricula)(?:\/|$)/],['finalExams',/^\/api\/(?:final-exams|lms\/final-exams)(?:\/|$)/],
-  ['scorm',/^\/api\/(?:scorm|lms\/scorm)(?:\/|$)/],['proctoring',/^\/api\/(?:proctoring|lms\/proctor)(?:\/|$)/]
+  ['scorm',/^\/api\/(?:scorm|lms\/scorm)(?:\/|$)/],['proctoring',/^\/api\/(?:proctoring|lms\/proctor)(?:\/|$)/],
+  ['ai',/^\/api\/ai(?:\/|$)/]
 ];
 const onlineUsers = new Map();
 const liveProctorStates = new Map();
@@ -1409,6 +1411,7 @@ function sfuClusterStatus(){
   const nodes=[...sfuNodes.values()].map(n=>({id:n.id,nodeId:n.nodeId||n.id,url:n.url,online:sfuNodeOnline(n),connectedAt:n.connectedAt,score:sfuNodeScore(n),health:n.health?{workers:n.health.workers,rooms:n.health.rooms,peers:n.health.peers,loadavg:n.health.loadavg,capacity:n.health.capacity,rtcPorts:n.health.rtcPorts}:null}));
   return {online:nodes.some(n=>n.online),healthyNodes:nodes.filter(n=>n.online).length,totalNodes:nodes.length,roomsPinned:roomNodeMap.size,clientsPinned:clientNodeMap.size,nodes};
 }
+const hallaymAi=installHallaymAi(app,{mongoose,User,Structure,Schedule,Attendance,LiveSession,VideoLesson,auth,audit,hasPermission,resolveUserGroupId,localDateKey,localWeekday,sfuClusterStatus});
 app.get('/api/media/status',auth,async(req,res)=>{
   if(!['superadmin','admin','tech'].includes(req.user.role)&&!hasPermission(req.user,'lessons.monitor'))return res.status(403).json({message:'Ruxsat yo‘q'});
   res.json({provider:'mediasoup',cluster:sfuClusterStatus(),turnEnabled:Boolean(mediaIceServers().length)});
@@ -1515,6 +1518,7 @@ socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
   if(clean&&mongoose.isValidObjectId(lessonId)&&socket.rooms.has('lesson:'+lessonId)){
     io.to('lesson:'+lessonId).emit('lesson:caption',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,text:clean,lang:language,final:Boolean(final),at:Date.now()});
+    if(final)hallaymAi?.recordTranscript?.({lessonId:String(lessonId),userId:socket.user._id,fullName:socket.user.fullName,text:clean,lang:language,dateKey:localDateKey()});
   }
 });
 socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
