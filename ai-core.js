@@ -13,7 +13,24 @@ const AI_MODEL_FAST=clean(process.env.AI_MODEL_FAST||'llama3.2:3b');
 const AI_EMBED_MODEL=clean(process.env.AI_EMBED_MODEL||'nomic-embed-text');
 const AI_TIMEOUT_MS=Math.max(5000,Number(process.env.AI_TIMEOUT_MS||90000));
 const AI_MAX_CONTEXT=Math.max(2048,Number(process.env.AI_MAX_CONTEXT||8192));
+const AI_MAX_CONCURRENT=Math.max(1,Math.min(16,Number(process.env.AI_MAX_CONCURRENT||2)));
+const AI_MAX_QUEUE=Math.max(5,Math.min(500,Number(process.env.AI_MAX_QUEUE||80)));
 const AI_ENABLED=String(process.env.AI_ENABLED||'true').toLowerCase()!=='false';
+let aiActive=0;
+const aiQueue=[];
+let providerCache={at:0,value:null};
+function withAiSlot(fn){
+  return new Promise((resolve,reject)=>{
+    const job=async()=>{
+      aiActive++;
+      try{resolve(await fn())}catch(e){reject(e)}
+      finally{aiActive--;const next=aiQueue.shift();if(next)next()}
+    };
+    if(aiActive<AI_MAX_CONCURRENT)return job();
+    if(aiQueue.length>=AI_MAX_QUEUE)return reject(Object.assign(new Error('AI server band. Agent ma’lumotlarni modelsiz qaytaradi.'),{status:503,code:'AI_QUEUE_FULL'}));
+    aiQueue.push(job);
+  });
+}
 
 async function aiFetch(path,options={}){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),options.timeout||AI_TIMEOUT_MS);
@@ -21,35 +38,42 @@ async function aiFetch(path,options={}){
     return await fetch(AI_BASE_URL+path,{...options,signal:controller.signal,headers:{'content-type':'application/json',...(options.headers||{})}});
   }finally{clearTimeout(timer)}
 }
-async function providerStatus(){
-  if(!AI_ENABLED)return {enabled:false,ready:false,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL};
+async function providerStatus(force=false){
+  if(!AI_ENABLED)return {enabled:false,ready:false,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL,active:aiActive,queued:aiQueue.length,maxConcurrent:AI_MAX_CONCURRENT};
+  if(!force&&providerCache.value&&Date.now()-providerCache.at<5000)return {...providerCache.value,active:aiActive,queued:aiQueue.length,maxConcurrent:AI_MAX_CONCURRENT};
+  let value;
   try{
     const r=await aiFetch('/api/tags',{timeout:3500});const j=await r.json().catch(()=>({}));
     const models=(j.models||[]).map(x=>x.name||x.model).filter(Boolean);
-    return {enabled:true,ready:r.ok,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL,models};
+    value={enabled:true,ready:r.ok,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL,models};
   }catch(e){
-    return {enabled:true,ready:false,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL,error:e?.message||'AI runtime ulanmagan'};
+    value={enabled:true,ready:false,provider:AI_PROVIDER,baseUrl:AI_BASE_URL,mainModel:AI_MODEL_MAIN,fastModel:AI_MODEL_FAST,embedModel:AI_EMBED_MODEL,error:e?.message||'AI runtime ulanmagan'};
   }
+  providerCache={at:Date.now(),value};return {...value,active:aiActive,queued:aiQueue.length,maxConcurrent:AI_MAX_CONCURRENT};
 }
 async function chatModel(messages,{fast=false,temperature=.2,json=false}={}){
-  const body={model:fast?AI_MODEL_FAST:AI_MODEL_MAIN,messages,stream:false,options:{temperature,num_ctx:AI_MAX_CONTEXT}};
-  if(json)body.format='json';
-  const r=await aiFetch('/api/chat',{method:'POST',body:JSON.stringify(body)});
-  const data=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(data?.error||data?.message||'AI model javob bermadi');
-  return clean(data?.message?.content||data?.response||'');
+  return withAiSlot(async()=>{
+    const body={model:fast?AI_MODEL_FAST:AI_MODEL_MAIN,messages,stream:false,keep_alive:'30m',options:{temperature,num_ctx:AI_MAX_CONTEXT}};
+    if(json)body.format='json';
+    const r=await aiFetch('/api/chat',{method:'POST',body:JSON.stringify(body)});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data?.error||data?.message||'AI model javob bermadi');
+    return clean(data?.message?.content||data?.response||'');
+  });
 }
 async function embedText(text){
   const input=clean(text).slice(0,12000);if(!input)return [];
-  try{
-    const r=await aiFetch('/api/embed',{method:'POST',timeout:30000,body:JSON.stringify({model:AI_EMBED_MODEL,input})});
-    const data=await r.json().catch(()=>({}));if(r.ok&&Array.isArray(data.embeddings?.[0]))return data.embeddings[0];
-  }catch{}
-  try{
-    const r=await aiFetch('/api/embeddings',{method:'POST',timeout:30000,body:JSON.stringify({model:AI_EMBED_MODEL,prompt:input})});
-    const data=await r.json().catch(()=>({}));if(r.ok&&Array.isArray(data.embedding))return data.embedding;
-  }catch{}
-  return [];
+  try{return await withAiSlot(async()=>{
+    try{
+      const r=await aiFetch('/api/embed',{method:'POST',timeout:30000,body:JSON.stringify({model:AI_EMBED_MODEL,input})});
+      const data=await r.json().catch(()=>({}));if(r.ok&&Array.isArray(data.embeddings?.[0]))return data.embeddings[0];
+    }catch{}
+    try{
+      const r=await aiFetch('/api/embeddings',{method:'POST',timeout:30000,body:JSON.stringify({model:AI_EMBED_MODEL,prompt:input})});
+      const data=await r.json().catch(()=>({}));if(r.ok&&Array.isArray(data.embedding))return data.embedding;
+    }catch{}
+    return [];
+  })}catch{return []}
 }
 function cosine(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||!a.length||a.length!==b.length)return 0;
