@@ -680,7 +680,7 @@ async function openConference(payload){
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
   if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
-  go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end;
+  go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end+(user.role==='student'?' · Proktor kamera lokal nazoratda':' · Yuz-faollik nazorati');
   $('#endLiveLesson').classList.add('hidden');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · kamera OFF · mikrofon OFF':(ultraLiteUI?'Lite rejim · 240p':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
@@ -751,11 +751,12 @@ async function loadLessonParticipants(){
   try{
     const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
-    const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length};
+    const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length,face:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return p.cameraReady&&p.faceState==='present'}).length,attentionLow:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60}).length};
     const summary='<div class="attendance-summary">'+
       '<span><b>'+counts.total+'</b><small>Jami</small></span>'+
       '<span><b>'+counts.online+'</b><small>Onlayn</small></span>'+
-      '<span><b>'+counts.present+'</b><small>Vaqtida</small></span>'+
+      '<span><b>'+counts.face+'</b><small>Yuz faol</small></span>'+
+      '<span><b>'+counts.attentionLow+'</b><small>E’tibor past</small></span>'+
       '<span><b>'+counts.late+'</b><small>Kechikkan</small></span>'+
       '<span><b>'+counts.absent+'</b><small>Yo‘q</small></span>'+
     '</div>';
