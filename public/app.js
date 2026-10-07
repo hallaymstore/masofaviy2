@@ -621,6 +621,19 @@ function updateParticipantProctorIndicator(x){
   const badge=row.querySelector('[data-proctor-badge]'),meta=row.querySelector('[data-proctor-meta]');
   if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=x.cameraReady?('● '+proctorStateLabel(x.faceState)):'○ Kamera yo‘q'}
   if(meta)meta.textContent='Yuz '+formatFocusTime(x.presentSeconds)+' / '+formatFocusTime(x.observedSeconds)+' · '+Math.round(Number(x.attentionPercent)||0)+'%';
+  refreshLiveProctorSummary();
+}
+function refreshLiveProctorSummary(){
+  const rows=[...document.querySelectorAll('#lessonParticipants [data-attendance-student]')];
+  let face=0,low=0;
+  for(const row of rows){
+    const p=liveProctorStates.get(String(row.dataset.attendanceStudent));
+    if(!p)continue;
+    if(p.cameraReady&&p.faceState==='present')face++;
+    if(Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60)low++;
+  }
+  const faceEl=document.querySelector('[data-live-face-count]'),lowEl=document.querySelector('[data-live-attention-low]');
+  if(faceEl)faceEl.textContent=String(face);if(lowEl)lowEl.textContent=String(low);
 }
 function refreshLiveProctorSummary(){
   let face=0,low=0;
@@ -684,8 +697,8 @@ async function startLiveLessonProctoring(){
     };
     return true;
   }catch(e){
-    faceState='missing';emit();toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
-    liveProctorStop=async()=>{document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
+    faceState='missing';emit();heartbeat=setInterval(emit,5000);toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
+    liveProctorStop=async()=>{clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
     return false;
   }
 }
