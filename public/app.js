@@ -1427,40 +1427,46 @@ $('#manageAcademic')?.addEventListener('click',()=>modal('Talabani topish','<lab
 
 let scormListener=null;
 async function launchScorm(id,scoId=''){try{const launch=await api('/lms/scorm/'+id+'/launch',{method:'POST',body:JSON.stringify({scoId})});if(scormListener)removeEventListener('message',scormListener);const frame=document.createElement('iframe');frame.sandbox='allow-scripts';frame.referrerPolicy='no-referrer';frame.title='SCORM dars · '+(launch.sco?.title||'');frame.style.cssText='width:100%;height:65vh;border:1px solid #bbb;border-radius:10px';$('#scormPlayer').replaceChildren(frame);scormListener=event=>{if(event.source!==frame.contentWindow||event.data?.token!==launch.token)return;if(event.data.kind==='scorm-progress')api('/lms/scorm/'+id+'/progress',{method:'POST',body:JSON.stringify({token:launch.token,values:event.data.values})}).catch(e=>toast(e.message))};addEventListener('message',scormListener);frame.src=launch.url}catch(e){toast(e.message)}}
-async function startCourseQuiz(id,proctorExpected=false){
-  let stop=()=>{},terminated=false;
+async function startCourseQuiz(id,proctorExpected=false,videoId=''){
+  let stop=()=>{},terminated=false,preflight=null,countdown=null;
   try{
-    const consent=confirm('Nazoratli testda kamera, mikrofon, fullscreen, sahifadan chiqish, yuz holati va texnik signallar qayd etiladi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Foto/video yozib olinmaydi. Davom etasizmi?');
-    if(!consent)return;
     if(proctorExpected){
+      const consent=confirm('Kamera nazoratli test: kamera, mikrofon, fullscreen, sahifadan chiqish va yuz holati nazorat qilinadi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Davom etasizmi?');
+      if(!consent)return;
       try{
-        const probe=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
-        probe.getTracks().forEach(t=>t.stop());
-      }catch{return toast('Nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
+        preflight=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+      }catch{return toast('Kamera nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
       if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
-        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{return toast('Nazoratli test uchun to‘liq ekran rejimiga ruxsat bering')}
+        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{preflight.getTracks().forEach(t=>t.stop());return toast('Nazoratli test uchun fullscreen ruxsatini bering')}
       }
     }
-    const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:true})});
-    const fields='<div class="proctor-exam-banner '+(x.proctorRequired?'strict':'')+'"><b>'+(x.proctorRequired?'🔒 Avtoproktoring faol':'Test')+'</b><span>'+(x.proctorRequired?'Sahifadan chiqish, yuzni burish, kamera uzilishi va ekran olish urinishlari nazorat qilinadi.':'Savollarni belgilang va yakunlang.')+'</span><strong id="examCountdown"></strong></div>'+x.questions.map((q,i)=>'<fieldset><legend>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label><input type="radio" name="q'+i+'" value="'+j+'" required> '+esc(option)+'</label>').join('')+'</fieldset>').join('');
-    modal('Test · '+x.durationMinutes+' daqiqa',fields,async d=>{
+    const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:proctorExpected?true:undefined,videoId:videoId||undefined})});
+    const cameraBox=x.proctorRequired?'<div class="proctor-camera-box"><video id="proctorPreviewVideo" autoplay muted playsinline></video><div><b>📷 Kamera nazorati faol</b><small id="proctorCameraStatus">Yuzni kamera markazida tuting · oynadan chiqmang</small></div></div>':'';
+    const fields='<div class="proctor-exam-banner '+(x.proctorRequired?'strict':'')+'"><b>'+(x.proctorRequired?'🔒 Avtoproktoring faol':'Qisqa mavzu testi')+'</b><span>'+(x.proctorRequired?'Kamera, yuz holati, fullscreen va sahifadan chiqish real vaqtda nazorat qilinadi.':'Videodars bo‘yicha savollarni belgilang.')+'</span><strong id="examCountdown"></strong></div>'+cameraBox+x.questions.map((q,i)=>'<fieldset class="quiz-question"><legend><span>'+(i+1)+'</span>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label class="quiz-option"><input type="radio" name="q'+i+'" value="'+j+'" required><span>'+esc(option)+'</span></label>').join('')+'</fieldset>').join('');
+    modal((x.proctorRequired?'Kamera nazoratli test':'Mavzu testi')+' · '+x.durationMinutes+' daqiqa',fields,async d=>{
       if(terminated)throw Error('Test avtoproktoring tomonidan yakunlangan');
       const answers=x.questions.map((_,i)=>Number(d['q'+i]));
       const result=await api('/lms/attempts/'+x.attemptId+'/submit',{method:'POST',body:JSON.stringify({answers})});
-      stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast('Natija: '+Math.round(result.score)+'%')
+      if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+      toast('Natija: '+Math.round(result.score)+'%');
+      if(videoId){const v=videoLessonsCache.find(v=>String(v._id)===String(videoId));if(v)v.lastQuizScore=result.score}
     });
     let left=Math.max(1,Number(x.durationMinutes)||30)*60;
-    const countdown=setInterval(()=>{const el=$('#examCountdown');if(!el)return;const m=Math.floor(left/60),s=left%60;el.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');left=Math.max(0,left-1)},1000);
+    countdown=setInterval(()=>{const el=$('#examCountdown');if(!el)return;const m=Math.floor(left/60),sec=left%60;el.textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');if(left<=0){clearInterval(countdown);toast('Test vaqti tugadi');return}left--},1000);
     const onTerminate=reason=>{
-      if(terminated)return;terminated=true;clearInterval(countdown);stop();
+      if(terminated)return;terminated=true;if(countdown)clearInterval(countdown);stop();
       $('#modalSave')?.classList.add('hidden');
       const fields=$('#modalFields');if(fields)fields.innerHTML='<div class="proctor-terminated"><b>Test avtomatik yakunlandi</b><p>'+esc(reason||'Avtoproktoring qoidasi buzildi')+'</p><button type="button" class="primary" id="leaveTerminatedExam">Fanlarga qaytish</button></div>';
       $('#leaveTerminatedExam')?.addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});closeEditor()});
       toast('Avtoproktoring: test yakunlandi');
     };
-    stop=x.proctorRequired?await startExamSignals(x.attemptId,x.proctorPolicy||{},onTerminate):()=>{};
-    $('#editor').addEventListener('close',()=>{clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})},{once:true});
-  }catch(e){stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast(e.message)}
+    stop=x.proctorRequired?await startExamSignals(x.attemptId,x.proctorPolicy||{},onTerminate,preflight):()=>{};
+    preflight=null;
+    $('#editor').addEventListener('close',()=>{if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})},{once:true});
+  }catch(e){
+    try{preflight?.getTracks().forEach(t=>t.stop())}catch{}
+    if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast(e.message)
+  }
 }
 async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div><button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
 async function startExamSignals(attemptId,policy={},onTerminate=()=>{}){
