@@ -612,16 +612,25 @@ async function autoRejoinLesson(){
 function formatFocusTime(sec){
   sec=Math.max(0,Math.round(Number(sec)||0));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
+const FACE_DETECTION_LOCAL='/vendor/face-detection/';
 const FACE_DETECTION_CDN='https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229/';
-let faceDetectionLoader=null;
+let faceDetectionLoader=null,faceDetectionBase=FACE_DETECTION_LOCAL;
 async function loadMediaPipeFaceDetection(){
-  if(window.FaceDetection)return window.FaceDetection;
+  if(window.FaceDetection)return {FaceDetection:window.FaceDetection,base:faceDetectionBase};
   if(faceDetectionLoader)return faceDetectionLoader;
-  faceDetectionLoader=new Promise((resolve,reject)=>{
-    const existing=document.querySelector('script[data-m2-face-detection]');
-    if(existing){existing.addEventListener('load',()=>resolve(window.FaceDetection),{once:true});existing.addEventListener('error',()=>reject(new Error('Yuz detektori yuklanmadi')),{once:true});return}
-    const s=document.createElement('script');s.src=FACE_DETECTION_CDN+'face_detection.js';s.async=true;s.crossOrigin='anonymous';s.dataset.m2FaceDetection='1';s.onload=()=>window.FaceDetection?resolve(window.FaceDetection):reject(new Error('Yuz detektori ishga tushmadi'));s.onerror=()=>reject(new Error('Yuz detektori yuklanmadi'));document.head.appendChild(s);
+  const loadFrom=base=>new Promise((resolve,reject)=>{
+    const s=document.createElement('script');s.src=base+'face_detection.js';s.async=true;s.dataset.m2FaceDetection='1';
+    if(base.startsWith('http'))s.crossOrigin='anonymous';
+    s.onload=()=>window.FaceDetection?resolve({FaceDetection:window.FaceDetection,base}):reject(new Error('Yuz detektori ishga tushmadi'));
+    s.onerror=()=>{s.remove();reject(new Error('Yuz detektori yuklanmadi'))};
+    document.head.appendChild(s);
   });
+  faceDetectionLoader=(async()=>{
+    try{const x=await loadFrom(FACE_DETECTION_LOCAL);faceDetectionBase=x.base;return x}
+    catch{
+      const x=await loadFrom(FACE_DETECTION_CDN);faceDetectionBase=x.base;return x;
+    }
+  })();
   return faceDetectionLoader;
 }
 function proctorStateLabel(state){
@@ -666,8 +675,8 @@ async function startLiveLessonProctoring(){
       if('FaceDetector' in window){
         detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
       }else{
-        const FaceDetection=await loadMediaPipeFaceDetection();
-        const instance=new FaceDetection({locateFile:file=>FACE_DETECTION_CDN+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
+        const loaded=await loadMediaPipeFaceDetection(),FaceDetection=loaded.FaceDetection;
+        const instance=new FaceDetection({locateFile:file=>loaded.base+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
         instance.onResults(result=>{
         if(stopped)return;const faces=result.detections||[];
         if(!faces.length){faceState='missing';return}
@@ -683,8 +692,8 @@ async function startLiveLessonProctoring(){
         });detector={kind:'mediapipe',instance};
       }
     }catch{detector=null}
-    if(!detector)throw new Error('Yuzni aniqlash moduli ishga tushmadi');
-    timer=setInterval(async()=>{
+    if(!detector){faceState='missing';toast('Yuz nazorati moduli yuklanmadi · kamera holati qizil belgida qayd etiladi')}
+    timer=detector?setInterval(async()=>{
       if(stopped||!video||video.readyState<2)return;
       try{
         if(detector?.kind==='mediapipe')await detector.instance.send({image:video});
@@ -693,8 +702,8 @@ async function startLiveLessonProctoring(){
           if(!faces.length)faceState='missing';else if(faces.length>1)faceState='away';else{const b=faces[0].boundingBox,cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;faceState=(Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24)?'away':'present'}
         }else faceState='unknown';
       }catch{faceState='unknown'}
-    },1200);
-    heartbeat=setInterval(emit,5000);emit();toast('Dars proktoringi faol · video lokal tahlil qilinadi');
+    },1200):null;
+    heartbeat=setInterval(emit,5000);emit();toast(detector?'Dars proktoringi faol · video lokal tahlil qilinadi':'Proktor kamera faol · yuz detektori qayta yuklanishi kerak');
     liveProctorStop=async()=>{
       if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null;
     };
@@ -1664,8 +1673,8 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
       if('FaceDetector' in window){
         detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
       }else{
-        const FaceDetection=await loadMediaPipeFaceDetection();
-        const instance=new FaceDetection({locateFile:file=>FACE_DETECTION_CDN+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
+        const loaded=await loadMediaPipeFaceDetection(),FaceDetection=loaded.FaceDetection;
+        const instance=new FaceDetection({locateFile:file=>loaded.base+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
         instance.onResults(result=>{
         if(stopped)return;const faces=result.detections||[],n=faces.length,status=$('#proctorCameraStatus'),box=$('.proctor-camera-box');
         if(n===0){if(status)status.textContent='⚠ Yuz ko‘rinmayapti';box?.classList.add('warning');missingStreak++;turnStreak=0;if(missingStreak>=2){send('face_missing');missingStreak=0}}
