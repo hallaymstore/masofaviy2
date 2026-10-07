@@ -138,7 +138,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
       const video=VideoLesson?await VideoLesson.findOne({_id:req.body.videoId,published:true,checkpointQuizId:quiz._id}).lean():null;
       if(!video)return res.status(400).json({message:'Bu test tanlangan videodarsga biriktirilmagan'});
       const progress=VideoProgress?await VideoProgress.findOne({videoId:video._id,userId:req.user._id}).lean():null;
-      if(!progress?.completed)return res.status(409).json({message:'Avval videodarsni kamida 90% ko‘rib tugating',videoRequired:true,progress});
+      if(!progress?.completed)return res.status(409).json({message:'Avval videodarsni oxirigacha ko‘rib tugating',videoRequired:true,progress});
     }
     const count=await Attempt.countDocuments({quizId:quiz._id,studentId:req.user._id});if(count>=quiz.maxAttempts)return res.status(409).json({message:'Urinishlar tugagan'});
     if(quiz.proctorRequired&&req.body.consent!==true)return res.status(400).json({message:'Kamera va imtihon oynasini kuzatish haqida xabardor bo‘lib rozilik bering'});
