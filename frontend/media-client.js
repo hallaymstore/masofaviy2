@@ -106,7 +106,10 @@ export class MediaRoomClient{
   renderShell(){
     this.mount.innerHTML='';
     const grid=el('div',{className:'ms-grid'}),strip=el('div',{className:'ms-participant-strip',role:'list','aria-label':'Dars ishtirokchilari'}),audioBin=el('div',{className:'ms-audio-bin'});
-    this.mount.append(grid,strip,audioBin);this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;
+    const stageBadge=el('div',{className:'ms-stage-badge'});stageBadge.innerHTML='<span class="ms-stage-signal">▮▮▮</span><b>Asosiy video</b>';
+    const fullscreen=el('button',{className:'ms-stage-fullscreen',type:'button',title:'To‘liq ekran','aria-label':'Asosiy videoni to‘liq ekranga chiqarish'});fullscreen.textContent='⛶';
+    fullscreen.addEventListener('click',()=>this.enterPrimaryFullscreen().catch(this.onError));
+    this.mount.append(grid,stageBadge,fullscreen,strip,audioBin);this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;
     const local=this.ensureTile('local',{fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
   }
   ensureTile(peerId,user={},local=false){
@@ -114,7 +117,7 @@ export class MediaRoomClient{
     const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||'',userId:user._id||user.id||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-student',user.role==='student');
     const video=el('video',{autoplay:true,playsInline:true,muted:local});video.className='ms-video';
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
-    const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=user.role||'';
+    const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=this.participantRoleLabel(user.role);
     const mic=el('span',{className:'ms-mic'});mic.textContent='●';
     const pin=el('button',{className:'ms-pin-btn',type:'button',title:'Pin / unpin'});pin.textContent='📌';
     pin.addEventListener('click',e=>{e.stopPropagation();this.pinUser(tile.dataset.userId||'',tile.dataset.peerId)});
@@ -187,7 +190,7 @@ export class MediaRoomClient{
     const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
     const prev=this.participantMediaState.get(id)||{};this.participantMediaState.set(id,{...prev,cameraOn:Boolean(on)});
     card.classList.toggle('camera-on',Boolean(on));card.classList.toggle('camera-off',!on);
-    const icon=qs('.ms-mini-camera',card);if(icon){icon.textContent=on?'📹':'📷';icon.setAttribute('aria-label',on?'Kamera yoqilgan':'Kamera o‘chiq');}
+    const icon=qs('.ms-mini-camera',card);if(icon){icon.textContent='📹';icon.setAttribute('aria-label',on?'Kamera yoqilgan':'Kamera o‘chiq');}
     this.syncParticipantCardVideo(id);
   }
   updateParticipantCardMic(peerId,on){
