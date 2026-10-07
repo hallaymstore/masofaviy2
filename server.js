@@ -1218,7 +1218,7 @@ app.post('/api/videos/:id/view', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
   const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds??req.body.watchedSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0));
   const watchedSeconds=Math.max(position,Math.max(0,Math.min(24*3600,Number(req.body.watchedSeconds)||0)));
-  const completed=Boolean(req.body.completed)||(duration>0&&position>=Math.max(3,duration*.9));
+  const completed=Boolean(req.body.completed)||(duration>0&&position>=Math.max(3,duration-5));
   let progress=null;
   if(mongoose.isValidObjectId(req.user._id)){
     const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean();
