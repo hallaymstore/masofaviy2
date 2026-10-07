@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), lastRoomFeedbackAlertAt=0, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), lastRoomFeedbackAlertAt=0, aiConversationId='', aiVoiceRecognition=null, aiBusy=false, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -34,8 +34,91 @@ const iconPaths={home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9
 function icon(name,fallback='•'){if(lowEndUI)return '<span class="fallback-icon" aria-hidden="true">'+esc(fallback)+'</span>';return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.home)+'</svg>'}
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
 function logout(){fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
-function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
-function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
+function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role),ai:moduleOn('ai')&&can('ai.use')};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
+function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile,ai:loadAi}[id]||(()=>{}))();hydrateIcons()}
+function aiAgentLabel(agent){
+  return ({student_tutor:'Student Tutor',teacher_copilot:'Teacher Copilot',management_analytics:'Management AI',operations_copilot:'Operations Copilot',schedule_agent:'Schedule Agent',attendance_agent:'Attendance Agent',tech_agent:'Tech Agent',rectorate_agent:'Rectorat AI',quiz_agent:'Quiz Agent',lesson_summary_agent:'Lesson Summary',notification_agent:'Notification Agent',student_search_agent:'Student Search'})[agent]||'HALLAYM AI';
+}
+function aiAddMessage(role,text,meta={}){
+  const box=$('#aiMessages');if(!box)return;
+  const wrap=document.createElement('div');wrap.className='ai-msg '+(role==='user'?'user':'assistant');
+  const avatar=document.createElement('div');avatar.className='ai-avatar';avatar.textContent=role==='user'?'Siz':'AI';
+  const bubble=document.createElement('div');bubble.className='ai-bubble';
+  if(role!=='user'&&meta.agent){const k=document.createElement('small');k.className='ai-agent-kicker';k.textContent=aiAgentLabel(meta.agent);bubble.append(k)}
+  const p=document.createElement('p');p.innerHTML=esc(text).replace(/\n/g,'<br>');bubble.append(p);
+  if(Array.isArray(meta.tools)&&meta.tools.length){const tools=document.createElement('div');tools.className='ai-tool-chips';meta.tools.forEach(t=>{const s=document.createElement('span');s.textContent='↳ '+String(t.tool||t);tools.append(s)});bubble.append(tools)}
+  wrap.append(avatar,bubble);box.append(wrap);box.scrollTop=box.scrollHeight;
+}
+function aiSetBusy(on){
+  aiBusy=Boolean(on);$('#aiThinking')?.classList.toggle('hidden',!aiBusy);const b=$('#aiForm button[type="submit"]');if(b)b.disabled=aiBusy;const input=$('#aiInput');if(input)input.disabled=aiBusy;
+}
+function aiCurrentContext(){
+  return {page:$('.page.active')?.id||'',activeLessonId:activeLessonId||'',lessonId:activeLessonId||'',scheduleId:activeLessonId||'',videoId:activeVideoId||''};
+}
+async function loadAiStatus(){
+  try{
+    const s=await api('/ai/status'),dot=$('#aiStatusDot'),badge=$('#aiStatusBadge');
+    dot?.classList.toggle('online',Boolean(s.ready));dot?.classList.toggle('offline',!s.ready);
+    if(badge)badge.textContent=s.ready?'AI online · '+s.mainModel:'AI runtime kutilmoqda';
+    if($('#aiModelName'))$('#aiModelName').textContent=s.ready?(s.mainModel+' · '+s.provider):('Agentlar tayyor · model offline');
+    if($('#aiAgentName'))$('#aiAgentName').textContent=aiAgentLabel(s.agent);
+    if($('#aiKnowledgeStats'))$('#aiKnowledgeStats').textContent=(s.knowledgeChunks||0)+' chunk · '+(s.pendingActions||0)+' pending amal';
+    if($('#aiActionCount'))$('#aiActionCount').textContent=String(s.pendingActions||0);
+    return s;
+  }catch(e){if($('#aiStatusBadge'))$('#aiStatusBadge').textContent='AI holati olinmadi';return null}
+}
+function aiActionHtml(a){
+  const p=a.payload||{},desc=a.tool==='schedule_change'?((p.title||'Dars')+' · '+(p.oldStart||'')+'–'+(p.oldEnd||'')+' → '+(p.newStart||'')+'–'+(p.newEnd||'')):a.tool==='quiz_publish'?((p.title||'Test')+' · '+((p.questions||[]).length)+' savol'):a.tool==='notification_send'?('Xabar → '+(p.recipientName||'foydalanuvchi')):a.title||a.tool;
+  return '<div class="ai-action-card"><div><b>'+esc(a.title||a.tool)+'</b><small>'+esc(desc)+'</small></div><div><button class="primary" data-ai-approve="'+esc(a._id||a.id)+'">Tasdiqlash</button><button class="ghost" data-ai-reject="'+esc(a._id||a.id)+'">Rad etish</button></div></div>';
+}
+async function loadAiActions(){
+  try{
+    const rows=await api('/ai/actions'),box=$('#aiActions');if(box)box.innerHTML=rows.length?rows.map(aiActionHtml).join(''):'<div class="empty compact"><small>Pending amal yo‘q</small></div>';
+    if($('#aiActionCount'))$('#aiActionCount').textContent=String(rows.length);
+  }catch{}
+}
+async function loadAi(){
+  if(!can('ai.use'))return;
+  $('#aiKnowledgePanel')?.classList.toggle('hidden',!['teacher','tech','admin','superadmin'].includes(user.role));
+  $('#aiReindexBtn')?.classList.toggle('hidden',!['tech','admin','superadmin'].includes(user.role));
+  await Promise.all([loadAiStatus(),loadAiActions()]);
+}
+async function askAi(message){
+  const text=String(message||'').trim();if(text.length<2||aiBusy)return;
+  aiAddMessage('user',text);aiSetBusy(true);
+  try{
+    const out=await api('/ai/chat',{method:'POST',body:JSON.stringify({message:text,conversationId:aiConversationId||undefined,context:aiCurrentContext()})});
+    aiConversationId=out.conversationId||aiConversationId;
+    aiAddMessage('assistant',out.answer||'Javob bo‘sh qaytdi',{agent:out.agent,tools:out.tools||[]});
+    if(Array.isArray(out.actions)&&out.actions.length){toast(out.actions.length+' ta amal tasdiqlash uchun tayyor');await loadAiActions()}
+    if(out.status)await loadAiStatus();
+  }catch(e){aiAddMessage('assistant','Xatolik: '+e.message)}
+  finally{aiSetBusy(false);$('#aiInput')?.focus()}
+}
+$('#aiForm')?.addEventListener('submit',e=>{e.preventDefault();const i=$('#aiInput');const value=i?.value||'';if(i)i.value='';askAi(value)});
+$('#aiInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const value=e.target.value;e.target.value='';askAi(value)}});
+all('[data-ai-prompt]').forEach(b=>b.addEventListener('click',()=>{go('ai');const p=b.dataset.aiPrompt||'';if($('#aiInput'))$('#aiInput').value=p;askAi(p)}));
+$('#aiNewChat')?.addEventListener('click',()=>{aiConversationId='';const box=$('#aiMessages');if(box)box.innerHTML='<div class="ai-msg assistant"><div class="ai-avatar">AI</div><div class="ai-bubble"><b>Yangi suhbat</b><p>Nima qilish kerak?</p></div></div>'});
+$('#aiRefreshBtn')?.addEventListener('click',()=>loadAi());
+$('#aiActions')?.addEventListener('click',async e=>{
+  const approve=e.target.closest('[data-ai-approve]'),reject=e.target.closest('[data-ai-reject]');if(!approve&&!reject)return;
+  const id=(approve||reject).dataset[approve?'aiApprove':'aiReject'];try{await api('/ai/actions/'+id+'/'+(approve?'approve':'reject'),{method:'POST',body:'{}'});toast(approve?'AI amali bajarildi':'AI amali rad etildi');await loadAiActions()}catch(err){toast(err.message)}
+});
+$('#aiKnowledgeForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();const title=$('#aiKnowledgeTitle')?.value||'',text=$('#aiKnowledgeText')?.value||'',visibility=$('#aiKnowledgeVisibility')?.value||'all';
+  try{const r=await api('/ai/knowledge',{method:'POST',body:JSON.stringify({title,text,visibility,sourceType:'manual'})});toast(r.chunks+' chunk bilim bazasiga qo‘shildi');e.target.reset();await loadAiStatus()}catch(err){toast(err.message)}
+});
+$('#aiReindexBtn')?.addEventListener('click',async()=>{
+  if(!confirm('Platformadagi fan, resurs, topshiriq va videodarslarni AI bilim bazasiga qayta indekslaysizmi?'))return;
+  try{const b=$('#aiReindexBtn');b.disabled=true;b.textContent='Indekslanmoqda…';const r=await api('/ai/knowledge/reindex',{method:'POST',body:'{}'});toast(r.sources+' manba · '+r.chunks+' chunk indekslandi');await loadAiStatus()}catch(e){toast(e.message)}finally{const b=$('#aiReindexBtn');if(b){b.disabled=false;b.textContent='Platforma materiallarini qayta indekslash'}}
+});
+$('#aiVoiceBtn')?.addEventListener('click',()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast('Bu brauzer ovozli kiritishni qo‘llamaydi');
+  try{aiVoiceRecognition?.abort?.()}catch{}
+  const r=new SR();aiVoiceRecognition=r;r.lang='uz-UZ';r.interimResults=true;r.continuous=false;
+  const btn=$('#aiVoiceBtn');btn?.classList.add('active-control');r.onresult=e=>{const t=[...e.results].map(x=>x[0]?.transcript||'').join(' ').trim();if($('#aiInput'))$('#aiInput').value=t};
+  r.onerror=()=>toast('Ovozli kiritishda xatolik');r.onend=()=>btn?.classList.remove('active-control');r.start();
+});
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
 $('#installPwaBtn')?.addEventListener('click',async()=>{if(!deferredInstallPrompt)return toast('Ilovani brauzer menyusidan o‘rnatish mumkin');deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice.catch(()=>{});deferredInstallPrompt=null;$('#installPwaBtn')?.classList.add('hidden')});
