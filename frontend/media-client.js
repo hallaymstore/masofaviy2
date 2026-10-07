@@ -583,7 +583,7 @@ export class MediaRoomClient{
   }
   engageCoordinatedFeedbackGuard(ms=3800,freq=0){
     if(!this.echoGuard||!this.hasActiveMicrophone())return false;
-    const now=Date.now(),duration=Math.max(1800,Math.min(6500,Number(ms)||3800));
+    const now=Date.now(),duration=Math.max(1800,Math.min(20000,Number(ms)||3800));
     this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+duration);
     if(freq)this.tuneFeedbackNotches(freq);
     this.applyFastFeedbackGate(true);
