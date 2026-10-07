@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
@@ -165,6 +165,7 @@ export class MediaRoomClient{
   }
   syncParticipantTiles(participants=[]){
     const rows=Array.isArray(participants)?participants:[],alive=new Set();
+    this.multiMicCount=rows.filter(x=>Boolean(x?.media?.micOn)).length;
     for(const row of rows){
       const peerId=String(row?.peerId||'');if(!peerId)continue;alive.add(peerId);
       const u=row?.user||{},local=peerId===String(this.room?.peerId||''),media=row?.media||{};
@@ -350,17 +351,19 @@ export class MediaRoomClient{
       if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
       const srcStream=new MediaStream([rawTrack]),source=ctx.createMediaStreamSource(srcStream);
       const high=ctx.createBiquadFilter();high.type='highpass';high.frequency.value=120;high.Q.value=.72;
-      const notch1=ctx.createBiquadFilter();notch1.type='notch';notch1.frequency.value=1200;notch1.Q.value=28;
-      const notch2=ctx.createBiquadFilter();notch2.type='notch';notch2.frequency.value=2400;notch2.Q.value=24;
-      const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=this.ultraLite?8500:10500;low.Q.value=.55;
-      const comp=ctx.createDynamicsCompressor();comp.threshold.value=-34;comp.knee.value=12;comp.ratio.value=10;comp.attack.value=.0015;comp.release.value=.09;
-      const gain=ctx.createGain();gain.gain.value=.62;
-      const analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.48;
+      const notch1=ctx.createBiquadFilter();notch1.type='notch';notch1.frequency.value=1200;notch1.Q.value=34;
+      const notch2=ctx.createBiquadFilter();notch2.type='notch';notch2.frequency.value=2400;notch2.Q.value=30;
+      const notch3=ctx.createBiquadFilter();notch3.type='notch';notch3.frequency.value=600;notch3.Q.value=26;
+      const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=this.ultraLite?7600:9000;low.Q.value=.62;
+      const comp=ctx.createDynamicsCompressor();comp.threshold.value=-38;comp.knee.value=10;comp.ratio.value=12;comp.attack.value=.001;comp.release.value=.08;
+      const gain=ctx.createGain();gain.gain.value=.54;
+      const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-16;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=.0008;limiter.release.value=.07;
+      const analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.40;
       const dest=ctx.createMediaStreamDestination();
-      source.connect(high);high.connect(notch1);notch1.connect(notch2);notch2.connect(low);low.connect(comp);comp.connect(gain);gain.connect(analyser);analyser.connect(dest);
+      source.connect(high);high.connect(notch1);notch1.connect(notch2);notch2.connect(notch3);notch3.connect(low);low.connect(comp);comp.connect(gain);gain.connect(limiter);limiter.connect(analyser);analyser.connect(dest);
       const track=dest.stream.getAudioTracks()[0];if(!track)return {track:rawTrack,rawTrack,processed:false};
       try{track.contentHint='speech'}catch{}
-      this.micAudioChain={ctx,source,high,notch1,notch2,low,comp,gain,analyser,dest,rawTrack,track,feedbackFreq:0};
+      this.micAudioChain={ctx,source,high,notch1,notch2,notch3,low,comp,gain,limiter,analyser,dest,rawTrack,track,feedbackFreq:0};
       this.startFeedbackMonitor();
       return {track,rawTrack,processed:true};
     }catch(e){return {track:rawTrack,rawTrack,processed:false}}
@@ -377,19 +380,24 @@ export class MediaRoomClient{
       const rms=Math.sqrt(sum/time.length);
       for(let i=6;i<bins.length;i++){avg+=bins[i];if(bins[i]>peak){peak=bins[i];peakIdx=i}}
       avg/=Math.max(1,bins.length-6);
-      const freq=peakIdx*(a.context.sampleRate/a.fftSize);
-      const tonal=peak>164&&peak-avg>48&&freq>430&&freq<9000&&rms>.038;
+      const freq=peakIdx*(a.context.sampleRate/a.fftSize),dominance=avg?peak/avg:0;
+      const tonal=peak>150&&peak-avg>42&&dominance>1.42&&freq>380&&freq<9300&&rms>.030;
       if(tonal){
+        const stable=Math.abs(freq-(this.feedbackLastFreq||freq))<Math.max(95,freq*.055);
+        this.feedbackStableHits=stable?Math.min(8,this.feedbackStableHits+1):1;
+        this.feedbackLastFreq=freq;
         this.tuneFeedbackNotches(freq);
         if(!this.feedbackToneSince)this.feedbackToneSince=Date.now();
         const held=Date.now()-this.feedbackToneSince;
-        if(held>45)this.triggerFeedbackGuard(12000,true,freq);
-      }else this.feedbackToneSince=0;
-    },50);
+        if(this.feedbackStableHits>=2||held>32)this.triggerFeedbackGuard(15000,true,freq);
+      }else{
+        this.feedbackToneSince=0;this.feedbackStableHits=Math.max(0,this.feedbackStableHits-1);
+      }
+    },40);
   }
   stopFeedbackMonitor(){
     if(this.feedbackMonitorTimer){clearInterval(this.feedbackMonitorTimer);this.feedbackMonitorTimer=null}
-    this.feedbackToneSince=0;
+    this.feedbackToneSince=0;this.feedbackStableHits=0;this.feedbackLastFreq=0;
   }
   setMicGuardGain(value,seconds=.08){
     const g=this.micAudioChain?.gain;if(!g)return;
@@ -398,23 +406,28 @@ export class MediaRoomClient{
   }
   tuneFeedbackNotches(freq){
     const chain=this.micAudioChain;if(!chain?.notch1||!Number.isFinite(Number(freq)))return;
-    const f=Math.max(420,Math.min(8200,Number(freq))),now=chain.ctx.currentTime;
+    const f=Math.max(360,Math.min(9000,Number(freq))),now=chain.ctx.currentTime;
+    const harmonic=Math.min(9800,f*2),sub=Math.max(180,f/2),safeLow=f>4200?Math.max(5400,Math.min(7600,f*1.18)):(this.ultraLite?7600:9000);
     try{
-      chain.notch1.frequency.setTargetAtTime(f,now,.012);chain.notch1.Q.setTargetAtTime(32,now,.02);
-      const harmonic=Math.min(9800,f*2);chain.notch2.frequency.setTargetAtTime(harmonic,now,.014);chain.notch2.Q.setTargetAtTime(26,now,.02);
+      chain.notch1.frequency.setTargetAtTime(f,now,.008);chain.notch1.Q.setTargetAtTime(38,now,.012);
+      chain.notch2.frequency.setTargetAtTime(harmonic,now,.010);chain.notch2.Q.setTargetAtTime(32,now,.014);
+      chain.notch3.frequency.setTargetAtTime(sub,now,.010);chain.notch3.Q.setTargetAtTime(28,now,.014);
+      chain.low?.frequency?.setTargetAtTime(safeLow,now,.025);
       chain.feedbackFreq=f;
-    }catch{chain.notch1.frequency.value=f;chain.notch2.frequency.value=Math.min(9800,f*2);chain.feedbackFreq=f}
+    }catch{
+      chain.notch1.frequency.value=f;chain.notch2.frequency.value=harmonic;if(chain.notch3)chain.notch3.frequency.value=sub;if(chain.low)chain.low.frequency.value=safeLow;chain.feedbackFreq=f;
+    }
   }
   applyFastFeedbackGate(severe=false){
     const g=this.micAudioChain?.gain;if(!g)return;
     const now=g.context.currentTime;
     try{
       g.gain.cancelScheduledValues(now);
-      g.gain.setValueAtTime(Math.max(.005,Math.min(.72,g.gain.value||.62)),now);
-      g.gain.linearRampToValueAtTime(severe?.002:.08,now+.006);
-      g.gain.setTargetAtTime(severe?.12:.30,now+.18,.12);
-      g.gain.setTargetAtTime(.58,now+2.2,.45);
-    }catch{g.gain.value=severe?.01:.22}
+      g.gain.setValueAtTime(Math.max(.002,Math.min(.62,g.gain.value||.54)),now);
+      g.gain.linearRampToValueAtTime(severe?.0005:.05,now+.003);
+      g.gain.setTargetAtTime(severe?.08:.24,now+.16,.10);
+      g.gain.setTargetAtTime(.50,now+2.8,.55);
+    }catch{g.gain.value=severe?.004:.18}
   }
     enterZeroFeedbackMode(){
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
@@ -441,7 +454,7 @@ export class MediaRoomClient{
       const stream=await this.getMediaOnce('audio');
       const rawTrack=stream.getAudioTracks()[0];if(!rawTrack)throw new Error('Mikrofon trek topilmadi');
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;
-      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
+      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:false,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
       this.updateParticipantCardMic(this.room?.peerId,true);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
     }catch(e){
@@ -650,9 +663,10 @@ export class MediaRoomClient{
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),now=Date.now(),risk=now<this.feedbackRiskUntil,safe=now<this.feedbackSafeUntil,warm=now<this.micWarmupUntil;
     if(risk||(safe&&active))return 0;
     if(!this.echoGuard)return 1;
-    if(active&&warm)return role==='teacher' ? .18 : .12;
-    if(active)return role==='teacher' ? .46 : .34;
-    return role==='teacher' ? .94 : .86;
+    if(active&&warm)return role==='teacher' ? .10 : .07;
+    if(active&&this.multiMicCount>=2)return role==='teacher' ? .20 : .14;
+    if(active)return role==='teacher' ? .30 : .22;
+    return role==='teacher' ? .92 : .82;
   }
   refreshRemoteAudioVolume(){
     const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused),now=Date.now(),hardStop=now<this.feedbackRiskUntil||(active&&(this.proximityGuard||now<this.feedbackSafeUntil));
@@ -670,7 +684,7 @@ export class MediaRoomClient{
     this.applyFastFeedbackGate(severe);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
     clearTimeout(this.feedbackGuardTimer);
-    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.72,.22);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+120);
+    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.50,.26);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+120);
     this.onState({feedbackGuard:true,severeFeedback:Boolean(severe),feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
   }
   hasActiveMicrophone(){
@@ -686,7 +700,7 @@ export class MediaRoomClient{
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
     clearTimeout(this.coordinatedFeedbackTimer);
     this.coordinatedFeedbackTimer=setTimeout(()=>{
-      this.setMicGuardGain(.58,.35);this.refreshRemoteAudioVolume();
+      this.setMicGuardGain(.50,.38);this.refreshRemoteAudioVolume();
       this.onState({feedbackGuard:false,coordinatedFeedback:false,feedbackSafe:false});
     },duration+180);
     this.onState({feedbackGuard:true,severeFeedback:true,coordinatedFeedback:true,feedbackSafe:true,feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
@@ -695,7 +709,7 @@ export class MediaRoomClient{
   clearFeedbackProtection(){
     this.feedbackRiskUntil=0;this.feedbackToneSince=0;
     clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);
-    this.setMicGuardGain(.58,.16);this.refreshRemoteAudioVolume();
+    this.setMicGuardGain(.50,.18);this.refreshRemoteAudioVolume();
     this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false,feedbackSafe:Date.now()<this.feedbackSafeUntil});
   }
   setEchoGuard(){
