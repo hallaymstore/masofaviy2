@@ -231,15 +231,17 @@ export function installHallaymAi(app,deps){
     if(req.user.role==='teacher'&&String(row.teacherId?._id||row.teacherId)!==String(req.user._id))return null;
     const t=parseTimes(message),newStart=clean(args.start||t.start),newEnd=clean(args.end||t.end);
     if(!/^\d{2}:\d{2}$/.test(newStart)||!/^\d{2}:\d{2}$/.test(newEnd))return null;
-    const action=await createAction(req,'schedule_change','Dars vaqtini o‘zgartirish',{scheduleId:String(row._id),oldStart:row.start,oldEnd:row.end,newStart,newEnd,title:row.title,group:row.groupId?.name,teacher:row.teacherId?.fullName});
+    if(newStart>=newEnd)return {blocked:true,reason:'Yangi darsning boshlanish va tugash vaqti noto‘g‘ri',scheduleId:String(row._id)};
+    const conflict=await Schedule.findOne({_id:{$ne:row._id},weekday:row.weekday,start:{$lt:newEnd},end:{$gt:newStart},$or:[{teacherId:row.teacherId?._id||row.teacherId},{groupId:row.groupId?._id||row.groupId}]}).populate('groupId','name').populate('teacherId','fullName').lean();
+    if(conflict)return {blocked:true,reason:'Jadval konflikti',scheduleId:String(row._id),conflict:{id:String(conflict._id),title:conflict.title,start:conflict.start,end:conflict.end,group:conflict.groupId?.name,teacher:conflict.teacherId?.fullName}};
+    const action=await createAction(req,'schedule_change','Dars vaqtini o‘zgartirish',{scheduleId:String(row._id),oldStart:row.start,oldEnd:row.end,newStart,newEnd,title:row.title,group:row.groupId?.name,teacher:row.teacherId?.fullName,requiresPermission:'schedule.manage'});
     return {id:String(action._id),status:action.status,title:action.title,payload:action.payload};
   }
   async function executeAction(req,row){
     if(row.status!=='pending'&&row.status!=='approved')throw new Error('Bu AI amali allaqachon ko‘rib chiqilgan');
     if(row.tool==='schedule_change'){
       const p=row.payload||{},target=await Schedule.findById(p.scheduleId);if(!target)throw new Error('Dars topilmadi');
-      if(req.user.role==='teacher'&&String(target.teacherId)!==String(req.user._id))throw Object.assign(new Error('Boshqa o‘qituvchi darsini o‘zgartirib bo‘lmaydi'),{status:403});
-      if(!hasPermission(req.user,'schedule.manage')&&req.user.role!=='teacher')throw Object.assign(new Error('Jadvalni o‘zgartirish huquqi yo‘q'),{status:403});
+      if(!hasPermission(req.user,'schedule.manage'))throw Object.assign(new Error('Jadval o‘zgarishini faqat schedule.manage huquqiga ega mas’ul tasdiqlaydi'),{status:403});
       if(!/^\d{2}:\d{2}$/.test(p.newStart||'')||!/^\d{2}:\d{2}$/.test(p.newEnd||'')||p.newStart>=p.newEnd)throw new Error('Yangi dars vaqti noto‘g‘ri');
       const conflict=await Schedule.findOne({_id:{$ne:target._id},weekday:target.weekday,start:{$lt:p.newEnd},end:{$gt:p.newStart},$or:[{teacherId:target.teacherId},{groupId:target.groupId}]}).populate('groupId','name').populate('teacherId','fullName').lean();
       if(conflict)throw new Error('Jadval konflikti: '+(conflict.title||'Dars')+' · '+conflict.start+'–'+conflict.end+' · '+(conflict.groupId?.name||'guruh'));
@@ -277,7 +279,9 @@ export function installHallaymAi(app,deps){
     }else if(intent.tool==='notification_draft'){
       const r=await notificationDraftTool(req,message,{recipientId:context.recipientId||''});toolResults.push({tool:'notification_draft',data:r});if(r.action)actions.push(r.action);
     }
-    const scheduleAction=await maybeScheduleAction(req,message,{scheduleId:context.scheduleId||context.activeLessonId||'',start:context.start,end:context.end});if(scheduleAction)actions.push(scheduleAction);
+    const scheduleAction=await maybeScheduleAction(req,message,{scheduleId:context.scheduleId||context.activeLessonId||'',start:context.start,end:context.end});
+    if(scheduleAction?.blocked)toolResults.push({tool:'schedule_preflight',data:scheduleAction});
+    else if(scheduleAction)actions.push(scheduleAction);
     if(!['tech','overview','students'].includes(intent.tool)){
       const rag=await searchKnowledge(req.user,message,6);if(rag.length)toolResults.push({tool:'knowledge',data:rag});
     }
@@ -323,7 +327,9 @@ export function installHallaymAi(app,deps){
   app.post('/api/ai/actions/:id/approve',auth,async(req,res)=>{try{
     if(!aiAllowed(req.user)||!mongoose.isValidObjectId(req.params.id))return res.status(403).json({message:'Ruxsat yo‘q'});
     const row=await Action.findById(req.params.id);if(!row)return res.status(404).json({message:'AI amali topilmadi'});
-    const owner=String(row.createdBy)===String(req.user._id),manager=managerRoles.has(req.user.role);if(!owner&&!manager)return res.status(403).json({message:'Bu amalni tasdiqlash huquqi yo‘q'});
+    const owner=String(row.createdBy)===String(req.user._id),manager=managerRoles.has(req.user.role);
+    if(row.tool==='schedule_change'&&!hasPermission(req.user,'schedule.manage'))return res.status(403).json({message:'Jadval o‘zgarishini faqat jadval boshqaruvi huquqiga ega mas’ul tasdiqlaydi'});
+    if(!owner&&!manager)return res.status(403).json({message:'Bu amalni tasdiqlash huquqi yo‘q'});
     row.status='approved';row.approvedBy=req.user._id;row.approvedAt=new Date();await row.save();
     try{row.result=await executeAction(req,row);row.status='executed';row.executedAt=new Date();await row.save();audit(req,'AI_ACTION_EXECUTE','AiAction',row.id,{tool:row.tool});res.json({ok:true,action:row})}
     catch(e){row.status='failed';row.error=e.message;await row.save();throw e}
