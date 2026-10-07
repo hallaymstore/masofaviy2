@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 const clean=value=>String(value??'').trim();
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 const words=value=>clean(value).toLowerCase().replace(/[^a-z0-9а-яёқғҳў'’\s-]+/gi,' ').split(/\s+/).filter(x=>x.length>1);
@@ -239,6 +240,9 @@ export function installHallaymAi(app,deps){
       const p=row.payload||{},target=await Schedule.findById(p.scheduleId);if(!target)throw new Error('Dars topilmadi');
       if(req.user.role==='teacher'&&String(target.teacherId)!==String(req.user._id))throw Object.assign(new Error('Boshqa o‘qituvchi darsini o‘zgartirib bo‘lmaydi'),{status:403});
       if(!hasPermission(req.user,'schedule.manage')&&req.user.role!=='teacher')throw Object.assign(new Error('Jadvalni o‘zgartirish huquqi yo‘q'),{status:403});
+      if(!/^\d{2}:\d{2}$/.test(p.newStart||'')||!/^\d{2}:\d{2}$/.test(p.newEnd||'')||p.newStart>=p.newEnd)throw new Error('Yangi dars vaqti noto‘g‘ri');
+      const conflict=await Schedule.findOne({_id:{$ne:target._id},weekday:target.weekday,start:{$lt:p.newEnd},end:{$gt:p.newStart},$or:[{teacherId:target.teacherId},{groupId:target.groupId}]}).populate('groupId','name').populate('teacherId','fullName').lean();
+      if(conflict)throw new Error('Jadval konflikti: '+(conflict.title||'Dars')+' · '+conflict.start+'–'+conflict.end+' · '+(conflict.groupId?.name||'guruh'));
       target.start=p.newStart;target.end=p.newEnd;await target.save();return {scheduleId:String(target._id),start:target.start,end:target.end};
     }
     if(row.tool==='quiz_publish'){
@@ -249,7 +253,12 @@ export function installHallaymAi(app,deps){
     }
     if(row.tool==='notification_send'){
       const Message=mongoose.models.InternalMessage,p=row.payload||{};if(!Message)throw new Error('Xabar modeli tayyor emas');
+      if(!['teacher','tech','admin','superadmin','rectorate'].includes(req.user.role))throw Object.assign(new Error('AI orqali xabar yuborish huquqi yo‘q'),{status:403});
       const recipient=await User.findOne({_id:p.recipientId,active:true});if(!recipient)throw new Error('Qabul qiluvchi topilmadi');
+      if(req.user.role==='teacher'){
+        const groups=await Schedule.find({teacherId:req.user._id}).distinct('groupId');
+        if(recipient.role!=='student'||!groups.some(g=>String(g)===String(recipient.groupId)))throw Object.assign(new Error('O‘qituvchi faqat o‘z guruhlaridagi talabalarga AI xabar yubora oladi'),{status:403});
+      }
       const msg=await Message.create({senderId:req.user._id,recipientId:recipient._id,subject:clean(p.subject).slice(0,240),body:clean(p.body).slice(0,10000),emailStatus:'not_configured'});return {messageId:String(msg._id),recipient:recipient.fullName};
     }
     throw new Error('Noma’lum AI amali');
