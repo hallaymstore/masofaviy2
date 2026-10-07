@@ -2100,3 +2100,38 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
   .proctor-camera-box video{width:100px;height:76px}
   .watch-progress-card>div:first-child{display:grid}
 }
+
+
+/* v51 video progress + exam/live proctoring */
+.topic-progress{height:4px;border-radius:999px;background:color-mix(in srgb,var(--muted) 18%,transparent);overflow:hidden;margin-top:6px}
+.topic-progress>i{display:block;height:100%;border-radius:inherit;background:var(--primary);transition:width .25s ease}
+.watch-progress-card{display:grid;gap:7px;padding:10px 12px;margin:12px 0;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--primary) 4%,var(--surface))}
+.watch-progress-card>div:first-child{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.watch-progress-card b{font-size:10px}.watch-progress-card small{font-size:8px;color:var(--muted)}
+.watch-progress-track{height:6px;border-radius:999px;background:color-mix(in srgb,var(--muted) 16%,transparent);overflow:hidden}
+.watch-progress-track i{display:block;height:100%;border-radius:inherit;background:var(--primary);transition:width .25s ease}
+#watchPlayer{position:relative;min-height:320px;background:#05080e;display:grid;place-items:center;overflow:hidden;border-radius:12px}
+#watchPlayer iframe,#watchPlayer video,#watchYoutubePlayer,#watchYoutubePlayer iframe{width:100%;height:min(68vh,720px);min-height:320px;border:0;background:#000;display:block}
+.watch-loading,.video-player-error{display:grid;gap:10px;place-items:center;text-align:center;padding:30px;color:#fff}
+.video-player-error a{display:inline-flex;text-decoration:none}
+.video-progress-note{position:absolute;left:12px;bottom:12px;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff;font-size:9px}
+.proctor-camera-box{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;padding:9px;margin-bottom:10px;border:1px solid color-mix(in srgb,#16a34a 36%,var(--line));border-radius:10px;background:color-mix(in srgb,#16a34a 6%,var(--surface))}
+.proctor-camera-box video{width:150px;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:#05080e;transform:scaleX(-1)}
+.proctor-camera-box>div{display:grid;gap:3px}.proctor-camera-box b{font-size:10px}.proctor-camera-box small{font-size:9px;color:var(--muted)}
+.proctor-camera-box.warning{border-color:color-mix(in srgb,#ef4444 55%,var(--line));background:color-mix(in srgb,#ef4444 7%,var(--surface))}
+.proctor-camera-box.warning small{color:#dc2626;font-weight:800}.proctor-camera-box.ok small{color:#15803d;font-weight:800}
+.quiz-question{padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0}.quiz-question legend{font-size:11px;font-weight:800;padding:0 4px}.quiz-question legend span{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:color-mix(in srgb,var(--primary) 10%,var(--surface));color:var(--primary);margin-right:6px}
+.quiz-option{display:flex!important;align-items:center;gap:8px;padding:8px 9px!important;border:1px solid var(--line);border-radius:8px;margin:5px 0;cursor:pointer}.quiz-option:hover{background:color-mix(in srgb,var(--primary) 4%,var(--surface))}
+.proctor-chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:999px;padding:2px 6px;font-size:8px;font-weight:800}
+.proctor-chip.camera-on.present{color:#15803d;border-color:color-mix(in srgb,#16a34a 35%,var(--line));background:color-mix(in srgb,#16a34a 7%,var(--surface))}
+.proctor-chip.away{color:#b45309;border-color:color-mix(in srgb,#f59e0b 35%,var(--line));background:color-mix(in srgb,#f59e0b 7%,var(--surface))}
+.proctor-chip.missing,.proctor-chip.camera-off{color:#dc2626;border-color:color-mix(in srgb,#ef4444 35%,var(--line));background:color-mix(in srgb,#ef4444 7%,var(--surface))}
+.proctor-chip.unknown{color:var(--muted)}
+.participant-proctor-actions{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.mini-camera-watch{font-size:8px!important;padding:5px 7px!important;white-space:nowrap}
+@media(max-width:700px){
+  #watchPlayer{min-height:210px}#watchPlayer iframe,#watchPlayer video,#watchYoutubePlayer,#watchYoutubePlayer iframe{height:54vw;min-height:210px}
+  .proctor-camera-box{grid-template-columns:92px 1fr}.proctor-camera-box video{width:92px}
+  .watch-progress-card>div:first-child{display:grid}
+  .participant-proctor-actions{grid-column:2}
+}
