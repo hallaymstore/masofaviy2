@@ -18,15 +18,17 @@ MAIN_MODEL="llama3.2:3b"
 FAST_MODEL="llama3.2:3b"
 EMBED_MODEL="nomic-embed-text"
 PROFILE="cpu-lite"
+AI_CONCURRENCY=1
+AI_QUEUE=80
 
 if [ "$GPU_VRAM_MB" -ge 20000 ]; then
-  MAIN_MODEL="qwen3:14b"; PROFILE="gpu-strong"
+  MAIN_MODEL="qwen3:14b"; PROFILE="gpu-strong"; AI_CONCURRENCY=4; AI_QUEUE=220
 elif [ "$GPU_VRAM_MB" -ge 10000 ]; then
-  MAIN_MODEL="qwen3:8b"; PROFILE="gpu-balanced"
+  MAIN_MODEL="qwen3:8b"; PROFILE="gpu-balanced"; AI_CONCURRENCY=2; AI_QUEUE=140
 elif [ "$RAM_GB" -ge 48 ]; then
-  MAIN_MODEL="qwen3:8b"; PROFILE="cpu-strong"
+  MAIN_MODEL="qwen3:8b"; PROFILE="cpu-strong"; AI_CONCURRENCY=1; AI_QUEUE=100
 elif [ "$RAM_GB" -ge 24 ]; then
-  MAIN_MODEL="qwen3:4b"; PROFILE="cpu-balanced"
+  MAIN_MODEL="qwen3:4b"; PROFILE="cpu-balanced"; AI_CONCURRENCY=1; AI_QUEUE=80
 fi
 
 echo "RAM: ${RAM_GB} GB"
@@ -36,6 +38,7 @@ echo "Profile: ${PROFILE}"
 echo "Main model: ${MAIN_MODEL}"
 echo "Fast model: ${FAST_MODEL}"
 echo "Embed model: ${EMBED_MODEL}"
+echo "AI concurrency: ${AI_CONCURRENCY}; queue: ${AI_QUEUE}"
 
 if ! command -v ollama >/dev/null 2>&1; then
   echo "Installing Ollama..."
@@ -83,9 +86,11 @@ upsert_env AI_MODEL_FAST "$FAST_MODEL"
 upsert_env AI_EMBED_MODEL "$EMBED_MODEL"
 upsert_env AI_MAX_CONTEXT 8192
 upsert_env AI_TIMEOUT_MS 120000
+upsert_env AI_MAX_CONCURRENT "$AI_CONCURRENCY"
+upsert_env AI_MAX_QUEUE "$AI_QUEUE"
 
 printf '%s\n' "AI_PROFILE=$PROFILE" > "$PROJECT_DIR/.ai-runtime-profile"
-printf '%s\n' "RAM_GB=$RAM_GB" "CPU_CORES=$CPU_CORES" "GPU_NAME=$GPU_NAME" "GPU_VRAM_MB=$GPU_VRAM_MB" "MAIN_MODEL=$MAIN_MODEL" "FAST_MODEL=$FAST_MODEL" "EMBED_MODEL=$EMBED_MODEL" >> "$PROJECT_DIR/.ai-runtime-profile"
+printf '%s\n' "RAM_GB=$RAM_GB" "CPU_CORES=$CPU_CORES" "GPU_NAME=$GPU_NAME" "GPU_VRAM_MB=$GPU_VRAM_MB" "MAIN_MODEL=$MAIN_MODEL" "FAST_MODEL=$FAST_MODEL" "EMBED_MODEL=$EMBED_MODEL" "AI_MAX_CONCURRENT=$AI_CONCURRENCY" "AI_MAX_QUEUE=$AI_QUEUE" >> "$PROJECT_DIR/.ai-runtime-profile"
 
 echo
 echo "== HALLAYM AI ready =="
