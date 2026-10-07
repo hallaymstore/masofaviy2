@@ -48,6 +48,16 @@ const qs=code=>(questionBank[code]||questionBank['DI-PROG']).map((x,i)=>({prompt
 
 await mongoose.connect(MONGODB_URI,{serverSelectionTimeoutMS:15000});const db=mongoose.connection.db;
 const C=name=>db.collection(name),users=C('users'),structures=C('structures'),courses=C('courses'),resources=C('resources'),assignments=C('assignments'),submissions=C('submissions'),quizzes=C('quizzes'),attempts=C('quizattempts'),schedules=C('schedules'),attendances=C('attendances'),videos=C('videolessons'),comments=C('videocomments'),curricula=C('curriculumplans'),studyplans=C('studyplans'),results=C('courseresults'),movements=C('studentmovements'),library=C('libraryitems'),threads=C('forumthreads'),posts=C('forumposts'),messages=C('internalmessages'),finalExams=C('finalexamsessions'),settings=C('institutionsettings'),audits=C('audits');
+const libIndexes=await library.indexes().catch(()=>[]);
+const oldTextIndex=libIndexes.find(x=>Object.values(x.key||{}).some(v=>v==='text'));
+if(oldTextIndex&&oldTextIndex.language_override!=='searchLanguage'){
+  console.log('Kutubxona text index migratsiyasi:',oldTextIndex.name);
+  await library.dropIndex(oldTextIndex.name);
+  await library.createIndex({title:'text',authors:'text',description:'text',tags:'text'},{name:'library_search_text',default_language:'none',language_override:'searchLanguage'});
+}else if(!oldTextIndex){
+  await library.createIndex({title:'text',authors:'text',description:'text',tags:'text'},{name:'library_search_text',default_language:'none',language_override:'searchLanguage'});
+}
+
 const [sh,th,fh]=await Promise.all([bcrypt.hash(STUDENT_PASSWORD,11),bcrypt.hash(TEACHER_PASSWORD,11),bcrypt.hash(STAFF_PASSWORD,11)]);
 
 const fac=await ensureStructure(structures,'faculty','Raqamli texnologiyalar fakulteti','QDTU-RTF-2026','RTF');
