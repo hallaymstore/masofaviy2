@@ -75,7 +75,7 @@ const topicQs=topic=>{
 };
 
 await mongoose.connect(MONGODB_URI,{serverSelectionTimeoutMS:15000});const db=mongoose.connection.db;
-const C=name=>db.collection(name),users=C('users'),structures=C('structures'),courses=C('courses'),resources=C('resources'),assignments=C('assignments'),submissions=C('submissions'),quizzes=C('quizzes'),attempts=C('quizattempts'),schedules=C('schedules'),attendances=C('attendances'),videos=C('videolessons'),comments=C('videocomments'),curricula=C('curriculumplans'),studyplans=C('studyplans'),results=C('courseresults'),movements=C('studentmovements'),library=C('libraryitems'),threads=C('forumthreads'),posts=C('forumposts'),messages=C('internalmessages'),finalExams=C('finalexamsessions'),settings=C('institutionsettings'),audits=C('audits');
+const C=name=>db.collection(name),users=C('users'),structures=C('structures'),courses=C('courses'),resources=C('resources'),assignments=C('assignments'),submissions=C('submissions'),quizzes=C('quizzes'),attempts=C('quizattempts'),schedules=C('schedules'),attendances=C('attendances'),videos=C('videolessons'),videoProgress=C('videoprogresses'),comments=C('videocomments'),curricula=C('curriculumplans'),studyplans=C('studyplans'),results=C('courseresults'),movements=C('studentmovements'),library=C('libraryitems'),threads=C('forumthreads'),posts=C('forumposts'),messages=C('internalmessages'),finalExams=C('finalexamsessions'),settings=C('institutionsettings'),audits=C('audits');
 const libIndexes=await library.indexes().catch(()=>[]);
 const oldTextIndex=libIndexes.find(x=>Object.values(x.key||{}).some(v=>v==='text'));
 if(oldTextIndex&&oldTextIndex.language_override!=='searchLanguage'){
@@ -115,6 +115,12 @@ for(const key of ['DI','AI']){const group=key==='DI'?gDI:gAI,students=key==='DI'
    const title=(i+1)+'-mavzu · '+topic;made.push(await upsert(videos,{courseId:course._id,title},{title,description:topic+' bo‘yicha nazariya va amaliy misollar.',subject:course.title,courseId:course._id,moduleTitle:i<2?'1-modul. Asosiy tushunchalar':'2-modul. Amaliy qo‘llash',topicTitle:topic,sequence:i+1,checkpointQuizId:quiz._id,teacherId:course.teacher._id,groupIds:[group._id],direction,courseYears:[2],tags:[course.code.toLowerCase(),'demo','2026'],sourceType:'youtube',sourceUrl:course.video,thumbnailUrl:'',durationMinutes:40+i*10,published:true,featured:i===0,views:25+i*14,likes:7+i*3,createdBy:course.teacher._id}));videoCount++
  }
  const normal=topicQuizzes[0],proctor=topicQuizzes[topicQuizzes.length-1];
+ if(students[0]){
+   for(const demoVideo of [made[0],made[made.length-1]].filter(Boolean)){
+     const durationSeconds=Math.max(60,Number(demoVideo.durationMinutes||1)*60);
+     await upsert(videoProgress,{videoId:demoVideo._id,userId:students[0]._id},{videoId:demoVideo._id,userId:students[0]._id,watchedSeconds:durationSeconds,lastPositionSeconds:Math.max(0,durationSeconds-2),durationSeconds,completed:true,completedAt:now,liked:false,lastViewedAt:now});
+   }
+ }
  await upsert(library,{title:course.title+' · asosiy o‘quv manbasi',audience:'courses'},{type:'manual',title:course.title+' · asosiy o‘quv manbasi',authors:['QarDTU demo seed'],publicationYear:2026,language:'uz',searchLanguage:'none',description:course.title+' faniga biriktirilgan resurs.',tags:[course.code,'demo'],sourceUrl:course.links[0][1],courseIds:[course._id],audience:'courses',published:true,accessCount:12,createdBy:course.teacher._id});
  const thread=await upsert(threads,{courseId:course._id,title:'Savol-javob · '+course.title},{courseId:course._id,title:'Savol-javob · '+course.title,createdBy:course.teacher._id,locked:false});
  await upsert(posts,{threadId:thread._id,userId:course.teacher._id,text:'Ushbu mavzuda dars, topshiriq va test bo‘yicha savollarni yozing.'},{threadId:thread._id,courseId:course._id,userId:course.teacher._id,text:'Ushbu mavzuda dars, topshiriq va test bo‘yicha savollarni yozing.',parentId:null});
