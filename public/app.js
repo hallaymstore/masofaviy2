@@ -624,18 +624,6 @@ function updateParticipantProctorIndicator(x){
   refreshLiveProctorSummary();
 }
 function refreshLiveProctorSummary(){
-  const rows=[...document.querySelectorAll('#lessonParticipants [data-attendance-student]')];
-  let face=0,low=0;
-  for(const row of rows){
-    const p=liveProctorStates.get(String(row.dataset.attendanceStudent));
-    if(!p)continue;
-    if(p.cameraReady&&p.faceState==='present')face++;
-    if(Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60)low++;
-  }
-  const faceEl=document.querySelector('[data-live-face-count]'),lowEl=document.querySelector('[data-live-attention-low]');
-  if(faceEl)faceEl.textContent=String(face);if(lowEl)lowEl.textContent=String(low);
-}
-function refreshLiveProctorSummary(){
   let face=0,low=0;
   for(const x of liveProctorStates.values()){
     if(x?.cameraReady&&x.faceState==='present')face++;
@@ -681,6 +669,7 @@ async function startLiveLessonProctoring(){
     }catch{
       try{if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})}}catch{}
     }
+    if(!detector)throw new Error('Yuzni aniqlash moduli ishga tushmadi');
     timer=setInterval(async()=>{
       if(stopped||!video||video.readyState<2)return;
       try{
