@@ -183,7 +183,7 @@ async function handleRequest(ws,msg){
       peer.producers.set(producer.id,producer);
       if(producer.kind==='audio'){claimAudioFloor(peer.room,peer,producer.id);try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}}
       producer.on('transportclose',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id)});
-      producer.observer.on('close',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id);broadcastProducer(peer.room,'producerClosed',producer,peer,{producerId:producer.id,peerId:peer.id})});
+      producer.observer.on('close',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id);broadcastProducer(peer.room,'producerClosed',producer,peer,{producerId:producer.id,peerId:peer.id,kind:producer.kind,mediaTag:producer.appData?.mediaTag||'',paused:true})});
       const meta=serializeProducer(producer,peer);broadcastProducer(peer.room,'newProducer',producer,peer,meta);
       reply(ws,clientId,id,true,{id:producer.id});return;
     }
@@ -224,7 +224,7 @@ async function handleRequest(ws,msg){
       reply(ws,clientId,id,true,{ok:true,audioFloor:peer.room.audioFloor||null});return;
     }
     if(method==='closeProducer'){
-      const p=peer.producers.get(data.producerId);if(p){if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);p.close();peer.producers.delete(p.id);broadcastProducer(peer.room,'producerClosed',p,peer,{producerId:p.id,peerId:peer.id})}
+      const p=peer.producers.get(data.producerId);if(p){if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);p.close();peer.producers.delete(p.id);broadcastProducer(peer.room,'producerClosed',p,peer,{producerId:p.id,peerId:peer.id,kind:p.kind,mediaTag:p.appData?.mediaTag||'',paused:true})}
       reply(ws,clientId,id,true,{ok:true});return;
     }
     if(method==='restartIce'){
