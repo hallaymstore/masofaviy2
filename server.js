@@ -1085,7 +1085,11 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   if(expiredIds.length){
     const endedAt=new Date();
     await LiveSession.updateMany({dateKey,scheduleId:{$in:expiredIds},status:'active'},{$set:{status:'ended',endedAt,currentParticipants:0}});
-    for(const sid of expiredIds){const row=bySchedule[String(sid)];if(row){row.status='ended';row.endedAt=endedAt}io.to('lesson:'+String(sid)).emit('lesson:auto-ended',{scheduleId:String(sid),endedAt});io.emit('live:changed',{scheduleId:String(sid),status:'ended',automatic:true})}
+    for(const sid of expiredIds){
+      const row=bySchedule[String(sid)];if(row){row.status='ended';row.endedAt=endedAt}
+      io.to('lesson:'+String(sid)).emit('lesson:auto-ended',{scheduleId:String(sid),endedAt});io.emit('live:changed',{scheduleId:String(sid),status:'ended',automatic:true});
+      const timer=setTimeout(()=>hallaymAi?.generateLessonSummary?.(String(sid),dateKey).catch(()=>{}),1200);timer.unref?.();
+    }
   }
   const rooms=schedules.map(x=>{
     const startMinute=timeToMinutes(x.start),endMinute=timeToMinutes(x.end),session=bySchedule[String(x._id)],isTeacher=String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
@@ -1171,7 +1175,10 @@ app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   const lesson=mongoose.isValidObjectId(req.params.scheduleId)?await Schedule.findById(req.params.scheduleId).lean():null;if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
   if(String(lesson.teacherId)!==String(req.user._id)&&!hasPermission(req.user,'live.manage'))return res.status(403).json({message:'Bu darsni yakunlash huquqi yo‘q'});
   const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey:localDateKey(),status:'active'},{$set:{status:'ended',endedAt:new Date(),currentParticipants:0}},{new:true});
-  if(session){audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'})}
+  if(session){
+    audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'});
+    const timer=setTimeout(()=>hallaymAi?.generateLessonSummary?.(String(lesson._id),localDateKey()).catch(()=>{}),1200);timer.unref?.();
+  }
   res.json({ok:true});
 });
 const autoStartLiveLessons=async()=>{
@@ -1201,6 +1208,7 @@ const autoEndLiveLessons=async()=>{
       const sid=String(row.scheduleId);
       io.to('lesson:'+sid).emit('lesson:auto-ended',{scheduleId:sid,endedAt});
       io.emit('live:changed',{scheduleId:sid,status:'ended',automatic:true});
+      const timer=setTimeout(()=>hallaymAi?.generateLessonSummary?.(sid,dateKey).catch(()=>{}),1200);timer.unref?.();
     }
   }catch(e){console.error('autoEndLiveLessons',e?.message||e)}
 };
