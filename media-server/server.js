@@ -66,7 +66,7 @@ function claimAudioFloor(room,peer,producerId){
   room.audioFloor={peerId:peer.id,producerId,user:peer.user,at:Date.now()};
   broadcast(room,'audioFloor',{active:true,peerId:peer.id,user:peer.user,at:room.audioFloor.at});
 }
-function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>({peerId:p.id,user:p.user})),count:room.peers.size,audioFloor:STRICT_AUDIO_FLOOR?(room.audioFloor||null):null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:STRICT_AUDIO_FLOOR?1:(room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null),studentAudioActive:studentAudioCount(room)}}}
+function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>{let cameraOn=false,micOn=false;for(const producer of p.producers.values()){if(producer.closed||producer.paused)continue;const tag=producer.appData?.mediaTag||'';if(producer.kind==='video'&&tag==='camera')cameraOn=true;if(producer.kind==='audio'&&tag==='mic')micOn=true}return {peerId:p.id,user:p.user,media:{cameraOn,micOn}}}),count:room.peers.size,audioFloor:STRICT_AUDIO_FLOOR?(room.audioFloor||null):null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:STRICT_AUDIO_FLOOR?1:(room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null),studentAudioActive:studentAudioCount(room)}}}
 
 async function verifyTicket(ticket){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
@@ -106,7 +106,7 @@ async function getRoom(roomId,profile='standard',maxParticipants=MAX_PEERS_PER_R
   return room;
 }
 function serializeProducer(producer,owner){
-  return {producerId:producer.id,peerId:owner.id,kind:producer.kind,appData:producer.appData,user:owner.user,peerName:owner.user?.fullName||owner.user?.login||'Ishtirokchi'};
+  return {producerId:producer.id,peerId:owner.id,kind:producer.kind,paused:Boolean(producer.paused),appData:producer.appData,user:owner.user,peerName:owner.user?.fullName||owner.user?.login||'Ishtirokchi'};
 }
 function serializeTransport(t){
   return {id:t.id,iceParameters:t.iceParameters,iceCandidates:t.iceCandidates,dtlsParameters:t.dtlsParameters,sctpParameters:t.sctpParameters};
@@ -220,7 +220,7 @@ async function handleRequest(ws,msg){
         if(p.kind==='audio')claimAudioFloor(peer.room,peer,p.id);
         await p.resume();
       }
-      if(p.kind==='video')broadcastProducer(peer.room,'producerState',p,peer,{producerId:p.id,peerId:peer.id,kind:p.kind,mediaTag:p.appData?.mediaTag||'',paused:method==='pauseProducer'});
+      broadcastProducer(peer.room,'producerState',p,peer,{producerId:p.id,peerId:peer.id,kind:p.kind,mediaTag:p.appData?.mediaTag||'',paused:method==='pauseProducer'});
       reply(ws,clientId,id,true,{ok:true,audioFloor:peer.room.audioFloor||null});return;
     }
     if(method==='closeProducer'){
