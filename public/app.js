@@ -619,7 +619,7 @@ function updateParticipantProctorIndicator(x){
   if(!x?.userId)return;liveProctorStates.set(String(x.userId),x);
   const row=document.querySelector('[data-attendance-student="'+CSS.escape(String(x.userId))+'"]');if(!row)return;
   const badge=row.querySelector('[data-proctor-badge]'),meta=row.querySelector('[data-proctor-meta]');
-  if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=(x.cameraReady?'● ':'○ ')+proctorStateLabel(x.faceState)}
+  if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=x.cameraReady?('● '+proctorStateLabel(x.faceState)):'○ Kamera yo‘q'}
   if(meta)meta.textContent='Yuz '+formatFocusTime(x.presentSeconds)+' / '+formatFocusTime(x.observedSeconds)+' · '+Math.round(Number(x.attentionPercent)||0)+'%';
 }
 async function startLiveLessonProctoring(){
@@ -713,7 +713,10 @@ async function openConference(payload){
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
     studentCameraGranted=true;studentMicGranted=true;
-    if(user.role==='student')await startLiveLessonProctoring();
+    if(user.role==='student'){
+      const proctorOk=await startLiveLessonProctoring();
+      if(!proctorOk)toast('Kamera nazorati faol emas — davomatda yuz-faollik vaqti hisoblanmaydi');
+    }
     showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
@@ -1325,6 +1328,7 @@ function connectSocket(){
   });
   socket.on('lesson:proctor-camera-request',async function(x){
     if(!activeLessonId||user.role!=='student'||String(x.lessonId)!==String(activeLessonId))return;
+    toast((x.by||'O‘qituvchi')+' kamerangizni vaqtincha tekshirmoqda');
     let active=false;
     try{
       if(!liveProctorTrack?.readyState||liveProctorTrack.readyState!=='live')await startLiveLessonProctoring();
@@ -1335,6 +1339,7 @@ function connectSocket(){
   socket.on('lesson:proctor-camera-stop',async function(x){
     if(!activeLessonId||user.role!=='student'||String(x.lessonId)!==String(activeLessonId))return;
     await mediaRoomClient?.stopProctorCameraBroadcast?.().catch(()=>{});
+    toast('Vaqtinchalik kamera tekshiruvi tugadi');
   });
   socket.on('lesson:proctor-camera-result',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||(user.role!=='teacher'&&!can('live.manage')&&!can('lessons.monitor')))return;
