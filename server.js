@@ -1460,6 +1460,11 @@ socket.on('lesson:proctor-camera-result',async({lessonId,active})=>{
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor'))s.emit('lesson:proctor-camera-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,active:Boolean(active)});
   }catch{}
 });
+socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
+  if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+  const freq=Math.max(0,Math.min(12000,Number(frequency)||0)),ms=Math.max(1800,Math.min(6500,Number(duration)||3800));
+  socket.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,by:String(socket.user._id),at:Date.now()});
+});
 socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
   if(clean&&mongoose.isValidObjectId(lessonId)&&socket.rooms.has('lesson:'+lessonId)){
