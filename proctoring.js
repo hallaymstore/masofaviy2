@@ -52,6 +52,7 @@ export function evaluateProctorTermination(events=[]){
     ['microphone_unavailable',1,'Mikrofon ishga tushmadi yoki ruxsat berilmadi'],
     ['camera_track_ended',1,'Kamera sessiya davomida o‘chirildi'],
     ['microphone_track_ended',1,'Mikrofon sessiya davomida o‘chirildi'],
+    ['face_detector_unavailable',1,'Yuzni aniqlash moduli ishga tushmadi'],
     ['page_hidden',1,'Imtihon sahifasidan chiqildi yoki boshqa ilovaga o‘tildi'],
     ['fullscreen_exit',1,'Majburiy to‘liq ekran rejimidan chiqildi'],
     ['screenshot_attempt',1,'Ekran tasvirini olishga urinish qayd etildi'],
