@@ -2192,3 +2192,174 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
     z-index:105;
   }
 }
+
+
+/* v60 mobile participant filmstrip */
+#videoMount .ms-participant-strip{
+  display:flex!important;
+  gap:8px!important;
+  align-items:stretch!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  padding:8px 4px 6px!important;
+  margin:0!important;
+  scroll-snap-type:x proximity;
+  overscroll-behavior-inline:contain;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+#videoMount .ms-participant-strip::-webkit-scrollbar{display:none}
+#videoMount .ms-participant-mini{
+  position:relative!important;
+  flex:0 0 88px!important;
+  width:88px!important;
+  min-width:88px!important;
+  padding:4px!important;
+  display:grid!important;
+  gap:4px!important;
+  align-content:start!important;
+  border:2px solid transparent!important;
+  border-radius:12px!important;
+  background:var(--surface)!important;
+  color:var(--ink)!important;
+  box-shadow:none!important;
+  scroll-snap-align:start;
+  cursor:pointer!important;
+}
+#videoMount .ms-participant-mini.selected{
+  border-color:#2f80ed!important;
+  background:color-mix(in srgb,#2f80ed 6%,var(--surface))!important;
+}
+#videoMount .ms-participant-mini.speaking{
+  border-color:#20b36b!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,#20b36b 16%,transparent)!important;
+}
+#videoMount .ms-mini-avatar{
+  position:relative!important;
+  display:grid!important;
+  place-items:center!important;
+  width:100%!important;
+  aspect-ratio:1/1!important;
+  overflow:hidden!important;
+  border-radius:9px!important;
+  background:linear-gradient(145deg,#dbe7f8,#eef3fb)!important;
+}
+#videoMount .ms-mini-photo{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  display:none!important;
+}
+#videoMount .ms-mini-photo.has-photo{display:block!important}
+#videoMount .ms-mini-initials{
+  font-size:22px!important;
+  font-weight:900!important;
+  color:#31537b!important;
+  letter-spacing:-.03em;
+}
+#videoMount .ms-mini-camera{
+  position:absolute!important;
+  right:4px!important;
+  bottom:4px!important;
+  width:22px!important;
+  height:22px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,255,255,.8)!important;
+  background:#152238!important;
+  color:#fff!important;
+  font-size:11px!important;
+  line-height:1!important;
+}
+#videoMount .ms-participant-mini.camera-on .ms-mini-camera{
+  background:#0c9c61!important;
+  color:#fff!important;
+  font-size:14px!important;
+}
+#videoMount .ms-participant-mini.camera-off .ms-mini-camera{
+  background:#c43f45!important;
+}
+#videoMount .ms-participant-mini.camera-off .ms-mini-camera::after{
+  content:'×';
+  position:absolute;
+  right:-1px;
+  top:-5px;
+  font-size:12px;
+  font-weight:900;
+}
+#videoMount .ms-mini-text{display:grid!important;min-width:0!important;text-align:center!important;line-height:1.05!important}
+#videoMount .ms-mini-text b{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:9px!important;
+}
+#videoMount .ms-mini-text small{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  margin-top:2px!important;
+  font-size:7px!important;
+  color:var(--muted)!important;
+}
+
+/* Speaker mode = one large selected stage + filmstrip */
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout){
+  display:block!important;
+  width:100%!important;
+  min-height:300px!important;
+  max-height:none!important;
+  overflow:hidden!important;
+  padding:0!important;
+  background:#06101f!important;
+  border-radius:14px!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout) .ms-tile{
+  display:none!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout) .ms-tile.focused{
+  display:block!important;
+  position:relative!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:300px!important;
+  max-height:none!important;
+  aspect-ratio:16/9!important;
+  margin:0!important;
+  border-radius:14px!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout) .ms-tile.focused .ms-video{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+}
+#videoMount .ms-grid.teacher-stage-layout:not(.screen-layout) .ms-tile.focused:not(.has-video) .ms-avatar{
+  display:grid!important;
+}
+@media(max-width:680px){
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout){
+    min-height:330px!important;
+    border-radius:13px!important;
+  }
+  #videoMount .ms-grid.teacher-stage-layout:not(.screen-layout) .ms-tile.focused{
+    min-height:330px!important;
+    aspect-ratio:4/5!important;
+  }
+  #videoMount .ms-participant-strip{gap:6px!important;padding:7px 2px 5px!important}
+  #videoMount .ms-participant-mini{
+    flex-basis:72px!important;
+    width:72px!important;
+    min-width:72px!important;
+    border-radius:10px!important;
+  }
+  #videoMount .ms-mini-avatar{border-radius:8px!important}
+  #videoMount .ms-mini-text b{font-size:8px!important}
+  #videoMount .ms-mini-text small{font-size:6.5px!important}
+}
