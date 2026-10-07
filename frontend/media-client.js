@@ -22,7 +22,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -359,6 +359,36 @@ export class MediaRoomClient{
     }
     p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
   }
+  setExternalCameraTrack(track){
+    this.externalCameraTrack=track?.readyState==='live'?track:null;
+    return Boolean(this.externalCameraTrack);
+  }
+  async startCameraFromExternalTrack(sourceTrack=this.externalCameraTrack){
+    if(!sourceTrack||sourceTrack.readyState!=='live')throw new Error('Proktor kamera treki tayyor emas');
+    const existing=this.producers.get('camera');
+    if(existing){
+      if(existing.paused){existing.track.enabled=true;existing.resume();await this.request('resumeProducer',{producerId:existing.id}).catch(()=>{});this.onState({camera:true,proctorBroadcast:this.proctorCameraBroadcast});}
+      return true;
+    }
+    if(this.mediaBusy?.camera)return false;
+    this.mediaBusy=this.mediaBusy||{};this.mediaBusy.camera=true;this.onState({cameraBusy:true});
+    try{
+      const track=sourceTrack.clone();try{track.contentHint='motion'}catch{}
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
+      const encodings=this.ultraLite?[{maxBitrate:420000,scaleResolutionDownBy:1,maxFramerate:15}]
+        :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]
+        :[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2600000,scaleResolutionDownBy:1,maxFramerate:30}]);
+      const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?300:(lite?650:900)},appData:{mediaTag:'camera',role:this.user.role,quality:'proctor-on-demand',proctorBroadcast:true}});
+      this.producers.set('camera',producer);this.proctorCameraBroadcast=true;this.attachLocalVideo(track);
+      producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>{this.producers.delete('camera');this.proctorCameraBroadcast=false});
+      this.onState({camera:true,proctorBroadcast:true});return true;
+    }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
+  }
+  async stopProctorCameraBroadcast(){
+    if(!this.proctorCameraBroadcast)return false;
+    const p=this.producers.get('camera');if(p){try{await this.closeProducer('camera')}catch{}}
+    this.proctorCameraBroadcast=false;this.onState({camera:false,proctorBroadcast:false});return true;
+  }
   async toggleCamera(){
     const p=this.producers.get('camera');
     if(p){
@@ -368,7 +398,7 @@ export class MediaRoomClient{
     if(this.mediaBusy?.camera)return false;
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.camera=true;this.onState({cameraBusy:true});
     try{
-      const stream=await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
+      const stream=this.user?.role==='student'&&this.externalCameraTrack?.readyState==='live'?new MediaStream([this.externalCameraTrack.clone()]):await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
       if(!track)throw new Error('Kamera trek topilmadi');
       const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
       const encodings=teacher&&!this.ultraLite
@@ -377,7 +407,7 @@ export class MediaRoomClient{
         :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]:[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]);
       try{track.contentHint='motion'}catch{}
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:teacher?1200:(this.ultraLite?300:(lite?650:1000))},appData:{mediaTag:'camera',role:this.user.role,quality:teacher?'1080p':'adaptive'}});
-      this.producers.set('camera',producer);this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
+      this.producers.set('camera',producer);this.proctorCameraBroadcast=false;this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});return false;
