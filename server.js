@@ -134,7 +134,7 @@ const institutionSettingsSchema = new mongoose.Schema({
   primaryColor:{type:String,trim:true,maxlength:7,default:'#0b4fd8'},
   accentColor:{type:String,trim:true,maxlength:7,default:'#19b5fe'},
   landingTitle:{type:String,trim:true,maxlength:240,default:'Darslar, davomat va nazorat — bitta joyda'},
-  landingText:{type:String,trim:true,maxlength:1000,default:'O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.'},
+  landingText:{type:String,trim:true,maxlength:1000,default:'Dars jadval vaqti kelishi bilan avtomatik ochiladi. Talaba o‘z guruh xonasiga o‘qituvchi hali kirmagan bo‘lsa ham kirishi mumkin.'},
   address:{type:String,trim:true,maxlength:500,default:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy'},
   phone:{type:String,trim:true,maxlength:80,default:'+998 75 220-09-24'},
   founded:{type:String,trim:true,maxlength:120,default:'10.12.2024'},
@@ -171,7 +171,7 @@ const DEFAULT_BRANDING=Object.freeze({
   primaryColor:'#0b4fd8',
   accentColor:'#19b5fe',
   landingTitle:'Darslar, davomat va nazorat — bitta joyda',
-  landingText:'O‘qituvchi darsni boshlaydi, talaba o‘z jadvalidan kiradi. Davomat, video, topshiriq va hisobotlar bir tizimda yuradi.',
+  landingText:'Dars jadval vaqti kelishi bilan avtomatik ochiladi. Talaba o‘z guruh xonasiga o‘qituvchi hali kirmagan bo‘lsa ham kirishi mumkin.',
   address:'Qarshi sh., Mustaqillik ko‘chasi, 225-uy',
   phone:'+998 75 220-09-24',
   founded:'10.12.2024',
@@ -1044,6 +1044,29 @@ const scheduleAccess=async(user,lesson,mode='join')=>{
   if(user.role==='student'){const gid=await resolveUserGroupId(user);return String(gid||'')===String(lesson.groupId)}
   try{const scope=await resolveScope(user,{});return scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{return false}
 };
+const ensureAutomaticLiveSession=async(lesson,dateKey=localDateKey(),nowMinute=localMinuteOfDay())=>{
+  if(!lesson||lesson.kind==='final_exam'||lesson.liveEnabled===false)return {session:null,activated:false};
+  const startMinute=timeToMinutes(lesson.start),endMinute=timeToMinutes(lesson.end);
+  if(nowMinute<startMinute||nowMinute>=endMinute)return {session:await LiveSession.findOne({scheduleId:lesson._id,dateKey}),activated:false};
+  let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
+  if(session?.status==='active')return {session,activated:false};
+  if(session?.status==='ended')return {session,activated:false};
+  const roomName=roomNameFor(lesson._id,dateKey),now=new Date();
+  if(session){
+    session.groupId=lesson.groupId;session.teacherId=lesson.teacherId;session.roomName=roomName;session.providerHost='mediasoup';
+    session.status='active';session.startedAt=session.startedAt||now;session.endedAt=null;session.lastAttendanceCheckpointMinute=0;session.lastAttendanceCheckpointAt=null;session.startedBy=undefined;
+    await session.save();
+    return {session,activated:true};
+  }
+  try{
+    session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:now,lastAttendanceCheckpointMinute:0,lastAttendanceCheckpointAt:null});
+    return {session,activated:true};
+  }catch(e){
+    if(e?.code!==11000)throw e;
+    session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
+    return {session,activated:Boolean(session?.status==='active')};
+  }
+};
 const roomPayload=async(lesson,session)=>{
   const populated=await Schedule.findById(lesson._id).populate('groupId','name externalId code').populate('teacherId','fullName login').lean();
   return {schedule:populated,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(lesson._id))?.size||session.currentParticipants||0,participantPeak:Math.max(session.participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(lesson._id))?.size||0)}:null};
@@ -1053,7 +1076,9 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   if(req.user.role==='teacher')filter.teacherId=req.user._id;
   else if(req.user.role==='student'){const gid=await resolveUserGroupId(req.user);if(!gid)return res.json({dateKey:localDateKey(),rooms:[]});filter.groupId=gid}
   else if(!GLOBAL_SCOPE_ROLES.has(req.user.role)){try{const scope=await resolveScope(req.user,{});filter.groupId={$in:scope.groupIds}}catch{return res.json({dateKey:localDateKey(),rooms:[]})}}
-  const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),nowMinute=localMinuteOfDay(),sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
+  const schedules=await scheduleQuery(filter).lean(),dateKey=localDateKey(),nowMinute=localMinuteOfDay();
+  await Promise.all(schedules.filter(x=>nowMinute>=timeToMinutes(x.start)&&nowMinute<timeToMinutes(x.end)).map(x=>ensureAutomaticLiveSession(x,dateKey,nowMinute)));
+  const sessions=await LiveSession.find({dateKey,scheduleId:{$in:schedules.map(x=>x._id)}}).lean(),bySchedule=Object.fromEntries(sessions.map(x=>[String(x.scheduleId),x]));
   const expiredIds=schedules.filter(x=>bySchedule[String(x._id)]?.status==='active'&&nowMinute>=timeToMinutes(x.end)).map(x=>x._id);
   if(expiredIds.length){
     const endedAt=new Date();
@@ -1062,7 +1087,7 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
   }
   const rooms=schedules.map(x=>{
     const startMinute=timeToMinutes(x.start),endMinute=timeToMinutes(x.end),session=bySchedule[String(x._id)],isTeacher=String(x.teacherId?._id||x.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
-    return {schedule:x,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||session.currentParticipants||0,participantPeak:Math.max(session.participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:isTeacher&&nowMinute>=Math.max(0,startMinute-10)&&nowMinute<endMinute,canJoin:(req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support'))&&nowMinute<endMinute,startMinute,endMinute,nowMinute};
+    return {schedule:x,session:session?{id:session._id,status:session.status,startedAt:session.startedAt,endedAt:session.endedAt,currentParticipants:io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||session.currentParticipants||0,participantPeak:Math.max(session.participantPeak||0,io.sockets.adapter.rooms.get('lesson:'+String(x._id))?.size||0)}:null,canStart:false,canJoin:(req.user.role==='student'||req.user.role==='teacher'||hasPermission(req.user,'lessons.monitor')||hasPermission(req.user,'lessons.support'))&&nowMinute>=startMinute&&nowMinute<endMinute&&session?.status!=='ended',startMinute,endMinute,nowMinute};
   });
   res.json({dateKey,provider:'mediasoup',sfuBridgeNodes:SFU_BRIDGE_URLS.length,turnEnabled:Boolean(mediaIceServers().length),nowMinute,rooms});
 });
@@ -1132,10 +1157,12 @@ app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{
   const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
   if(lesson.kind==='final_exam')return res.status(403).json({message:'Yakuniy nazoratga jonli xonadan kirib bo‘lmaydi'});
   if(!(await scheduleAccess(req.user,lesson)))return res.status(403).json({message:'Bu guruh darsiga kirish huquqi yo‘q'});
-  const dateKey=localDateKey();let session=await LiveSession.findOne({scheduleId:lesson._id,dateKey});
-  const isHost=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');
-  if(!session&&isHost){session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName:roomNameFor(lesson._id,dateKey),providerHost:'mediasoup',status:'active',startedAt:new Date(),startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined})}
-  if(!session||session.status!=='active')return res.status(409).json({message:'O‘qituvchi hali jonli darsni boshlamagan'});
+  const dateKey=localDateKey(),nowMinute=localMinuteOfDay(),startMinute=timeToMinutes(lesson.start),endMinute=timeToMinutes(lesson.end);
+  if(nowMinute<startMinute)return res.status(409).json({message:'Dars '+lesson.start+' da avtomatik ochiladi'});
+  if(nowMinute>=endMinute)return res.status(409).json({message:'Dars vaqti tugagan'});
+  const ensured=await ensureAutomaticLiveSession(lesson,dateKey,nowMinute),session=ensured.session;
+  if(!session||session.status!=='active')return res.status(409).json({message:'Jonli xona vaqtincha ochilmadi. Qayta urinib ko‘ring'});
+  if(ensured.activated)io.emit('live:changed',{scheduleId:String(lesson._id),status:'active',automatic:true});
   res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,session.roomName,lesson)});
 });
 app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
@@ -1145,6 +1172,20 @@ app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   if(session){audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'})}
   res.json({ok:true});
 });
+const autoStartLiveLessons=async()=>{
+  try{
+    const dateKey=localDateKey(),nowMinute=localMinuteOfDay(),day=localWeekday();
+    const schedules=await Schedule.find({weekday:day,kind:{$ne:'final_exam'},liveEnabled:{$ne:false}}).select('_id groupId teacherId start end kind liveEnabled').lean();
+    for(const lesson of schedules){
+      if(nowMinute<timeToMinutes(lesson.start)||nowMinute>=timeToMinutes(lesson.end))continue;
+      const ensured=await ensureAutomaticLiveSession(lesson,dateKey,nowMinute);
+      if(ensured.activated)io.emit('live:changed',{scheduleId:String(lesson._id),status:'active',automatic:true});
+    }
+  }catch(e){console.error('autoStartLiveLessons',e?.message||e)}
+};
+setInterval(autoStartLiveLessons,15000).unref?.();
+setTimeout(autoStartLiveLessons,1500).unref?.();
+
 const autoEndLiveLessons=async()=>{
   try{
     const dateKey=localDateKey(),nowMinute=localMinuteOfDay(),active=await LiveSession.find({dateKey,status:'active'}).select('_id scheduleId').lean();
