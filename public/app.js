@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -1062,30 +1062,38 @@ function stopWatchTracking(save=true){
   if(watchProgressTimer){clearInterval(watchProgressTimer);watchProgressTimer=null}
   if(save)saveCurrentVideoProgress(false).catch(()=>{});
   try{if(activeWatchKind==='youtube')activeWatchPlayer?.destroy?.();else if(activeWatchKind==='mp4')activeWatchPlayer?.pause?.()}catch{}
-  activeWatchPlayer=null;activeWatchKind='';
+  activeWatchPlayer=null;activeWatchKind='';watchLastSamplePosition=0;watchLastSampleAt=0;
 }
 function updateVideoProgressUi(v,progress){
   if(!v)return;v.progress={...(v.progress||{}),...(progress||{})};
-  const p=v.progress||{},pct=p.completed?100:(p.durationSeconds?Math.min(99,Math.round((Number(p.lastPositionSeconds||0)/Math.max(1,Number(p.durationSeconds)))*100)):0);
+  const p=v.progress||{},pct=p.completed?100:(p.durationSeconds?Math.min(99,Math.round((Number(p.watchedSeconds||0)/Math.max(1,Number(p.durationSeconds)))*100)):0);
   const label=$('#watchProgressLabel'),bar=$('#watchProgressBar');if(label)label.textContent=(p.completed?'Video tugallandi · test ochildi':pct+'% ko‘rildi');if(bar)bar.style.width=pct+'%';
   const btn=$('#watchCheckpointQuiz');if(btn){btn.disabled=!p.completed;btn.textContent=p.completed?'Testni boshlash':'🔒 Video tugagach ochiladi'}
 }
-async function persistVideoProgress(videoId,position,duration,completed=false){
+async function persistVideoProgress(videoId,position,duration,completed=false,watchDeltaSeconds=0){
   if(!videoId)return null;
-  const x=await api('/videos/'+videoId+'/view',{method:'POST',body:JSON.stringify({positionSeconds:Math.max(0,Number(position)||0),watchedSeconds:Math.max(0,Number(position)||0),durationSeconds:Math.max(0,Number(duration)||0),completed:Boolean(completed)})});
+  const x=await api('/videos/'+videoId+'/view',{method:'POST',body:JSON.stringify({positionSeconds:Math.max(0,Number(position)||0),durationSeconds:Math.max(0,Number(duration)||0),watchDeltaSeconds:Math.max(0,Number(watchDeltaSeconds)||0),completed:Boolean(completed)})});
   const v=videoLessonsCache.find(a=>String(a._id)===String(videoId));if(v&&x.progress)updateVideoProgressUi(v,x.progress);
   watchLastSavedAt=Date.now();return x.progress;
 }
 async function saveCurrentVideoProgress(forceCompleted=false){
   if(!activeVideoId||!activeWatchPlayer)return;
-  let position=0,duration=0;
+  let position=0,duration=0,playing=false;
   try{
-    if(activeWatchKind==='youtube'){position=Number(activeWatchPlayer.getCurrentTime?.()||0);duration=Number(activeWatchPlayer.getDuration?.()||0)}
-    else if(activeWatchKind==='mp4'){position=Number(activeWatchPlayer.currentTime||0);duration=Number(activeWatchPlayer.duration||0)}
+    if(activeWatchKind==='youtube'){
+      position=Number(activeWatchPlayer.getCurrentTime?.()||0);duration=Number(activeWatchPlayer.getDuration?.()||0);
+      playing=window.YT&&activeWatchPlayer.getPlayerState?.()===window.YT.PlayerState.PLAYING;
+    }else if(activeWatchKind==='mp4'){
+      position=Number(activeWatchPlayer.currentTime||0);duration=Number(activeWatchPlayer.duration||0);playing=!activeWatchPlayer.paused&&!activeWatchPlayer.ended;
+    }
   }catch{return}
-  const completed=forceCompleted||(duration>0&&position>=duration*.9);
-  if(!completed&&Date.now()-watchLastSavedAt<3500)return;
-  await persistVideoProgress(activeVideoId,position,duration,completed);
+  const now=Date.now(),wallDelta=watchLastSampleAt?Math.max(0,Math.min(15,(now-watchLastSampleAt)/1000)):0,posDelta=watchLastSampleAt?position-watchLastSamplePosition:0;
+  let watchDelta=0;
+  if(playing&&posDelta>=0&&posDelta<=wallDelta+2.5)watchDelta=Math.min(posDelta,wallDelta,15);
+  else if(forceCompleted&&posDelta>0&&posDelta<=wallDelta+2.5)watchDelta=Math.min(posDelta,wallDelta,15);
+  watchLastSamplePosition=position;watchLastSampleAt=now;
+  if(!forceCompleted&&Date.now()-watchLastSavedAt<3500)return;
+  await persistVideoProgress(activeVideoId,position,duration,forceCompleted,watchDelta);
 }
 async function renderWatchPlayer(v){
   stopWatchTracking(false);
@@ -1096,7 +1104,7 @@ async function renderWatchPlayer(v){
       const YT=await loadYouTubePlayerApi();player.innerHTML='<div id="watchYoutubePlayer"></div>';
       activeWatchKind='youtube';
       activeWatchPlayer=new YT.Player('watchYoutubePlayer',{videoId:yt,playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1,start:Math.floor(resume)},events:{
-        onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(()=>{}),5000)},
+        onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchLastSamplePosition=resume;watchLastSampleAt=Date.now();watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(()=>{}),5000)},
         onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false).catch(()=>{})},
         onError:()=>{const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">YouTube API xatosi · fallback player</div>'}
       }});
@@ -1107,7 +1115,7 @@ async function renderWatchPlayer(v){
   }else if(v.sourceType==='mp4'){
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
     const video=player.querySelector('video');activeWatchKind='mp4';activeWatchPlayer=video;
-    video.addEventListener('loadedmetadata',()=>{if(resume>3&&resume<video.duration-2)video.currentTime=resume;video.play().catch(()=>{})},{once:true});
+    video.addEventListener('loadedmetadata',()=>{if(resume>3&&resume<video.duration-2)video.currentTime=resume;watchLastSamplePosition=video.currentTime;watchLastSampleAt=Date.now();video.play().catch(()=>{})},{once:true});
     video.addEventListener('timeupdate',()=>{if(Date.now()-watchLastSavedAt>4500)saveCurrentVideoProgress(false).catch(()=>{})});
     video.addEventListener('pause',()=>saveCurrentVideoProgress(false).catch(()=>{}));
     video.addEventListener('ended',()=>saveCurrentVideoProgress(true).catch(()=>{}));
@@ -1127,7 +1135,7 @@ async function openVideoLesson(id,pushHistory=true){
   $('#watchLikeBtn').classList.toggle('liked',Boolean(v.progress?.liked));
   $('#watchTeacher').innerHTML='<div class="avatar">'+esc((v.teacherId?.fullName||'T').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase())+'</div><div><b>'+esc(v.teacherId?.fullName||'Ta’lim platformasi')+'</b><small>'+esc(v.subject||'Videodars')+'</small></div>';
   const tags=[...(v.tags||[]),...(v.courseYears||[]).map(x=>x+'-kurs'),v.direction].filter(Boolean);
-  const p=v.progress||{},pp=p.completed?100:(p.durationSeconds?Math.min(99,Math.round((Number(p.lastPositionSeconds||0)/Math.max(1,Number(p.durationSeconds)))*100)):0);
+  const p=v.progress||{},pp=p.completed?100:(p.durationSeconds?Math.min(99,Math.round((Number(p.watchedSeconds||0)/Math.max(1,Number(p.durationSeconds)))*100)):0);
   $('#watchDescription').innerHTML='<div class="watch-description-meta">'+[v.courseId?.title,v.moduleTitle,v.topicTitle,...tags].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div><p>'+esc(v.description||'Videodars uchun tavsif kiritilmagan.')+'</p><div class="watch-progress-card"><div><b id="watchProgressLabel">'+(p.completed?'Video tugallandi · test ochildi':esc(pp)+'% ko‘rildi')+'</b><small>Chiqib qaytsangiz ayni joyidan davom etadi</small></div><div class="watch-progress-track"><i id="watchProgressBar" style="width:'+esc(pp)+'%"></i></div></div>'+(v.checkpointQuizId?'<div class="video-checkpoint-box"><div><b>Mavzu nazorati</b><small>'+esc(v.checkpointQuizId.title)+' · '+esc(v.checkpointQuizId.durationMinutes||30)+' daqiqa'+(v.checkpointQuizId.proctorRequired?' · kamera nazorati':'')+'</small></div><button class="primary" id="watchCheckpointQuiz" '+(p.completed?'':'disabled')+'>'+(p.completed?'Testni boshlash':'🔒 Video tugagach ochiladi')+'</button></div>':'');
   await renderWatchPlayer(v);
   $('#watchCheckpointQuiz')?.addEventListener('click',()=>{if($('#watchCheckpointQuiz').disabled)return;startCourseQuiz(v.checkpointQuizId._id,v.checkpointQuizId.proctorRequired,activeVideoId)});
