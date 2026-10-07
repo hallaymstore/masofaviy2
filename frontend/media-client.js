@@ -43,6 +43,7 @@ export class MediaRoomClient{
     if(!msg?.event)return;
     if(msg.event==='newProducer')this.maybeConsume(msg.data).catch(this.onError);
     else if(msg.event==='producerClosed')this.closeConsumerByProducer(msg.data?.producerId);
+    else if(msg.event==='producerState')this.applyProducerState(msg.data||{});
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
     else if(msg.event==='audioFloor'){this.audioFloor=msg.data?.active?msg.data:null;this.onState({audioFloor:this.audioFloor})}
@@ -563,6 +564,12 @@ export class MediaRoomClient{
     this.onState({background:pause});
   }
   closeConsumerByProducer(producerId){this.removeConsumer(producerId)}
+  applyProducerState(data={}){
+    if(data.kind!=='video'||data.mediaTag==='screen')return;
+    const peerId=String(data.peerId||''),tile=this.participantTile(peerId);if(!tile)return;
+    tile.classList.toggle('has-video',!data.paused);
+    this.updateParticipantCardCamera(peerId,!data.paused);
+  }
   removeConsumer(producerId){
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
     try{c.close()}catch{};this.consumers.delete(producerId);
