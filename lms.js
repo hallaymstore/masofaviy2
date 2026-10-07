@@ -132,9 +132,17 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   }));
   app.post('/api/lms/quizzes/:id/start',auth,wrap(async(req,res)=>{
     if(req.user.role!=='student')return res.status(403).json({message:'Faqat talaba topshiradi'});checkId(req.params.id);const quiz=await Quiz.findById(req.params.id);if(!quiz?.published)throw Object.assign(new Error('Test topilmadi'),{status:404});await courseAccess(req,quiz.courseId);
+    if(req.body.videoId){
+      checkId(req.body.videoId);
+      const VideoLesson=mongoose.models.VideoLesson,VideoProgress=mongoose.models.VideoProgress;
+      const video=VideoLesson?await VideoLesson.findOne({_id:req.body.videoId,published:true,checkpointQuizId:quiz._id}).lean():null;
+      if(!video)return res.status(400).json({message:'Bu test tanlangan videodarsga biriktirilmagan'});
+      const progress=VideoProgress?await VideoProgress.findOne({videoId:video._id,userId:req.user._id}).lean():null;
+      if(!progress?.completed)return res.status(409).json({message:'Avval videodarsni kamida 90% ko‘rib tugating',videoRequired:true,progress});
+    }
     const count=await Attempt.countDocuments({quizId:quiz._id,studentId:req.user._id});if(count>=quiz.maxAttempts)return res.status(409).json({message:'Urinishlar tugagan'});
     if(quiz.proctorRequired&&req.body.consent!==true)return res.status(400).json({message:'Kamera va imtihon oynasini kuzatish haqida xabardor bo‘lib rozilik bering'});
-    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id);res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,proctorPolicy:quiz.proctorRequired?{requireFullscreen:true,terminateOnPageLeave:true,maxFaceMissing:2,maxFaceTurns:2,maxWindowBlur:2,blockClipboard:true,detectScreenshotKey:true}:null,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
+    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id,{videoId:req.body.videoId||''});res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,proctorPolicy:quiz.proctorRequired?{requireFullscreen:true,terminateOnPageLeave:true,maxFaceMissing:2,maxFaceTurns:2,maxWindowBlur:2,blockClipboard:true,detectScreenshotKey:true,requireCamera:true,requireMicrophone:true}:null,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
   }));
   app.post('/api/lms/attempts/:id/proctor-events',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const type=String(req.body.type||'');
