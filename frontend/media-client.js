@@ -578,6 +578,24 @@ export class MediaRoomClient{
     this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.72,.22);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+120);
     this.onState({feedbackGuard:true,severeFeedback:Boolean(severe),feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
   }
+  hasActiveMicrophone(){
+    const mic=this.producers.get('mic');return Boolean(mic&&!mic.paused&&mic.track?.enabled!==false);
+  }
+  engageCoordinatedFeedbackGuard(ms=3800,freq=0){
+    if(!this.echoGuard||!this.hasActiveMicrophone())return false;
+    const now=Date.now(),duration=Math.max(1800,Math.min(6500,Number(ms)||3800));
+    this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+duration);
+    if(freq)this.tuneFeedbackNotches(freq);
+    this.applyFastFeedbackGate(true);
+    this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
+    clearTimeout(this.coordinatedFeedbackTimer);
+    this.coordinatedFeedbackTimer=setTimeout(()=>{
+      this.setMicGuardGain(.72,.28);this.refreshRemoteAudioVolume();
+      this.onState({feedbackGuard:false,coordinatedFeedback:false});
+    },duration+180);
+    this.onState({feedbackGuard:true,severeFeedback:true,coordinatedFeedback:true,feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
+    return true;
+  }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
   }
@@ -616,7 +634,7 @@ export class MediaRoomClient{
     if(this.audioUnlockHandler){document.removeEventListener('pointerdown',this.audioUnlockHandler);document.removeEventListener('keydown',this.audioUnlockHandler);this.audioUnlockHandler=null;this.audioUnlockInstalled=false}
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
-    this.stopFeedbackMonitor();clearTimeout(this.feedbackGuardTimer);try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
+    this.stopFeedbackMonitor();clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
     for(const c of this.consumers.values())try{c.close()}catch{}
     try{await this.audioCtx?.close()}catch{};this.audioCtx=null;
