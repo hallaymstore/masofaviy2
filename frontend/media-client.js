@@ -443,6 +443,7 @@ export class MediaRoomClient{
   shouldConsume(meta){
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
+    if(meta.appData?.proctorBroadcast)return this.user.role!=='student';
     if(tag==='screen'||role==='teacher')return true;
     if(role==='student'){
       if(this.user.role==='student'&&this.ultraLite)return false;
@@ -456,7 +457,7 @@ export class MediaRoomClient{
       for(const [producerId,existing] of [...this.consumers]){const oldMeta=existing.appData?.meta;if(existing.kind==='audio'&&String(oldMeta?.peerId||'')===String(meta.peerId||'')&&producerId!==meta.producerId)this.removeConsumer(producerId)}
       this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(meta.peerId||''))a.remove()});
     }
-    const priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen';const requestedQuality=this.receiveQuality==='auto'?(priorityVideo?'1080':(this.lowEnd?'480':'auto')):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
+    const proctorVideo=Boolean(meta.appData?.proctorBroadcast),priorityVideo=meta.appData?.role==='teacher'||meta.appData?.mediaTag==='screen'||proctorVideo;const requestedQuality=this.receiveQuality==='auto'?(proctorVideo?'720':(priorityVideo?'1080':(this.lowEnd?'480':'auto'))):this.receiveQuality;const data=await this.request('consume',{transportId:this.recvTransport.id,producerId:meta.producerId,rtpCapabilities:this.device.rtpCapabilities,quality:requestedQuality});
     const consumer=await this.recvTransport.consume(data);this.consumers.set(meta.producerId,consumer);
     if(consumer.kind==='video'&&meta.appData?.role!=='teacher'&&meta.appData?.mediaTag!=='screen')this.studentVideoConsumers++;
     await this.attachRemote(consumer,meta);
