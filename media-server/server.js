@@ -44,6 +44,15 @@ function send(ws,msg){if(ws?.readyState===1)ws.send(JSON.stringify(msg))}
 function reply(ws,clientId,id,ok,data,error){send(ws,{clientId,id,ok,data,error})}
 function event(peer,name,data){send(peer.bridge,{clientId:peer.id,event:name,data})}
 function broadcast(room,name,data,exceptPeerId=null){for(const p of room.peers.values())if(p.id!==exceptPeerId)event(p,name,data)}
+function canAccessProducer(viewer,producer,owner){
+  if(!producer?.appData?.proctorBroadcast)return true;
+  const viewerUserId=String(viewer?.user?.id||''),allowedUserId=String(producer.appData?.proctorViewerUserId||'');
+  return Boolean(viewerUserId&&allowedUserId&&viewerUserId===allowedUserId)||viewer?.id===owner?.id;
+}
+function broadcastProducer(room,name,producer,owner,data){
+  if(!producer?.appData?.proctorBroadcast)return broadcast(room,name,data,owner?.id||null);
+  for(const p of room.peers.values())if(p.id!==owner?.id&&canAccessProducer(p,producer,owner))event(p,name,data);
+}
 function normalizeProfile(value){const p=String(value||'standard');return LECTURE_LITE_ENABLED&&p==='lecture-lite'?'lecture-lite':p==='seminar'?'seminar':'standard'}
 function studentAudioCount(room){let n=0;for(const p of room.peers.values())if(p.user?.role==='student')for(const producer of p.producers.values())if(producer.kind==='audio'&&!producer.closed&&!producer.paused)n++;return n}
 function clearAudioFloor(room,peerId='',producerId=''){
@@ -154,7 +163,7 @@ async function handleRequest(ws,msg){
       if(room.peers.size>=room.maxParticipants)throw new Error('Bu xonada ishtirokchilar limiti to‘lgan');
       const peer={id:clientId,bridge:ws,room,user:{id:payload.sub,fullName:payload.fullName,login:payload.login,role:payload.role,avatarUrl:payload.avatarUrl||''},transports:new Map(),producers:new Map(),consumers:new Map(),joinedAt:new Date()};
       peers.set(clientId,peer);room.peers.set(clientId,peer);
-      const existing=[];for(const other of room.peers.values())if(other.id!==clientId)for(const producer of other.producers.values())existing.push(serializeProducer(producer,other));
+      const existing=[];for(const other of room.peers.values())if(other.id!==clientId)for(const producer of other.producers.values())if(canAccessProducer(peer,producer,other))existing.push(serializeProducer(producer,other));
       reply(ws,clientId,id,true,{room:{roomId:room.id,peerId:clientId},mediaProfile:room.profile,limits:roomState(room).limits,routerRtpCapabilities:room.router.rtpCapabilities,producers:existing,participants:roomState(room).participants});
       broadcast(room,'peerJoined',{peerId:clientId,user:peer.user},clientId);broadcast(room,'roomState',roomState(room));
       return;
@@ -174,13 +183,14 @@ async function handleRequest(ws,msg){
       peer.producers.set(producer.id,producer);
       if(producer.kind==='audio'){claimAudioFloor(peer.room,peer,producer.id);try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}}
       producer.on('transportclose',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id)});
-      producer.observer.on('close',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id);broadcast(peer.room,'producerClosed',{producerId:producer.id,peerId:peer.id})});
-      const meta=serializeProducer(producer,peer);broadcast(peer.room,'newProducer',meta,peer.id);
+      producer.observer.on('close',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id);broadcastProducer(peer.room,'producerClosed',producer,peer,{producerId:producer.id,peerId:peer.id})});
+      const meta=serializeProducer(producer,peer);broadcastProducer(peer.room,'newProducer',producer,peer,meta);
       reply(ws,clientId,id,true,{id:producer.id});return;
     }
     if(method==='consume'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
       const found=findProducer(peer.room,data.producerId);if(!found)throw new Error('Media oqimi topilmadi');
+      if(!canAccessProducer(peer,found.producer,found.owner))throw new Error('Bu vaqtinchalik kamera oqimini ko‘rish huquqi yo‘q');
       if(!peer.room.router.canConsume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities}))throw new Error('Brauzer bu media formatini qabul qila olmaydi');
       const consumer=await t.consume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities,paused:true,appData:{meta:serializeProducer(found.producer,found.owner)}});
       peer.consumers.set(consumer.id,consumer);
@@ -213,7 +223,7 @@ async function handleRequest(ws,msg){
       reply(ws,clientId,id,true,{ok:true,audioFloor:peer.room.audioFloor||null});return;
     }
     if(method==='closeProducer'){
-      const p=peer.producers.get(data.producerId);if(p){if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);p.close();peer.producers.delete(p.id);broadcast(peer.room,'producerClosed',{producerId:p.id,peerId:peer.id})}
+      const p=peer.producers.get(data.producerId);if(p){if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);p.close();peer.producers.delete(p.id);broadcastProducer(peer.room,'producerClosed',p,peer,{producerId:p.id,peerId:peer.id})}
       reply(ws,clientId,id,true,{ok:true});return;
     }
     if(method==='restartIce'){
