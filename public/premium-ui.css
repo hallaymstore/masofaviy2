@@ -2363,3 +2363,43 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
   #videoMount .ms-mini-text b{font-size:8px!important}
   #videoMount .ms-mini-text small{font-size:6.5px!important}
 }
+
+
+/* v61 live participant thumbnails + persistent media states */
+#videoMount .ms-mini-avatar{aspect-ratio:4/3!important;background:#dfe8f5!important}
+#videoMount .ms-mini-video{
+  position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
+  object-fit:cover!important;display:none!important;background:#07111f!important;z-index:1!important;
+}
+#videoMount .ms-participant-mini.has-live-preview .ms-mini-video{display:block!important}
+#videoMount .ms-participant-mini.has-live-preview .ms-mini-photo,
+#videoMount .ms-participant-mini.has-live-preview .ms-mini-initials{display:none!important}
+#videoMount .ms-mini-photo{z-index:0!important}
+#videoMount .ms-mini-initials{z-index:0!important}
+#videoMount .ms-mini-camera,
+#videoMount .ms-mini-mic{
+  position:absolute!important;bottom:4px!important;width:23px!important;height:23px!important;
+  display:grid!important;place-items:center!important;border-radius:999px!important;
+  border:1px solid rgba(255,255,255,.88)!important;color:#fff!important;
+  font-size:11px!important;line-height:1!important;z-index:3!important;
+  box-shadow:0 2px 7px rgba(0,0,0,.22)!important;
+}
+#videoMount .ms-mini-camera{left:4px!important;right:auto!important}
+#videoMount .ms-mini-mic{right:4px!important;left:auto!important}
+#videoMount .ms-participant-mini.camera-on .ms-mini-camera,
+#videoMount .ms-participant-mini.mic-on .ms-mini-mic{background:#07985d!important}
+#videoMount .ms-participant-mini.camera-off .ms-mini-camera,
+#videoMount .ms-participant-mini.mic-off .ms-mini-mic{background:#c9363f!important}
+#videoMount .ms-participant-mini.camera-off .ms-mini-camera::after{content:''!important}
+#videoMount .ms-participant-mini.camera-off:not(.has-live-preview) .ms-mini-avatar{
+  background:linear-gradient(145deg,#dde6f2,#f1f5fa)!important;
+}
+#videoMount .ms-participant-mini.role-teacher .ms-mini-avatar{outline:1px solid color-mix(in srgb,#1d8f64 34%,transparent)!important}
+#videoMount .ms-participant-mini.selected .ms-mini-avatar{box-shadow:inset 0 0 0 1px rgba(47,128,237,.18)!important}
+#videoMount .ms-participant-mini.speaking .ms-mini-mic{box-shadow:0 0 0 3px rgba(32,179,107,.18),0 2px 7px rgba(0,0,0,.22)!important}
+@media(max-width:680px){
+  #videoMount .ms-participant-mini{flex-basis:78px!important;width:78px!important;min-width:78px!important;padding:3px!important}
+  #videoMount .ms-mini-camera,#videoMount .ms-mini-mic{width:21px!important;height:21px!important;font-size:10px!important;bottom:3px!important}
+  #videoMount .ms-mini-camera{left:3px!important}
+  #videoMount .ms-mini-mic{right:3px!important}
+}
