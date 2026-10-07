@@ -1469,7 +1469,7 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
   }
 }
 async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div><button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
-async function startExamSignals(attemptId,policy={},onTerminate=()=>{}){
+async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflightStream=null){
   let camera=null,microphone=null,timer=null,detector=null,audioContext=null,analyser=null,busy=false,stopped=false,lastSound=0,turnStreak=0,missingStreak=0;
   document.body.classList.add('proctored-exam-active');
   const send=async type=>{
@@ -1500,16 +1500,19 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{}){
     return ratio>.46;
   };
   try{
-    camera=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:false});await send('camera_ready');
-    camera.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('camera_track_ended')},{once:true}));
+    if(preflightStream?.getVideoTracks?.().length)camera=new MediaStream(preflightStream.getVideoTracks());
+    else camera=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:false});
+    await send('camera_ready');camera.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('camera_track_ended')},{once:true}));
   }catch{await send('camera_unavailable')}
   try{
-    microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});await send('microphone_ready');
-    microphone.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('microphone_track_ended')},{once:true}));
+    if(preflightStream?.getAudioTracks?.().length)microphone=new MediaStream(preflightStream.getAudioTracks());
+    else microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+    await send('microphone_ready');microphone.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('microphone_track_ended')},{once:true}));
     const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioContext=new AC();analyser=audioContext.createAnalyser();analyser.fftSize=1024;audioContext.createMediaStreamSource(microphone).connect(analyser)}
   }catch{await send('microphone_unavailable')}
   if(camera){
-    const video=document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
+    const video=$('#proctorPreviewVideo')||document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
+    const status=$('#proctorCameraStatus');if(status)status.textContent='Kamera faol · yuzingiz markazda bo‘lsin';
     try{
       if(!window.FaceDetection){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-detection/face_detection.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
       const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
@@ -1542,7 +1545,7 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{}){
   }
   return ()=>{
     if(stopped&&document.body.classList.contains('proctored-exam-active')===false)return;
-    stopped=true;clearInterval(timer);detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});document.body.classList.remove('proctored-exam-active');
+    stopped=true;clearInterval(timer);detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});const pv=$('#proctorPreviewVideo');if(pv)pv.srcObject=null;document.body.classList.remove('proctored-exam-active');
     document.removeEventListener('visibilitychange',visibility);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('blur',blur);window.removeEventListener('offline',networkOffline);window.removeEventListener('online',networkOnline);window.removeEventListener('keydown',keydown,true);document.removeEventListener('copy',copyPaste,true);document.removeEventListener('cut',copyPaste,true);document.removeEventListener('paste',copyPaste,true);document.removeEventListener('contextmenu',contextmenu,true);
   };
 }
