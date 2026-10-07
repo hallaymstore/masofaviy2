@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, youtubeApiPromise=null, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -609,6 +609,72 @@ async function autoRejoinLesson(){
   $('#callRejoin')?.classList.remove('hidden');$('#connectionBanner')?.classList.remove('hidden');
   autoRejoinTimer=setTimeout(async()=>{autoRejoinTimer=null;await rejoinActiveLesson()},3000)
 }
+function formatFocusTime(sec){
+  sec=Math.max(0,Math.round(Number(sec)||0));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function proctorStateLabel(state){
+  return state==='present'?'Yuz bor':state==='away'?'Chetga qaradi':state==='missing'?'Yuz yo‘q':'Aniqlanmoqda';
+}
+function updateParticipantProctorIndicator(x){
+  if(!x?.userId)return;liveProctorStates.set(String(x.userId),x);
+  const row=document.querySelector('[data-attendance-student="'+CSS.escape(String(x.userId))+'"]');if(!row)return;
+  const badge=row.querySelector('[data-proctor-badge]'),meta=row.querySelector('[data-proctor-meta]');
+  if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=(x.cameraReady?'● ':'○ ')+proctorStateLabel(x.faceState)}
+  if(meta)meta.textContent='Yuz '+formatFocusTime(x.presentSeconds)+' / '+formatFocusTime(x.observedSeconds)+' · '+Math.round(Number(x.attentionPercent)||0)+'%';
+}
+async function startLiveLessonProctoring(){
+  await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStream=null;liveProctorTrack=null;
+  if(user?.role!=='student'||!activeLessonId)return false;
+  let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,state='unknown';
+  const emit=()=>{if(!stopped&&activeLessonId&&socket?.connected)socket.emit('lesson:proctor-state',{lessonId:activeLessonId,cameraReady:Boolean(liveProctorTrack?.readyState==='live'),faceState:state})};
+  try{
+    const camId=localStorage.getItem('m2-preferred-camera')||'',constraints={width:{ideal:960,max:1280},height:{ideal:540,max:720},frameRate:{ideal:12,max:15},facingMode:'user'};
+    if(camId)constraints.deviceId={ideal:camId};
+    stream=await navigator.mediaDevices.getUserMedia({video:constraints,audio:false});
+    liveProctorStream=stream;liveProctorTrack=stream.getVideoTracks()[0]||null;if(!liveProctorTrack)throw new Error('Kamera trek topilmadi');
+    mediaRoomClient?.setExternalCameraTrack?.(liveProctorTrack);
+    liveProctorTrack.addEventListener('ended',()=>{state='missing';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
+    video=document.createElement('video');video.srcObject=stream;video.muted=true;video.playsInline=true;video.width=320;video.height=180;await video.play();
+    try{
+      if(!window.FaceDetection){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/vendor/face-detection/face_detection.js';s.onload=resolve;s.onerror=reject;document.head.append(s)})}
+      const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
+      instance.onResults(result=>{
+        if(stopped)return;const faces=result.detections||[];
+        if(!faces.length){state='missing';return}
+        if(faces.length>1){state='away';return}
+        const d=faces[0],b=d.boundingBox;let away=false;
+        if(b&&Number.isFinite(b.xCenter)&&Number.isFinite(b.yCenter))away=Math.abs(b.xCenter-.5)>.24||Math.abs(b.yCenter-.5)>.24;
+        const pts=d.landmarks||d.keypoints||d.locationData?.relativeKeypoints||[];
+        if(Array.isArray(pts)&&pts.length>=3){
+          const px=v=>({x:Number(v?.x??v?.xCenter),y:Number(v?.y??v?.yCenter)}),a=px(pts[0]),bb=px(pts[1]),n=px(pts[2]);
+          if([a.x,bb.x,n.x].every(Number.isFinite)){const eye=Math.abs(a.x-bb.x),mid=(a.x+bb.x)/2;if(eye>.02&&Math.abs(n.x-mid)/eye>.46)away=true}
+        }
+        state=away?'away':'present';
+      });detector={kind:'mediapipe',instance};
+    }catch{
+      try{if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})}}catch{}
+    }
+    timer=setInterval(async()=>{
+      if(stopped||!video||video.readyState<2)return;
+      try{
+        if(detector?.kind==='mediapipe')await detector.instance.send({image:video});
+        else if(detector?.kind==='native'){
+          const faces=await detector.instance.detect(video);
+          if(!faces.length)state='missing';else if(faces.length>1)state='away';else{const b=faces[0].boundingBox,cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;state=(Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24)?'away':'present'}
+        }else state='unknown';
+      }catch{state='unknown'}
+    },1200);
+    heartbeat=setInterval(emit,5000);emit();toast('Dars proktoringi faol · video lokal tahlil qilinadi');
+    liveProctorStop=async()=>{
+      if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null;
+    };
+    return true;
+  }catch(e){
+    state='missing';emit();toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
+    liveProctorStop=async()=>{stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
+    return false;
+  }
+}
 async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
@@ -641,7 +707,9 @@ async function openConference(payload){
     if($('#videoQuality'))$('#videoQuality').value=ultraLiteUI?'240':(localStorage.getItem('m2-video-quality')||(lowEndUI?'240':'auto'));
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
-    studentCameraGranted=true;studentMicGranted=true;showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
+    studentCameraGranted=true;studentMicGranted=true;
+    if(user.role==='student')await startLiveLessonProctoring();
+    showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
     mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Media serverga ulanib bo‘lmadi</b><small>'+esc(e.message)+'</small><button id="retryMediaRoom" class="primary">Qayta ulanish</button></div>';
@@ -650,6 +718,7 @@ async function openConference(payload){
   hydrateIcons($('#lesson'));
 }
 async function leaveConference(back=true){
+  await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStates.clear();
   stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
