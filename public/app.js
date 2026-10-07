@@ -1345,7 +1345,7 @@ function connectSocket(){
     let active=false;
     try{
       if(!liveProctorTrack?.readyState||liveProctorTrack.readyState!=='live')await startLiveLessonProctoring();
-      if(liveProctorTrack?.readyState==='live'){await mediaRoomClient?.startCameraFromExternalTrack?.(liveProctorTrack);active=true}
+      if(liveProctorTrack?.readyState==='live'){await mediaRoomClient?.startCameraFromExternalTrack?.(liveProctorTrack,x.viewerUserId||'');active=true}
     }catch(e){toast('Tekshiruv kamerasini uzatib bo‘lmadi: '+e.message)}
     socket.emit('lesson:proctor-camera-result',{lessonId:activeLessonId,active});
   });
