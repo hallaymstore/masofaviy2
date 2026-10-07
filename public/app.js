@@ -613,7 +613,7 @@ function formatFocusTime(sec){
   sec=Math.max(0,Math.round(Number(sec)||0));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
 function proctorStateLabel(state){
-  return state==='present'?'Yuz bor':state==='away'?'Chetga qaradi':state==='missing'?'Yuz yo‘q':'Aniqlanmoqda';
+  return state==='present'?'Yuz bor':state==='away'?'E’tibor yo‘q':state==='missing'?'Yuz yo‘q':'Aniqlanmoqda';
 }
 function updateParticipantProctorIndicator(x){
   if(!x?.userId)return;liveProctorStates.set(String(x.userId),x);
@@ -625,23 +625,28 @@ function updateParticipantProctorIndicator(x){
 async function startLiveLessonProctoring(){
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStream=null;liveProctorTrack=null;
   if(user?.role!=='student'||!activeLessonId)return false;
-  let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,state='unknown';
-  const emit=()=>{if(!stopped&&activeLessonId&&socket?.connected)socket.emit('lesson:proctor-state',{lessonId:activeLessonId,cameraReady:Boolean(liveProctorTrack?.readyState==='live'),faceState:state})};
+  let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,faceState='unknown',pageActive=!document.hidden&&document.hasFocus();
+  const effectiveState=()=>pageActive?faceState:'away';
+  const emit=()=>{if(!stopped&&activeLessonId&&socket?.connected)socket.emit('lesson:proctor-state',{lessonId:activeLessonId,cameraReady:Boolean(liveProctorTrack?.readyState==='live'),faceState:effectiveState(),pageActive})};
+  const onVisibility=()=>{pageActive=!document.hidden&&document.hasFocus();emit()};
+  const onBlur=()=>{pageActive=false;emit()};
+  const onFocus=()=>{pageActive=!document.hidden;emit()};
+  document.addEventListener('visibilitychange',onVisibility);window.addEventListener('blur',onBlur);window.addEventListener('focus',onFocus);
   try{
     const camId=localStorage.getItem('m2-preferred-camera')||'',constraints={width:{ideal:960,max:1280},height:{ideal:540,max:720},frameRate:{ideal:12,max:15},facingMode:'user'};
     if(camId)constraints.deviceId={ideal:camId};
     stream=await navigator.mediaDevices.getUserMedia({video:constraints,audio:false});
     liveProctorStream=stream;liveProctorTrack=stream.getVideoTracks()[0]||null;if(!liveProctorTrack)throw new Error('Kamera trek topilmadi');
     mediaRoomClient?.setExternalCameraTrack?.(liveProctorTrack);
-    liveProctorTrack.addEventListener('ended',()=>{state='missing';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
+    liveProctorTrack.addEventListener('ended',()=>{faceState='missing';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
     video=document.createElement('video');video.srcObject=stream;video.muted=true;video.playsInline=true;video.width=320;video.height=180;await video.play();
     try{
       if(!window.FaceDetection){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/vendor/face-detection/face_detection.js';s.onload=resolve;s.onerror=reject;document.head.append(s)})}
       const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
       instance.onResults(result=>{
         if(stopped)return;const faces=result.detections||[];
-        if(!faces.length){state='missing';return}
-        if(faces.length>1){state='away';return}
+        if(!faces.length){faceState='missing';return}
+        if(faces.length>1){faceState='away';return}
         const d=faces[0],b=d.boundingBox;let away=false;
         if(b&&Number.isFinite(b.xCenter)&&Number.isFinite(b.yCenter))away=Math.abs(b.xCenter-.5)>.24||Math.abs(b.yCenter-.5)>.24;
         const pts=d.landmarks||d.keypoints||d.locationData?.relativeKeypoints||[];
@@ -660,18 +665,18 @@ async function startLiveLessonProctoring(){
         if(detector?.kind==='mediapipe')await detector.instance.send({image:video});
         else if(detector?.kind==='native'){
           const faces=await detector.instance.detect(video);
-          if(!faces.length)state='missing';else if(faces.length>1)state='away';else{const b=faces[0].boundingBox,cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;state=(Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24)?'away':'present'}
-        }else state='unknown';
-      }catch{state='unknown'}
+          if(!faces.length)faceState='missing';else if(faces.length>1)faceState='away';else{const b=faces[0].boundingBox,cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;state=(Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24)?'away':'present'}
+        }else faceState='unknown';
+      }catch{faceState='unknown'}
     },1200);
     heartbeat=setInterval(emit,5000);emit();toast('Dars proktoringi faol · video lokal tahlil qilinadi');
     liveProctorStop=async()=>{
-      if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null;
+      if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null;
     };
     return true;
   }catch(e){
-    state='missing';emit();toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
-    liveProctorStop=async()=>{stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
+    faceState='missing';emit();toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
+    liveProctorStop=async()=>{document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
     return false;
   }
 }
