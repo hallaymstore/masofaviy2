@@ -144,7 +144,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
       }
       if(video){
         const progress=VideoProgress?await VideoProgress.findOne({videoId:video._id,userId:req.user._id}).lean():null;
-        if(!progress?.completed)return res.status(409).json({message:'Avval “‘+video.title+'” videodarsini kamida 90% ko‘rib tugating',videoRequired:true,videoId:String(video._id),progress});
+        if(!progress?.completed)return res.status(409).json({message:'Avval “'+video.title+'” videodarsini kamida 90% ko‘rib tugating',videoRequired:true,videoId:String(video._id),progress});
       }
     }
     const count=await Attempt.countDocuments({quizId:quiz._id,studentId:req.user._id});if(count>=quiz.maxAttempts)return res.status(409).json({message:'Urinishlar tugagan'});
