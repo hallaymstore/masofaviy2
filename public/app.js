@@ -612,6 +612,18 @@ async function autoRejoinLesson(){
 function formatFocusTime(sec){
   sec=Math.max(0,Math.round(Number(sec)||0));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
+const FACE_DETECTION_CDN='https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229/';
+let faceDetectionLoader=null;
+async function loadMediaPipeFaceDetection(){
+  if(window.FaceDetection)return window.FaceDetection;
+  if(faceDetectionLoader)return faceDetectionLoader;
+  faceDetectionLoader=new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-m2-face-detection]');
+    if(existing){existing.addEventListener('load',()=>resolve(window.FaceDetection),{once:true});existing.addEventListener('error',()=>reject(new Error('Yuz detektori yuklanmadi')),{once:true});return}
+    const s=document.createElement('script');s.src=FACE_DETECTION_CDN+'face_detection.js';s.async=true;s.crossOrigin='anonymous';s.dataset.m2FaceDetection='1';s.onload=()=>window.FaceDetection?resolve(window.FaceDetection):reject(new Error('Yuz detektori ishga tushmadi'));s.onerror=()=>reject(new Error('Yuz detektori yuklanmadi'));document.head.appendChild(s);
+  });
+  return faceDetectionLoader;
+}
 function proctorStateLabel(state){
   return state==='present'?'Yuz bor':state==='away'?'E’tibor yo‘q':state==='missing'?'Yuz yo‘q':'Aniqlanmoqda';
 }
@@ -651,9 +663,12 @@ async function startLiveLessonProctoring(){
     liveProctorTrack.addEventListener('ended',()=>{faceState='missing';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
     video=document.createElement('video');video.srcObject=stream;video.muted=true;video.playsInline=true;video.width=320;video.height=180;await video.play();
     try{
-      if(!window.FaceDetection){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/vendor/face-detection/face_detection.js';s.onload=resolve;s.onerror=reject;document.head.append(s)})}
-      const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
-      instance.onResults(result=>{
+      if('FaceDetector' in window){
+        detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
+      }else{
+        const FaceDetection=await loadMediaPipeFaceDetection();
+        const instance=new FaceDetection({locateFile:file=>FACE_DETECTION_CDN+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
+        instance.onResults(result=>{
         if(stopped)return;const faces=result.detections||[];
         if(!faces.length){faceState='missing';return}
         if(faces.length>1){faceState='away';return}
@@ -665,10 +680,9 @@ async function startLiveLessonProctoring(){
           if([a.x,bb.x,n.x].every(Number.isFinite)){const eye=Math.abs(a.x-bb.x),mid=(a.x+bb.x)/2;if(eye>.02&&Math.abs(n.x-mid)/eye>.46)away=true}
         }
         faceState=away?'away':'present';
-      });detector={kind:'mediapipe',instance};
-    }catch{
-      try{if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})}}catch{}
-    }
+        });detector={kind:'mediapipe',instance};
+      }
+    }catch{detector=null}
     if(!detector)throw new Error('Yuzni aniqlash moduli ishga tushmadi');
     timer=setInterval(async()=>{
       if(stopped||!video||video.readyState<2)return;
@@ -1639,9 +1653,12 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
     const video=$('#proctorPreviewVideo')||document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
     const status=$('#proctorCameraStatus');if(status)status.textContent='Kamera faol · yuzingiz markazda bo‘lsin';
     try{
-      if(!window.FaceDetection){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-detection/face_detection.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
-      const instance=new window.FaceDetection({locateFile:file=>'/vendor/face-detection/'+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
-      instance.onResults(result=>{
+      if('FaceDetector' in window){
+        detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
+      }else{
+        const FaceDetection=await loadMediaPipeFaceDetection();
+        const instance=new FaceDetection({locateFile:file=>FACE_DETECTION_CDN+file});instance.setOptions({model:'short',minDetectionConfidence:0.62});
+        instance.onResults(result=>{
         if(stopped)return;const faces=result.detections||[],n=faces.length,status=$('#proctorCameraStatus'),box=$('.proctor-camera-box');
         if(n===0){if(status)status.textContent='⚠ Yuz ko‘rinmayapti';box?.classList.add('warning');missingStreak++;turnStreak=0;if(missingStreak>=2){send('face_missing');missingStreak=0}}
         else{missingStreak=0}
@@ -1652,10 +1669,9 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
           if(mediaPipeOffCenter(faces[0]))send('face_off_center');
           if(mediaPipeTurned(faces[0])){turnStreak++;if(turnStreak>=2){send('face_turned');turnStreak=0}}else turnStreak=0;
         }
-      });detector={kind:'mediapipe',instance};
-    }catch{
-      try{if('FaceDetector'in window)detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};else throw Error()}catch{send('face_detector_unavailable')}
-    }
+        });detector={kind:'mediapipe',instance};
+      }
+    }catch{send('face_detector_unavailable')}
     timer=setInterval(async()=>{
       if(stopped||busy)return;busy=true;
       try{
