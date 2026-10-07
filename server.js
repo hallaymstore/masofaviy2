@@ -381,7 +381,7 @@ app.use('/api',async(req,res,next)=>{
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
 installCompliance(app,{mongoose,User,auth,audit});
 
-app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString() }));
+app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString(), faceDetectionAssets:fs.existsSync(path.resolve('public/vendor/face-detection/face_detection.js'))&&fs.existsSync(path.resolve('public/vendor/face-detection/face_detection_solution_wasm_bin.wasm')) }));
 app.get('/api/branding', async(_req,res)=>{
   try{res.json(await getBranding())}catch{res.json({...DEFAULT_BRANDING})}
 });
