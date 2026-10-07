@@ -1448,7 +1448,7 @@ socket.on('lesson:proctor-camera-request',async({lessonId,userId})=>{
     const prev=liveProctorBroadcastByLesson.get(String(lessonId));
     if(prev&&String(prev)!==String(userId))for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(prev))s.emit('lesson:proctor-camera-stop',{lessonId,by:socket.user.fullName});
     liveProctorBroadcastByLesson.set(String(lessonId),String(userId));
-    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId)&&s.user?.role==='student')s.emit('lesson:proctor-camera-request',{lessonId,by:socket.user.fullName});
+    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId)&&s.user?.role==='student')s.emit('lesson:proctor-camera-request',{lessonId,by:socket.user.fullName,viewerUserId:String(socket.user._id)});
   }catch{}
 });
 socket.on('lesson:proctor-camera-result',async({lessonId,active})=>{
