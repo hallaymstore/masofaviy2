@@ -1421,11 +1421,18 @@ socket.on('camera:enable-result',async({lessonId,accepted})=>{
 socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
-    const state=['present','away','missing'].includes(faceState)?faceState:'unknown',now=new Date(),key=String(lessonId)+':'+String(socket.user._id),prev=liveProctorStates.get(key),delta=prev?.at?Math.max(0,Math.min(10,Math.round((now-new Date(prev.at))/1000))):0;
+    const state=['present','away','missing'].includes(faceState)?faceState:'unknown',now=new Date(),key=String(lessonId)+':'+String(socket.user._id),prev=liveProctorStates.get(key),delta=prev?.at?Math.max(0,Math.min(10,Math.round((now-new Date(prev.at))/1000))):0,previousState=prev?.faceState||'unknown';
     const next={cameraReady:Boolean(cameraReady),faceState:state,at:now};liveProctorStates.set(key,next);
     let attendanceRow=null;
     if(socket.data.attendanceId){
-      const inc={};if(delta>0){inc.proctorObservedSeconds=delta;if(state==='present')inc.proctorFacePresentSeconds=delta;else if(state==='away')inc.proctorFaceAwaySeconds=delta;else if(state==='missing')inc.proctorFaceMissingSeconds=delta;if(state!=='present')inc.proctorViolations=1}
+      const inc={};
+      if(delta>0){
+        inc.proctorObservedSeconds=delta;
+        if(previousState==='present')inc.proctorFacePresentSeconds=delta;
+        else if(previousState==='away')inc.proctorFaceAwaySeconds=delta;
+        else if(previousState==='missing')inc.proctorFaceMissingSeconds=delta;
+      }
+      if(state!=='present'&&state!=='unknown'&&state!==previousState)inc.proctorViolations=(inc.proctorViolations||0)+1;
       const update={$set:{proctorCameraReady:Boolean(cameraReady),proctorFaceState:state,proctorLastAt:now}};if(Object.keys(inc).length)update.$inc=inc;attendanceRow=await Attendance.findByIdAndUpdate(socket.data.attendanceId,update,{new:true}).lean();
     }
     const observed=Number(attendanceRow?.proctorObservedSeconds||0),present=Number(attendanceRow?.proctorFacePresentSeconds||0);
