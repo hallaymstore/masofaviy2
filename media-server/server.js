@@ -220,6 +220,7 @@ async function handleRequest(ws,msg){
         if(p.kind==='audio')claimAudioFloor(peer.room,peer,p.id);
         await p.resume();
       }
+      if(p.kind==='video')broadcastProducer(peer.room,'producerState',p,peer,{producerId:p.id,peerId:peer.id,kind:p.kind,mediaTag:p.appData?.mediaTag||'',paused:method==='pauseProducer'});
       reply(ws,clientId,id,true,{ok:true,audioFloor:peer.room.audioFloor||null});return;
     }
     if(method==='closeProducer'){
