@@ -740,7 +740,7 @@ async function openConference(payload){
           const now=Date.now();
           if(now-lastRoomFeedbackAlertAt>900){
             lastRoomFeedbackAlertAt=now;
-            socket.emit('lesson:feedback-alert',{lessonId:activeLessonId,frequency:Number(state.feedbackFrequency)||0,duration:3800});
+            socket.emit('lesson:feedback-alert',{lessonId:activeLessonId,frequency:Number(state.feedbackFrequency)||0,duration:120000});
           }
         }
         if(state.transport){const bad=['failed','disconnected'].includes(state.state);$('#connectionBanner')?.classList.toggle('hidden',!bad);if(bad)autoRejoinLesson();}
@@ -972,7 +972,7 @@ $('#callCamera').onclick=async()=>{
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
-$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const enabled=!$('#echoGuard').classList.contains('active-control');mediaRoomClient.setEchoGuard(enabled);toast(enabled?'Echo himoya yoqildi':'Diqqat: echo himoya o‘chirildi. Yaqin qurilmalarda chiyillash xavfi oshadi.')});
+$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');mediaRoomClient.setEchoGuard(true);$('#echoGuard').classList.add('active-control');toast('Echo va chiyillashga qarshi himoya doimiy yoqilgan')});
 $('#callChat').onclick=()=>showLessonSide('chat');
 function applyInclusivePrefs(){
   document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
@@ -1376,8 +1376,8 @@ function connectSocket(){
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('lesson:feedback-protect',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||!mediaRoomClient)return;
-    const applied=mediaRoomClient.engageCoordinatedFeedbackGuard?.(x.duration||3800,x.frequency||0);
-    if(applied)toast(x.escalated?'Yaqin qurilmalar feedbacki · 15 soniya himoya rejimi':'Kuchli feedback aniqlandi · ovoz halqasi avtomatik to‘xtatildi');
+    const applied=mediaRoomClient.engageCoordinatedFeedbackGuard?.(x.duration||120000,x.frequency||0);
+    if(applied)toast(x.escalated?'Yaqin qurilmalar aniqlandi · 10 daqiqa zero-feedback rejimi':'Feedback to‘xtatildi · 2 daqiqa zero-feedback rejimi');
   });
   socket.on('lesson:proctor-state',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
