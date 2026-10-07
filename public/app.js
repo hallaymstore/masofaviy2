@@ -622,6 +622,15 @@ function updateParticipantProctorIndicator(x){
   if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=x.cameraReady?('● '+proctorStateLabel(x.faceState)):'○ Kamera yo‘q'}
   if(meta)meta.textContent='Yuz '+formatFocusTime(x.presentSeconds)+' / '+formatFocusTime(x.observedSeconds)+' · '+Math.round(Number(x.attentionPercent)||0)+'%';
 }
+function refreshLiveProctorSummary(){
+  let face=0,low=0;
+  for(const x of liveProctorStates.values()){
+    if(x?.cameraReady&&x.faceState==='present')face++;
+    if(Number(x?.observedSeconds||0)>=30&&Number(x?.attentionPercent||0)<60)low++;
+  }
+  const a=document.querySelector('[data-live-face-count]'),b=document.querySelector('[data-live-attention-low]');
+  if(a)a.textContent=String(face);if(b)b.textContent=String(low);
+}
 async function startLiveLessonProctoring(){
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStream=null;liveProctorTrack=null;
   if(user?.role!=='student'||!activeLessonId)return false;
@@ -763,8 +772,8 @@ async function loadLessonParticipants(){
     const summary='<div class="attendance-summary">'+
       '<span><b>'+counts.total+'</b><small>Jami</small></span>'+
       '<span><b>'+counts.online+'</b><small>Onlayn</small></span>'+
-      '<span><b>'+counts.face+'</b><small>Yuz faol</small></span>'+
-      '<span><b>'+counts.attentionLow+'</b><small>E’tibor past</small></span>'+
+      '<span><b data-live-face-count>'+counts.face+'</b><small>Yuz faol</small></span>'+
+      '<span><b data-live-attention-low>'+counts.attentionLow+'</b><small>E’tibor past</small></span>'+
       '<span><b>'+counts.late+'</b><small>Kechikkan</small></span>'+
       '<span><b>'+counts.absent+'</b><small>Yo‘q</small></span>'+
     '</div>';
@@ -1328,7 +1337,7 @@ function connectSocket(){
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('lesson:proctor-state',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
-    if(user.role==='teacher'||can('live.manage')||can('lessons.monitor'))updateParticipantProctorIndicator(x);
+    if(user.role==='teacher'||can('live.manage')||can('lessons.monitor')){updateParticipantProctorIndicator(x);refreshLiveProctorSummary()}
   });
   socket.on('lesson:proctor-camera-request',async function(x){
     if(!activeLessonId||user.role!=='student'||String(x.lessonId)!==String(activeLessonId))return;
