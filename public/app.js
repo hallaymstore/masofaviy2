@@ -788,11 +788,12 @@ async function loadLessonParticipants(){
     $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true)});
     $('#attendanceSave')?.addEventListener('click',saveManualAttendance);
     const spotlightUser=id=>{if(!id)return;socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:id});mediaRoomClient?.pinUser?.(String(id));toast('Asosiy ekranga chiqarildi')};
+    const inspectUser=id=>{if(!id)return;if(user.role==='teacher'||can('live.manage')||can('lessons.monitor')){socket?.emit('lesson:proctor-camera-request',{lessonId:activeLessonId,userId:id});toast('Talaba kamerasi vaqtincha tekshiruv uchun ochilmoqda')}else spotlightUser(id)};
     all('[data-spotlight-user]').forEach(b=>b.onclick=e=>{e.stopPropagation();spotlightUser(b.dataset.spotlightUser)});
-    all('[data-proctor-camera-user]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=b.dataset.proctorCameraUser;if(!id)return;socket?.emit('lesson:proctor-camera-request',{lessonId:activeLessonId,userId:id});toast('Talaba kamerasiga vaqtinchalik ko‘rish so‘rovi yuborildi')});
+    all('[data-proctor-camera-user]').forEach(b=>b.onclick=e=>{e.stopPropagation();inspectUser(b.dataset.proctorCameraUser)});
     all('#lessonParticipants [data-focus-user]').forEach(row=>{
-      row.onclick=e=>{if(e.target.closest('input,select,button,label'))return;spotlightUser(row.dataset.focusUser)};
-      row.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('input,select,button,label')){e.preventDefault();spotlightUser(row.dataset.focusUser)}};
+      row.onclick=e=>{if(e.target.closest('input,select,button,label'))return;inspectUser(row.dataset.focusUser)};
+      row.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('input,select,button,label')){e.preventDefault();inspectUser(row.dataset.focusUser)}};
     });
   }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
