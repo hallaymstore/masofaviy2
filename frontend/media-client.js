@@ -347,6 +347,7 @@ export class MediaRoomClient{
     this.onState({halfDuplex:false,zeroFeedback:true});
   }
   floorBusyForMe(){
+    if(!this.proximityGuard)return false;
     const mine=String(this.room?.peerId||'');
     return Boolean(this.audioFloor?.active&&String(this.audioFloor?.peerId||'')!==mine);
   }
