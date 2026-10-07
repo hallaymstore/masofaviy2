@@ -50,7 +50,7 @@ export class MediaRoomClient{
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera',id=ignoreDevice?'':localStorage.getItem(key);
     if(kind==='audio'){
-      const a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05},advanced:[{echoCancellation:true,noiseSuppression:true,autoGainControl:true},{googEchoCancellation:true,googEchoCancellation2:true,googNoiseSuppression:true,googNoiseSuppression2:true,googAutoGainControl:true,googAutoGainControl2:true,googHighpassFilter:true,googTypingNoiseDetection:true}]};const supported=navigator.mediaDevices?.getSupportedConstraints?.()||{};if(supported.voiceIsolation)a.voiceIsolation={ideal:true};
+      const agc=!this.echoGuard,a={echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:agc},channelCount:{ideal:1,max:1},sampleRate:{ideal:this.ultraLite?32000:48000,max:48000},sampleSize:{ideal:16},latency:{ideal:0.01,max:0.05},advanced:[{echoCancellation:true,noiseSuppression:true,autoGainControl:agc},{googEchoCancellation:true,googEchoCancellation2:true,googNoiseSuppression:true,googNoiseSuppression2:true,googAutoGainControl:agc,googAutoGainControl2:agc,googHighpassFilter:true,googTypingNoiseDetection:true}]};const supported=navigator.mediaDevices?.getSupportedConstraints?.()||{};if(supported.voiceIsolation)a.voiceIsolation={ideal:true};
       return id?{deviceId:{ideal:id},...a}:a;
     }
     const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
@@ -269,16 +269,18 @@ export class MediaRoomClient{
       const ctx=this.audioCtx||(this.audioCtx=new AC({latencyHint:'interactive',sampleRate:this.ultraLite?32000:48000}));
       if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
       const srcStream=new MediaStream([rawTrack]),source=ctx.createMediaStreamSource(srcStream);
-      const high=ctx.createBiquadFilter();high.type='highpass';high.frequency.value=110;high.Q.value=.7;
-      const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=this.ultraLite?9000:12000;low.Q.value=.5;
-      const comp=ctx.createDynamicsCompressor();comp.threshold.value=-30;comp.knee.value=18;comp.ratio.value=4;comp.attack.value=.003;comp.release.value=.16;
-      const gain=ctx.createGain();gain.gain.value=.86;
-      const analyser=ctx.createAnalyser();analyser.fftSize=1024;analyser.smoothingTimeConstant=.55;
+      const high=ctx.createBiquadFilter();high.type='highpass';high.frequency.value=120;high.Q.value=.72;
+      const notch1=ctx.createBiquadFilter();notch1.type='notch';notch1.frequency.value=1200;notch1.Q.value=28;
+      const notch2=ctx.createBiquadFilter();notch2.type='notch';notch2.frequency.value=2400;notch2.Q.value=24;
+      const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=this.ultraLite?8500:10500;low.Q.value=.55;
+      const comp=ctx.createDynamicsCompressor();comp.threshold.value=-34;comp.knee.value=12;comp.ratio.value=10;comp.attack.value=.0015;comp.release.value=.09;
+      const gain=ctx.createGain();gain.gain.value=.78;
+      const analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.48;
       const dest=ctx.createMediaStreamDestination();
-      source.connect(high);high.connect(low);low.connect(comp);comp.connect(gain);gain.connect(analyser);analyser.connect(dest);
+      source.connect(high);high.connect(notch1);notch1.connect(notch2);notch2.connect(low);low.connect(comp);comp.connect(gain);gain.connect(analyser);analyser.connect(dest);
       const track=dest.stream.getAudioTracks()[0];if(!track)return {track:rawTrack,rawTrack,processed:false};
       try{track.contentHint='speech'}catch{}
-      this.micAudioChain={ctx,source,high,low,comp,gain,analyser,dest,rawTrack,track};
+      this.micAudioChain={ctx,source,high,notch1,notch2,low,comp,gain,analyser,dest,rawTrack,track,feedbackFreq:0};
       this.startFeedbackMonitor();
       return {track,rawTrack,processed:true};
     }catch(e){return {track:rawTrack,rawTrack,processed:false}}
@@ -296,10 +298,12 @@ export class MediaRoomClient{
       for(let i=6;i<bins.length;i++){avg+=bins[i];if(bins[i]>peak){peak=bins[i];peakIdx=i}}
       avg/=Math.max(1,bins.length-6);
       const freq=peakIdx*(a.context.sampleRate/a.fftSize);
-      const tonal=peak>195&&peak-avg>78&&freq>700&&freq<7600&&rms>.10;
+      const tonal=peak>188&&peak-avg>68&&freq>520&&freq<8200&&rms>.075;
       if(tonal){
+        this.tuneFeedbackNotches(freq);
         if(!this.feedbackToneSince)this.feedbackToneSince=Date.now();
-        if(Date.now()-this.feedbackToneSince>260)this.triggerFeedbackGuard(4200,true);
+        const held=Date.now()-this.feedbackToneSince;
+        if(held>140)this.triggerFeedbackGuard(3000,true,freq);
       }else this.feedbackToneSince=0;
     },120);
   }
@@ -311,6 +315,26 @@ export class MediaRoomClient{
     const g=this.micAudioChain?.gain;if(!g)return;
     const now=g.context.currentTime;
     try{g.gain.cancelScheduledValues(now);g.gain.setTargetAtTime(value,now,seconds)}catch{g.gain.value=value}
+  }
+  tuneFeedbackNotches(freq){
+    const chain=this.micAudioChain;if(!chain?.notch1||!Number.isFinite(Number(freq)))return;
+    const f=Math.max(420,Math.min(8200,Number(freq))),now=chain.ctx.currentTime;
+    try{
+      chain.notch1.frequency.setTargetAtTime(f,now,.012);chain.notch1.Q.setTargetAtTime(32,now,.02);
+      const harmonic=Math.min(9800,f*2);chain.notch2.frequency.setTargetAtTime(harmonic,now,.014);chain.notch2.Q.setTargetAtTime(26,now,.02);
+      chain.feedbackFreq=f;
+    }catch{chain.notch1.frequency.value=f;chain.notch2.frequency.value=Math.min(9800,f*2);chain.feedbackFreq=f}
+  }
+  applyFastFeedbackGate(severe=false){
+    const g=this.micAudioChain?.gain;if(!g)return;
+    const now=g.context.currentTime;
+    try{
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(Math.max(.02,Math.min(.9,g.gain.value||.78)),now);
+      g.gain.linearRampToValueAtTime(severe?.035:.18,now+.018);
+      g.gain.setTargetAtTime(severe?.30:.48,now+.12,.09);
+      g.gain.setTargetAtTime(.72,now+1.35,.28);
+    }catch{g.gain.value=severe?.18:.4}
   }
     enterZeroFeedbackMode(){
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
@@ -436,7 +460,7 @@ export class MediaRoomClient{
     const p=this.producers.get(tag);if(!p)return;
     try{await this.request('closeProducer',{producerId:p.id})}catch{}
     try{p.close()}catch{};try{p.track?.stop()}catch{};this.producers.delete(tag);
-    if(tag==='mic'){this.stopFeedbackMonitor();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.setMicGuardGain?.(.86);this.refreshRemoteAudioVolume()}
+    if(tag==='mic'){this.stopFeedbackMonitor();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.setMicGuardGain?.(.72);this.refreshRemoteAudioVolume()}
     if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}}
     if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip')}
   }
@@ -542,13 +566,16 @@ export class MediaRoomClient{
       try{a.muted=false;a.volume=this.computeRemoteAudioVolume(a.dataset.role||'');a.dataset.hardMuted='0';a.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})})}catch{}
     });
   }
-  triggerFeedbackGuard(ms=4500,severe=false){
-    this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,Date.now()+ms);
-    if(severe)this.setMicGuardGain(.12,.01);else this.setMicGuardGain(.34,.03);
+  triggerFeedbackGuard(ms=3000,severe=false,freq=0){
+    const now=Date.now();
+    if(now<(this.lastFeedbackGuardAt||0)+220)return;
+    this.lastFeedbackGuardAt=now;this.feedbackRiskUntil=Math.max(this.feedbackRiskUntil,now+ms);
+    if(freq)this.tuneFeedbackNotches(freq);
+    this.applyFastFeedbackGate(severe);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{try{a.muted=true;a.volume=0;a.pause();a.dataset.hardMuted='1'}catch{}});
     clearTimeout(this.feedbackGuardTimer);
-    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.86,.24);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+180);
-    this.onState({feedbackGuard:true,severeFeedback:Boolean(severe),halfDuplex:true});
+    this.feedbackGuardTimer=setTimeout(()=>{this.setMicGuardGain(.72,.22);this.refreshRemoteAudioVolume();this.onState({feedbackGuard:false})},ms+120);
+    this.onState({feedbackGuard:true,severeFeedback:Boolean(severe),feedbackFrequency:Math.round(Number(freq)||0),halfDuplex:true});
   }
   setEchoGuard(enabled){
     this.echoGuard=Boolean(enabled);localStorage.setItem('m2-echo-guard',this.echoGuard?'1':'0');this.refreshRemoteAudioVolume();this.onState({echoGuard:this.echoGuard});
