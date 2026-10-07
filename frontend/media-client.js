@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=localStorage.getItem('m2-echo-guard')!=='0';this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.selectedStagePeerId='';
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -41,8 +41,8 @@ export class MediaRoomClient{
   }
   handleEvent(msg){
     if(!msg?.event)return;
-    if(msg.event==='newProducer')this.maybeConsume(msg.data).catch(this.onError);
-    else if(msg.event==='producerClosed')this.closeConsumerByProducer(msg.data?.producerId);
+    if(msg.event==='newProducer'){this.applyProducerPresence(msg.data||{},true);this.maybeConsume(msg.data).catch(this.onError)}
+    else if(msg.event==='producerClosed'){this.applyProducerPresence(msg.data||{},false);this.closeConsumerByProducer(msg.data?.producerId)}
     else if(msg.event==='producerState')this.applyProducerState(msg.data||{});
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
@@ -140,13 +140,13 @@ export class MediaRoomClient{
   participantInitials(user={}){
     return String(user.fullName||user.login||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'?';
   }
-  upsertParticipantCard(peerId,user={},local=false){
+  upsertParticipantCard(peerId,user={},local=false,media={}){
     const id=String(peerId||'');if(!id||id.includes(':screen')||!this.participantStrip)return null;
     let card=this.participantCards.get(id);
     if(!card){
-      card=el('button',{className:'ms-participant-mini camera-off',type:'button'});card.dataset.peerId=id;card.setAttribute('role','listitem');
-      const avatar=el('span',{className:'ms-mini-avatar'}),img=el('img',{className:'ms-mini-photo',alt:''}),initials=el('span',{className:'ms-mini-initials'}),camera=el('span',{className:'ms-mini-camera','aria-label':'Kamera o‘chiq'}),text=el('span',{className:'ms-mini-text'}),name=el('b'),role=el('small');
-      camera.textContent='📷';text.append(name,role);avatar.append(img,initials,camera);card.append(avatar,text);
+      card=el('button',{className:'ms-participant-mini camera-off mic-off',type:'button'});card.dataset.peerId=id;card.setAttribute('role','listitem');
+      const avatar=el('span',{className:'ms-mini-avatar'}),preview=el('video',{autoplay:true,playsInline:true,muted:true}),img=el('img',{className:'ms-mini-photo',alt:''}),initials=el('span',{className:'ms-mini-initials'}),camera=el('span',{className:'ms-mini-camera','aria-label':'Kamera o‘chiq'}),mic=el('span',{className:'ms-mini-mic','aria-label':'Mikrofon o‘chiq'}),text=el('span',{className:'ms-mini-text'}),name=el('b'),role=el('small');
+      preview.className='ms-mini-video';camera.textContent='📷';mic.textContent='🔇';text.append(name,role);avatar.append(preview,img,initials,camera,mic);card.append(avatar,text);
       card.addEventListener('click',()=>this.selectStagePeer(card.dataset.peerId));
       this.participantStrip.appendChild(card);this.participantCards.set(id,card);
     }
@@ -155,26 +155,52 @@ export class MediaRoomClient{
     if(initials)initials.textContent=this.participantInitials(user);
     if(img){const src=String(user.avatarUrl||'');img.src=src;img.classList.toggle('has-photo',Boolean(src));}
     card.classList.toggle('role-teacher',user.role==='teacher');card.classList.toggle('role-student',user.role==='student');card.classList.toggle('is-local',Boolean(local));
-    const tile=this.participantTile(id);this.updateParticipantCardCamera(id,Boolean(tile?.classList.contains('has-video')));
+    const remembered=this.participantMediaState.get(id)||{},cameraOn=typeof media?.cameraOn==='boolean'?media.cameraOn:(typeof remembered.cameraOn==='boolean'?remembered.cameraOn:Boolean(this.participantTile(id)?.classList.contains('has-video'))),micOn=typeof media?.micOn==='boolean'?media.micOn:Boolean(remembered.micOn);
+    this.participantMediaState.set(id,{cameraOn:Boolean(cameraOn),micOn:Boolean(micOn)});
+    this.updateParticipantCardCamera(id,Boolean(cameraOn));this.updateParticipantCardMic(id,Boolean(micOn));
     this.refreshParticipantCardSelection();return card;
   }
   syncParticipantTiles(participants=[]){
     const rows=Array.isArray(participants)?participants:[],alive=new Set();
     for(const row of rows){
       const peerId=String(row?.peerId||'');if(!peerId)continue;alive.add(peerId);
-      const u=row?.user||{},local=peerId===String(this.room?.peerId||'');
-      if(local){const tile=this.tiles.get('local');if(tile){tile.dataset.userId=String(u.id||this.user?.id||'');tile.dataset.role=u.role||this.user?.role||'';}this.upsertParticipantCard(peerId,{...this.user,...u},true);}
-      else{this.ensureTile(peerId,u,false);this.upsertParticipantCard(peerId,u,false);}
+      const u=row?.user||{},local=peerId===String(this.room?.peerId||''),media=row?.media||{};
+      if(local){const tile=this.tiles.get('local');if(tile){tile.dataset.userId=String(u.id||this.user?.id||'');tile.dataset.role=u.role||this.user?.role||'';}this.upsertParticipantCard(peerId,{...this.user,...u},true,media);}
+      else{this.ensureTile(peerId,u,false);this.upsertParticipantCard(peerId,u,false,media);}
     }
-    for(const [id,card] of [...this.participantCards])if(!alive.has(id)){card.remove();this.participantCards.delete(id)}
+    for(const [id,card] of [...this.participantCards])if(!alive.has(id)){card.remove();this.participantCards.delete(id);this.participantMediaState.delete(id)}
     if(this.viewMode==='speaker'&&!this.selectedStagePeerId){
       const preferred=rows.find(x=>x?.user?.role==='teacher')||rows[0];if(preferred?.peerId)this.selectStagePeer(String(preferred.peerId),false);
     }else this.refreshParticipantCardSelection();
   }
+  syncParticipantCardVideo(peerId){
+    const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
+    const preview=qs('.ms-mini-video',card),tile=this.participantTile(id),source=tile?qs('video',tile):null,on=card.classList.contains('camera-on');
+    if(preview&&on&&source?.srcObject){
+      if(preview.srcObject!==source.srcObject)preview.srcObject=source.srcObject;
+      card.classList.add('has-live-preview');preview.play().catch(()=>{});
+    }else if(preview){
+      preview.srcObject=null;card.classList.remove('has-live-preview');
+    }
+  }
   updateParticipantCardCamera(peerId,on){
-    const card=this.participantCards.get(String(peerId||''));if(!card)return;
+    const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
+    const prev=this.participantMediaState.get(id)||{};this.participantMediaState.set(id,{...prev,cameraOn:Boolean(on)});
     card.classList.toggle('camera-on',Boolean(on));card.classList.toggle('camera-off',!on);
-    const icon=qs('.ms-mini-camera',card);if(icon){icon.textContent=on?'●':'📷';icon.setAttribute('aria-label',on?'Kamera yoqilgan':'Kamera o‘chiq');}
+    const icon=qs('.ms-mini-camera',card);if(icon){icon.textContent=on?'📹':'📷';icon.setAttribute('aria-label',on?'Kamera yoqilgan':'Kamera o‘chiq');}
+    this.syncParticipantCardVideo(id);
+  }
+  updateParticipantCardMic(peerId,on){
+    const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
+    const prev=this.participantMediaState.get(id)||{};this.participantMediaState.set(id,{...prev,micOn:Boolean(on)});
+    card.classList.toggle('mic-on',Boolean(on));card.classList.toggle('mic-off',!on);
+    const icon=qs('.ms-mini-mic',card);if(icon){icon.textContent=on?'🎙':'🔇';icon.setAttribute('aria-label',on?'Mikrofon yoqilgan':'Mikrofon o‘chiq');}
+  }
+  applyProducerPresence(meta={},present=true){
+    const peerId=String(meta.peerId||'');if(!peerId||meta.appData?.mediaTag==='screen'||meta.mediaTag==='screen')return;
+    const paused=Boolean(meta.paused),on=Boolean(present&&!paused);
+    if(meta.kind==='video')this.updateParticipantCardCamera(peerId,on);
+    if(meta.kind==='audio')this.updateParticipantCardMic(peerId,on);
   }
   refreshParticipantCardSelection(){
     for(const [id,card] of this.participantCards)card.classList.toggle('selected',String(id)===String(this.selectedStagePeerId||''));
@@ -413,7 +439,7 @@ export class MediaRoomClient{
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));
-      this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
+      this.updateParticipantCardMic(this.room?.peerId,true);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda mikrofon ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Mikrofon ochilmadi: '+msg));this.onState({mic:false});this.exitZeroFeedbackMode();return false;
@@ -428,12 +454,12 @@ export class MediaRoomClient{
       try{
         await this.request('resumeProducer',{producerId:p.id});
         p.track.enabled=true;p.resume();
-        this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true
+        this.updateParticipantCardMic(this.room?.peerId,true);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true
       }catch(e){
         p.track.enabled=false;this.exitZeroFeedbackMode();this.onError(e);return false
       }
     }
-    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.clearFeedbackProtection();this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
+    p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.updateParticipantCardMic(this.room?.peerId,false);this.clearFeedbackProtection();this.exitZeroFeedbackMode();this.refreshRemoteAudioVolume();this.onState({mic:false,halfDuplex:false,zeroFeedback:false});return false;
   }
   setExternalCameraTrack(track){
     this.externalCameraTrack=track?.readyState==='live'?track:null;
@@ -490,7 +516,7 @@ export class MediaRoomClient{
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
   attachLocalVideo(track){
-    const tile=this.ensureTile('local',{fullName:this.user.fullName,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');this.updateParticipantCardCamera(this.room?.peerId,true);
+    const tile=this.ensureTile('local',{fullName:this.user.fullName,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');this.updateParticipantCardCamera(this.room?.peerId,true);this.syncParticipantCardVideo(this.room?.peerId);
   }
   async toggleScreen(){
     const p=this.producers.get('screen');
@@ -512,7 +538,7 @@ export class MediaRoomClient{
     const p=this.producers.get(tag);if(!p)return;
     try{await this.request('closeProducer',{producerId:p.id})}catch{}
     try{p.close()}catch{};try{p.track?.stop()}catch{};this.producers.delete(tag);
-    if(tag==='mic'){this.stopFeedbackMonitor();this.clearFeedbackProtection();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.refreshRemoteAudioVolume()}
+    if(tag==='mic'){this.updateParticipantCardMic(this.room?.peerId,false);this.stopFeedbackMonitor();this.clearFeedbackProtection();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;this.refreshRemoteAudioVolume()}
     if(tag==='camera'){const tile=this.tiles.get('local');if(tile){const v=qs('video',tile);if(v)v.srcObject=null;tile.classList.remove('has-video','screen-camera-pip')}this.updateParticipantCardCamera(this.room?.peerId,false)}
     if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip')}
   }
@@ -528,6 +554,7 @@ export class MediaRoomClient{
     return !this.ultraLite;
   }
   async maybeConsume(meta){
+    this.applyProducerPresence(meta,true);
     if(!meta?.producerId||meta.peerId===this.room?.peerId||this.consumers.has(meta.producerId)||!this.shouldConsume(meta))return;
     if(meta.kind==='audio'){
       for(const [producerId,existing] of [...this.consumers]){const oldMeta=existing.appData?.meta;if(existing.kind==='audio'&&String(oldMeta?.peerId||'')===String(meta.peerId||'')&&producerId!==meta.producerId)this.removeConsumer(producerId)}
@@ -547,9 +574,9 @@ export class MediaRoomClient{
       const mic=this.producers.get('mic'),active=Boolean(mic&&!mic.paused);
       if(active&&this.proximityGuard){audio.muted=true;audio.volume=0;audio.dataset.hardMuted='1';audio.pause()}
       else audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});
-      return;
+      this.updateParticipantCardMic(meta.peerId,true);return;
     }
-    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');this.updateParticipantCardCamera(meta.peerId,true);
+    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=false;tile.classList.add('has-video');this.updateParticipantCardCamera(meta.peerId,true);this.syncParticipantCardVideo(meta.peerId);
     if(isScreen){
       tile.classList.add('screen-share');
       this.grid?.classList.add('screen-layout');
@@ -565,15 +592,18 @@ export class MediaRoomClient{
   }
   closeConsumerByProducer(producerId){this.removeConsumer(producerId)}
   applyProducerState(data={}){
-    if(data.kind!=='video'||data.mediaTag==='screen')return;
-    const peerId=String(data.peerId||''),tile=this.participantTile(peerId);if(!tile)return;
-    tile.classList.toggle('has-video',!data.paused);
+    if(data.mediaTag==='screen')return;
+    const peerId=String(data.peerId||'');if(!peerId)return;
+    if(data.kind==='audio'){this.updateParticipantCardMic(peerId,!data.paused);return}
+    if(data.kind!=='video')return;
+    const tile=this.participantTile(peerId);if(tile)tile.classList.toggle('has-video',!data.paused&&Boolean(qs('video',tile)?.srcObject));
     this.updateParticipantCardCamera(peerId,!data.paused);
   }
   removeConsumer(producerId){
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
     try{c.close()}catch{};this.consumers.delete(producerId);
     this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.producerId===producerId)a.remove()});
+    if(c.kind==='audio')this.updateParticipantCardMic(meta?.peerId,false);
     if(c.kind==='video'&&meta?.appData?.mediaTag!=='screen'&&meta?.mediaTag!=='screen')this.updateParticipantCardCamera(meta?.peerId,false);
     if(meta?.appData?.mediaTag==='screen'||meta?.mediaTag==='screen'){
       const key=String(meta.peerId||'')+':screen',tile=this.tiles.get(key);if(tile){tile.remove();this.tiles.delete(key)}
@@ -584,7 +614,7 @@ export class MediaRoomClient{
       }
     }
   }
-  removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}const card=this.participantCards.get(String(peerId));if(card){card.remove();this.participantCards.delete(String(peerId))}if(String(this.selectedStagePeerId)===String(peerId)){this.selectedStagePeerId='';const next=[...this.participantCards.keys()][0];if(next)this.selectStagePeer(next,false)}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
+  removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}const card=this.participantCards.get(String(peerId));if(card){card.remove();this.participantCards.delete(String(peerId))}this.participantMediaState.delete(String(peerId))if(String(this.selectedStagePeerId)===String(peerId)){this.selectedStagePeerId='';const next=[...this.participantCards.keys()][0];if(next)this.selectStagePeer(next,false)}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   speakerTile(peerId){
     if(String(peerId||'')===String(this.room?.peerId||''))return this.tiles.get('local');
     return this.tiles.get(peerId);
