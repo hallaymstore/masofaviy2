@@ -228,7 +228,7 @@ const SFU_BRIDGE_URLS = String(process.env.SFU_BRIDGE_URLS || SFU_BRIDGE_URL).sp
 const SFU_BRIDGE_SECRET = String(process.env.SFU_BRIDGE_SECRET || '');
 const SFU_HEALTH_POLL_MS = Math.max(2000, Number(process.env.SFU_HEALTH_POLL_MS || 5000));
 const SFU_NODE_STALE_MS = Math.max(SFU_HEALTH_POLL_MS*2, Number(process.env.SFU_NODE_STALE_MS || 15000));
-const TURN_URLS = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(',').map(x=>x.trim()).filter(Boolean);
+const TURN_URLS = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(/[,;\s]+/).map(x=>x.trim()).filter(x=>/^turns?:/i.test(x));
 const TURN_USERNAME = String(process.env.TURN_USERNAME || '');
 const TURN_CREDENTIAL = String(process.env.TURN_CREDENTIAL || '');
 const TURN_SHARED_SECRET = String(process.env.TURN_SHARED_SECRET || '');
