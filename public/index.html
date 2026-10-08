@@ -7,8 +7,8 @@
   <meta name="description" content="Oliy ta’lim uchun yengil, nazorat va statistika markazli masofaviy ta’lim platformasi">
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20261007-20">
-  <link rel="stylesheet" href="/premium-ui.css?v=20261007-20">
+  <link rel="stylesheet" href="/styles.css?v=20261008-21">
+  <link rel="stylesheet" href="/premium-ui.css?v=20261008-21">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -183,11 +183,20 @@
       <div id="structureList" class="cards"></div>
     </section>
 
-    <section id="schedule" class="page">
-      <div class="page-head"><div><h1>Dars jadvali</h1><p>Har kim o‘ziga tegishli darslarni ko‘radi. Kerakli darsni shu yerdan ochish mumkin.</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV namuna</button><button class="secondary" id="importSchedules">Excel/CSV import</button><button class="primary" id="addSchedule">+ Dars qo‘shish</button></div></div>
-      <div class="guide"><b>Import qoidasi:</b> o‘qituvchi F.I.Sh. bilan emas, <b>teacher_login</b> orqali; guruh <b>group_id</b> orqali aniqlanadi. O‘qituvchi, guruh va xona vaqt to‘qnashuvi avtomatik bloklanadi.</div>
-      <div id="scheduleFilters" class="toolbar hidden"><input id="scheduleTeacherFilter" placeholder="O‘qituvchi login"><input id="scheduleGroupFilter" placeholder="Guruh ID"><select id="scheduleDayFilter"><option value="">Barcha kunlar</option><option value="1">Dushanba</option><option value="2">Seshanba</option><option value="3">Chorshanba</option><option value="4">Payshanba</option><option value="5">Juma</option><option value="6">Shanba</option><option value="7">Yakshanba</option></select><button id="applyScheduleFilter" class="secondary">Filtrlash</button><button id="clearScheduleFilter" class="ghost">Tozalash</button></div>
-      <div id="timetableLinks" class="timetable-links"></div><div id="scheduleList" class="schedule"></div>
+    <section id="schedule" class="page schedule-workspace">
+      <div class="page-head schedule-page-head"><div><span class="page-kicker">HAFTALIK DISPETCHER</span><h1>Dars jadvali</h1><p>6 kunlik jadval bitta ishchi ekranda. Guruh yoki o‘qituvchi bo‘yicha bir bosishda almashtiring.</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV</button><button class="secondary" id="importSchedules">Import</button><button class="primary" id="addSchedule">+ Dars</button></div></div>
+      <div id="scheduleWorkspaceBar" class="schedule-workspace-bar">
+        <div class="schedule-view-switch"><button type="button" class="active" data-schedule-view="week">6 kun</button><button type="button" data-schedule-view="today">Bugun</button></div>
+        <div id="scheduleScopeTabs" class="schedule-scope-area"></div>
+        <div id="scheduleSummary" class="schedule-summary"></div>
+      </div>
+      <div class="guide schedule-admin-guide"><b>Avtomatik nazorat:</b> teacher_login + group_id asosida import qilinadi; o‘qituvchi, guruh va xona vaqt to‘qnashuvi bloklanadi.</div>
+      <details id="scheduleAdvanced" class="schedule-advanced">
+        <summary>Kengaytirilgan filtrlar</summary>
+        <div id="scheduleFilters" class="toolbar hidden"><input id="scheduleTeacherFilter" placeholder="O‘qituvchi login"><input id="scheduleGroupFilter" placeholder="Guruh ID"><select id="scheduleDayFilter"><option value="">Barcha kunlar</option><option value="1">Dushanba</option><option value="2">Seshanba</option><option value="3">Chorshanba</option><option value="4">Payshanba</option><option value="5">Juma</option><option value="6">Shanba</option><option value="7">Yakshanba</option></select><button id="applyScheduleFilter" class="secondary">Filtrlash</button><button id="clearScheduleFilter" class="ghost">Tozalash</button></div>
+      </details>
+      <details class="schedule-share"><summary>Jadval havolalari</summary><div id="timetableLinks" class="timetable-links"></div></details>
+      <div id="scheduleList" class="schedule schedule-sheet-host"></div>
     </section>
 
     <section id="users" class="page">
@@ -436,5 +445,5 @@
   </div>
 </dialog>
 <div id="toast"></div>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261007-20"></script><script type="module" src="/app.js?v=20261007-20"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261008-21"></script><script type="module" src="/app.js?v=20261008-21"></script>
 </body></html>
