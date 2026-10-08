@@ -1,5 +1,5 @@
-const CACHE='m2-v80-hallaym-ai';
-const CORE=['/','/styles.css?v=20261007-19','/premium-ui.css?v=20261007-19','/app.js?v=20261007-19','/media-client.bundle.js?v=20261007-19','/terms.html','/privacy.html','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg'];
+const CACHE='m2-v81-inspection-compact';
+const CORE=['/','/styles.css?v=20261008-21','/premium-ui.css?v=20261008-21','/app.js?v=20261008-21','/media-client.bundle.js?v=20261008-21','/terms.html','/privacy.html','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg'];
 const STATIC_PATHS=new Set(['/styles.css','/premium-ui.css','/app.js','/media-client.bundle.js','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg','/terms.html','/privacy.html']);
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>{e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))]))});
