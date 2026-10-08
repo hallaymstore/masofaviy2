@@ -157,9 +157,27 @@ async function loadDashboard(){
   q.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));hydrateIcons(q);
   const health=$('#dashboardHealth'),readiness=$('#presentationReadiness');
   if(['superadmin','admin','tech'].includes(role)){
-    try{const m=await api('/system/metrics');health.classList.remove('hidden');health.innerHTML='<b>Tizim holati:</b><span>DB: '+esc(m.database)+'</span><span>Onlayn: '+esc(m.onlineUsers)+'</span><span>Jonli guruhlar: '+esc(m.activeLiveRooms||0)+'</span><span>Socket: '+esc(m.socketConnections)+'</span><span>RAM: '+esc(m.memory?.rssMB||0)+' MB</span><span>Uptime: '+esc(Math.floor((m.uptimeSeconds||0)/60))+' daqiqa</span>'}catch{health.classList.add('hidden')}
-    try{const [p,e]=await Promise.all([api('/presentation/readiness'),api('/evaluation/readiness')]);readiness.classList.remove('hidden');readiness.innerHTML='<div class="section-title"><div><h2>Tekshiruv tayyorligi</h2><small>LMS baholash mezonlari bo‘yicha ichki dalillar</small></div><b class="readiness-score">'+esc(e.percent)+'%</b></div><div class="evaluation-readiness">'+(e.criteria||[]).map(x=>'<div class="evaluation-row '+(x.ready?'ready':x.external?'external':'pending')+'"><span class="evaluation-no">'+esc(x.no)+'</span><div><b>'+esc(x.title)+'</b><small>'+esc(x.evidence)+'</small></div><strong>'+(x.ready?'Mavjud':x.external?'Tashqi hujjat':'Tayyorlanmoqda')+'</strong></div>').join('')+'</div><details class="presentation-readiness-details"><summary>Demo/taqdimot kontenti · '+esc(p.percent)+'%</summary><div class="readiness-grid">'+(p.checks||[]).map(x=>'<div class="'+(x.ready?'ready':'pending')+'"><span>'+esc(x.label)+'</span><b>'+esc(x.value)+' / '+esc(x.target)+'</b></div>').join('')+'</div></details>'}catch{readiness.classList.add('hidden')}
-  }else{health.classList.add('hidden');readiness.classList.add('hidden')}
+    try{
+      const [m,media]=await Promise.all([api('/system/metrics'),api('/media/status').catch(()=>null)]);
+      const node=media?.cluster?.nodes?.find(x=>x.online)||media?.cluster?.nodes?.[0],mh=node?.health||{},cap=mh.capacity||{};
+      health.classList.remove('hidden');
+      health.innerHTML='<b>Tizim holati</b>'+
+        '<span class="health-ok">DB '+esc(m.database==='connected'?'● ON':'○ OFF')+'</span>'+
+        '<span>Onlayn <b>'+esc(m.onlineUsers)+'</b></span>'+
+        '<span>Live <b>'+esc(m.activeLiveRooms||0)+'</b></span>'+
+        '<span>Socket <b>'+esc(m.socketConnections)+'</b></span>'+
+        '<span class="'+(media?.cluster?.online?'health-ok':'health-bad')+'">SFU '+(media?.cluster?.online?'● ON':'○ OFF')+'</span>'+
+        '<span>Worker <b>'+esc(mh.workers??'—')+'</b></span>'+
+        '<span>Target <b>'+esc(cap.targetParallelRooms??'—')+' xona</b></span>'+
+        '<span>RTC <b>'+esc((mh.rtcPorts||[]).join(', ')||'—')+'</b></span>'+
+        '<span class="'+(media?.turnEnabled?'health-ok':'health-bad')+'">TURN '+(media?.turnEnabled?'● ON':'○ OFF')+'</span>'+
+        '<span>APP RAM <b>'+esc(m.memory?.rssMB||0)+' MB</b></span>'+
+        '<span>Uptime <b>'+esc(Math.floor((m.uptimeSeconds||0)/60))+' min</b></span>';
+    }catch{health.classList.add('hidden')}
+  }else health.classList.add('hidden');
+  if(['superadmin','admin','tech','rectorate'].includes(role)){
+    try{const [p,e]=await Promise.all([api('/presentation/readiness'),api('/evaluation/readiness')]);readiness.classList.remove('hidden');readiness.innerHTML='<div class="section-title"><div><h2>Tekshiruv tayyorligi</h2><small>Amaldagi LMS mezonlari bo‘yicha tizimdagi dalillar</small></div><b class="readiness-score">'+esc(e.percent)+'%</b></div><div class="evaluation-readiness">'+(e.criteria||[]).map(x=>'<div class="evaluation-row '+(x.ready?'ready':x.external?'external':'pending')+'"><span class="evaluation-no">'+esc(x.no)+'</span><div><b>'+esc(x.title)+'</b><small>'+esc(x.evidence)+'</small></div><strong>'+(x.ready?'Mavjud':x.external?'Tashqi hujjat':'Tayyorlanmoqda')+'</strong></div>').join('')+'</div><details class="presentation-readiness-details"><summary>Demo ma’lumotlar qamrovi · '+esc(p.percent)+'%</summary><div class="readiness-grid">'+(p.checks||[]).map(x=>'<div class="'+(x.ready?'ready':'pending')+'"><span>'+esc(x.label)+'</span><b>'+esc(x.value)+' / '+esc(x.target)+'</b></div>').join('')+'</div></details>'}catch{readiness.classList.add('hidden')}
+  }else readiness.classList.add('hidden')
 }
 function scheduleRow(i){
   const group=i.groupId?.name||'',gid=i.groupId?.externalId||i.groupId?.code||'',teacher=i.teacherId?.fullName||'',canJoin=['teacher','student'].includes(user?.role)||can('lessons.monitor');
@@ -228,7 +246,7 @@ function scheduleEntityLabel(x,fallback='—'){
   if(typeof x==='string')return x;
   return x.name||x.fullName||x.externalId||x.code||x.login||fallback;
 }
-function scheduleDayNames(){return ['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba']}
+function scheduleDayNames(){return ['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba']}
 function scheduleKindLabel(kind){return {lecture:'Ma’ruza',practice:'Amaliyot',seminar:'Seminar',exam:'Nazorat',final_exam:'Yakuniy'}[kind]||'Dars'}
 function scheduleCellLesson(i){
   const group=scheduleEntityLabel(i.groupId,''),teacher=scheduleEntityLabel(i.teacherId,''),canJoin=['teacher','student'].includes(user?.role)||can('lessons.monitor');
