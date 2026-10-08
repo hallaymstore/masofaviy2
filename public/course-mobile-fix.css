@@ -1,0 +1,10 @@
+/* Mobile course lesson rows: prevent narrow first-column text in assignments and resources */
+#courseDetail{min-width:0;width:100%;overflow-wrap:anywhere}
+#courseDetail>article{min-width:0;width:100%;max-width:100%;overflow:hidden}
+#courseDetail .lesson-row{display:flex!important;flex-wrap:wrap;align-items:center;gap:10px;width:100%;min-width:0;padding:12px 10px}
+#courseDetail .lesson-row>div:first-child{flex:1 1 220px!important;width:auto!important;min-width:0!important;max-width:100%!important;overflow-wrap:anywhere;word-break:normal}
+#courseDetail .lesson-row>div:first-child b,#courseDetail .lesson-row>div:first-child small,#courseDetail .lesson-row>div:first-child p{display:block;white-space:normal!important;max-width:100%;overflow-wrap:anywhere}
+#courseDetail .lesson-row>button,#courseDetail .lesson-row>a{flex:0 0 auto!important;width:auto!important;max-width:100%;padding:8px 12px}
+#courseDetail fieldset{min-width:0}
+#courseDetail .quiz-question{overflow-wrap:anywhere}
+@media(max-width:600px){#courseDetail .lesson-row{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important}#courseDetail .lesson-row>div:first-child{flex:0 1 auto!important;min-width:0!important;width:100%!important;max-width:100%!important}#courseDetail .lesson-row>button,#courseDetail .lesson-row>a{align-self:flex-start!important;width:auto!important;max-width:100%!important}#courseDetail .lesson-row p{line-height:1.5!important;font-size:13px!important}#courseDetail .lesson-row b{font-size:14px!important}#editor #modalFields{min-width:0}#editor .quiz-option{display:flex;gap:8px;min-width:0;overflow-wrap:anywhere}}
