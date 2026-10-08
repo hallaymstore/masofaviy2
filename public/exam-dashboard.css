@@ -1,0 +1,26 @@
+/* Examination control center, isolated visual layer */
+#finalExams .exam-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+#finalExams .exam-summary>div{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:13px;display:flex;flex-direction:column;gap:2px}
+#finalExams .exam-summary b{font-size:25px;line-height:1.1}#finalExams .exam-summary span,.exam-intro{color:var(--muted);font-size:12px}
+#finalExams .exam-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin:15px 0}
+#finalExams .exam-toolbar button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 12px;color:var(--text);font-size:12px}
+#finalExams .exam-toolbar button.active{border-color:var(--brand,#1264e5);color:var(--brand,#1264e5);background:color-mix(in srgb,var(--brand,#1264e5) 8%,var(--surface))}
+#finalExams .exam-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+#finalExams .exam-card{padding:14px!important;margin:0!important;min-width:0!important;width:auto!important;display:flex!important;flex-direction:column;gap:9px;overflow-wrap:anywhere}
+#finalExams .exam-card-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+#finalExams .exam-chip,#finalExams .exam-state{padding:5px 8px;border-radius:5px;background:var(--bg);color:var(--text);font-size:10px;font-weight:750}
+#finalExams .exam-state-in_progress{background:#e9f7ef;color:#146c43}#finalExams .exam-state-completed{background:#e5efff;color:#174a9b}
+#finalExams .exam-card h3{font-size:16px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+#finalExams .exam-card p{font-size:12px;color:var(--muted);margin:0}
+#finalExams .exam-card small{font-size:11px;color:var(--muted)}
+#finalExams .exam-meta{display:grid;gap:5px;font-size:11px;color:var(--muted)}
+#finalExams .exam-card>button{margin-top:auto;align-self:flex-start;padding:8px 12px;font-size:12px;border-radius:6px}
+#finalExams .exam-online-info{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px!important}
+#finalExams .exam-online-info p{margin:4px 0 0;color:var(--muted);font-size:12px}
+#finalExams .exam-online-info button{flex-shrink:0}
+#finalExams .exam-table{min-width:650px}
+#finalExams #finalExamDetail article{min-width:0;overflow-wrap:anywhere}
+#finalExams #finalExamDetail .lesson-row{display:flex!important;justify-content:space-between;align-items:center;gap:12px}
+#finalExams #finalExamDetail .lesson-row>div{flex:1;min-width:0;width:auto!important;max-width:100%!important}
+#finalExams #finalExamDetail .lesson-row button{width:auto!important;max-width:180px;flex-shrink:0}
+@media(max-width:700px){#finalExams .exam-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#finalExams .exam-online-info{flex-direction:column;align-items:stretch}}
