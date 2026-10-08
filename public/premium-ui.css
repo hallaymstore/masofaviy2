@@ -3133,4 +3133,12 @@ html[data-user-role="teacher"] #sidebar nav button{padding:8px 9px;font-size:12p
   .schedule-summary>span{min-width:38px}
   .schedule-sheet{min-width:820px}
 }
+html[data-user-role="student"] .schedule-advanced,
+html[data-user-role="student"] .schedule-share,
+html[data-user-role="student"] .schedule-admin-guide,
+html[data-user-role="teacher"] .schedule-advanced{display:none!important}
+.health-ok{color:#137a38!important;background:#edf9f1!important;border-color:#cdebd7!important}
+.health-bad{color:#a33a32!important;background:#fff0ee!important;border-color:#f0d0cc!important}
+[data-theme="dark"] .health-ok{color:#9be6b1!important;background:#103422!important;border-color:#24573a!important}
+[data-theme="dark"] .health-bad{color:#ffb0a8!important;background:#3b1816!important;border-color:#65302b!important}
 
