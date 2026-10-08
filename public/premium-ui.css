@@ -3023,3 +3023,114 @@ body.proctored-exam-active #sidebar,body.proctored-exam-active header{pointer-ev
   }
   #lesson .zoom-control>span:last-child{font-size:7px!important}
 }
+
+/* === v81 Inspection compact workspace · 2026-10-08 === */
+.page-kicker{display:block;margin-bottom:3px;font-size:9px;line-height:1;font-weight:900;letter-spacing:.12em;color:var(--brand);text-transform:uppercase}
+.schedule-workspace{max-width:none!important}
+.schedule-page-head{margin-bottom:8px!important}
+.schedule-page-head h1{font-size:25px!important;margin:2px 0 3px!important}
+.schedule-page-head p{font-size:12px!important;margin:0!important}
+.schedule-workspace-bar{position:sticky;top:64px;z-index:18;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;margin:0 0 8px;padding:6px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}
+.schedule-view-switch,.schedule-scope-modes{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+.schedule-view-switch button,.schedule-scope-modes button{border:0!important;background:transparent!important;padding:6px 9px!important;border-radius:6px!important;font-size:10px!important;font-weight:850!important;color:#687791!important;white-space:nowrap}
+.schedule-view-switch button.active,.schedule-scope-modes button.active{background:#fff!important;color:var(--brand)!important;box-shadow:0 1px 4px rgba(24,50,90,.09)}
+.schedule-scope-area{min-width:0;display:flex;align-items:center;gap:6px}
+.schedule-scope-label{font-size:11px;font-weight:850;color:#60708a;padding:0 4px}
+.schedule-scope-tabs{min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin;padding:1px 0 2px}
+.schedule-scope-tabs button{flex:0 0 auto;max-width:150px;display:flex;align-items:center;gap:6px;border:1px solid var(--line)!important;border-radius:7px!important;background:#fff!important;padding:5px 7px!important;font-size:10px!important;color:#52627b!important}
+.schedule-scope-tabs button b{max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.schedule-scope-tabs button span{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:5px;background:#eef3f9;color:#75839a;font-size:9px}
+.schedule-scope-tabs button.active{border-color:#9ebcf6!important;background:#eef5ff!important;color:#174ea6!important}
+.schedule-scope-tabs button.active span{background:#dceaff;color:#174ea6}
+.schedule-summary{display:flex;gap:3px;align-items:center}
+.schedule-summary>span{min-width:43px;display:grid;place-items:center;padding:3px 6px;border-left:1px solid var(--line)}
+.schedule-summary b{font-size:12px;line-height:1;color:#213a61}.schedule-summary small{font-size:8px;color:#8895a8;text-transform:uppercase;letter-spacing:.04em}
+.schedule-admin-guide{margin:0 0 7px!important;padding:7px 9px!important;border-radius:9px!important;font-size:10px!important}
+.schedule-advanced,.schedule-share{margin:0 0 6px;border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.schedule-advanced>summary,.schedule-share>summary{list-style:none;cursor:pointer;padding:6px 9px;font-size:10px;font-weight:850;color:#697991}
+.schedule-advanced>summary::-webkit-details-marker,.schedule-share>summary::-webkit-details-marker{display:none}
+.schedule-advanced[open]>summary,.schedule-share[open]>summary{border-bottom:1px solid var(--line)}
+.schedule-advanced .toolbar,.schedule-share .timetable-links{padding:7px!important;margin:0!important}
+.schedule-sheet-host{display:block!important;min-width:0!important;overflow:auto!important;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 4px 16px rgba(15,35,70,.04)}
+.schedule-sheet{min-width:980px;background:#fff}
+.schedule-sheet[style*="--schedule-days:1"]{min-width:420px}
+.sheet-row{display:grid;grid-template-columns:58px repeat(var(--schedule-days),minmax(145px,1fr));border-bottom:1px solid #e7edf5}
+.sheet-row:last-child{border-bottom:0}
+.sheet-head{position:sticky;top:0;z-index:8;background:#f7f9fc}
+.sheet-time-head,.sheet-day-head{min-height:34px;display:flex;align-items:center;padding:5px 7px;border-right:1px solid #e7edf5}
+.sheet-time-head{position:sticky;left:0;z-index:10;background:#f4f7fb;font-size:9px;font-weight:900;color:#77859a;text-transform:uppercase}
+.sheet-day-head{justify-content:space-between;gap:5px}
+.sheet-day-head b{font-size:10px;color:#344968}.sheet-day-head span{font-size:8px;color:#92a0b3}
+.sheet-day-head.is-today{background:#edf5ff}.sheet-day-head.is-today b{color:#1453ad}
+.sheet-time{position:sticky;left:0;z-index:5;display:grid;align-content:start;justify-items:center;gap:2px;padding:7px 4px;border-right:1px solid #e7edf5;background:#fbfcfe}
+.sheet-time b{font-size:11px;color:#29466f}.sheet-time span{font-size:8px;color:#8998aa}
+.sheet-cell{min-height:75px;padding:4px;border-right:1px solid #edf1f6;background:#fff}
+.sheet-cell:last-child{border-right:0}.sheet-cell.is-today{background:#fbfdff}
+.sheet-lesson{position:relative;margin:0 0 4px!important;padding:6px!important;border:1px solid #dfe7f2!important;border-left:3px solid var(--brand)!important;border-radius:7px!important;background:#fbfcff!important;box-shadow:none!important;overflow:hidden}
+.sheet-lesson:last-child{margin-bottom:0!important}
+.sheet-lesson:hover{border-color:#bfcfea!important;background:#fff!important}
+.sheet-lesson-top{display:flex;justify-content:space-between;gap:5px;align-items:center;margin-bottom:2px}
+.sheet-kind{font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.045em;color:var(--brand)}
+.sheet-room{font-size:8px;color:#8593a6}
+.sheet-lesson>b{display:block;font-size:10px;line-height:1.2;color:#1b3358;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-lesson>small{display:block;margin-top:2px;font-size:8px;line-height:1.2;color:#697991;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-lesson>em{display:block;margin-top:2px;font-size:7px;font-style:normal;color:#9aa5b5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-actions{display:flex;gap:3px;margin-top:4px}
+.sheet-action{min-height:0!important;height:22px!important;padding:2px 6px!important;border-radius:5px!important;font-size:8px!important;line-height:1!important}
+.lesson-kind-practice{border-left-color:#19a974!important}.lesson-kind-seminar{border-left-color:#8b5cf6!important}.lesson-kind-exam,.lesson-kind-final_exam{border-left-color:#e79025!important}
+.schedule-empty{padding:28px!important}
+
+/* role density */
+html[data-user-role="student"] .shell{grid-template-columns:188px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr)}
+html[data-user-role="student"] .shell>header{height:56px;padding:0 12px}
+html[data-user-role="student"] #sidebar{top:56px;height:calc(100dvh - 56px);padding:8px 7px}
+html[data-user-role="student"] #sidebar nav{gap:3px}
+html[data-user-role="student"] #sidebar nav button{padding:7px 8px;font-size:11px;border-radius:8px}
+html[data-user-role="student"] .nav-group summary{padding:5px 7px;font-size:8px}
+html[data-user-role="student"] .shell>main{padding:12px}
+html[data-user-role="student"] .page-head{margin-bottom:9px}
+html[data-user-role="student"] .page-head h1{font-size:23px}
+html[data-user-role="student"] .edu-banner{padding:10px}
+html[data-user-role="student"] .stats{gap:6px}
+html[data-user-role="student"] .stat{padding:10px}
+html[data-user-role="student"] .stat b{font-size:19px}
+html[data-user-role="student"] .schedule-workspace-bar{top:56px}
+html[data-user-role="teacher"] .shell{grid-template-columns:212px minmax(0,1fr)}
+html[data-user-role="teacher"] .shell>main{padding:15px}
+html[data-user-role="teacher"] #sidebar nav button{padding:8px 9px;font-size:12px}
+
+/* compact inspection cards */
+.presentation-readiness,.health-strip{font-size:11px}
+.health-strip{padding:8px 10px!important;gap:6px!important}
+.health-strip span{padding:4px 7px!important;border-radius:7px!important}
+.presentation-readiness{padding:10px!important}
+.evaluation-row{padding:6px 8px!important}
+.evaluation-row b{font-size:10px!important}.evaluation-row small{font-size:8px!important}
+
+[data-theme="dark"] .schedule-workspace-bar,
+[data-theme="dark"] .schedule-advanced,
+[data-theme="dark"] .schedule-share,
+[data-theme="dark"] .schedule-sheet-host,
+[data-theme="dark"] .schedule-sheet,
+[data-theme="dark"] .sheet-cell,
+[data-theme="dark"] .sheet-lesson{background:#0d1d36!important;border-color:#203653!important}
+[data-theme="dark"] .sheet-head,[data-theme="dark"] .sheet-time-head,[data-theme="dark"] .sheet-time{background:#09172a!important}
+[data-theme="dark"] .sheet-day-head.is-today,[data-theme="dark"] .sheet-cell.is-today{background:#10223d!important}
+[data-theme="dark"] .sheet-lesson>b,[data-theme="dark"] .sheet-day-head b,[data-theme="dark"] .sheet-time b{color:#dbe7f8}
+[data-theme="dark"] .schedule-view-switch button.active,[data-theme="dark"] .schedule-scope-modes button.active,[data-theme="dark"] .schedule-scope-tabs button{background:#10213b!important}
+
+@media(max-width:900px){
+  html[data-user-role="student"] .shell,html[data-user-role="teacher"] .shell{display:block}
+  .schedule-workspace-bar{position:static;grid-template-columns:1fr;gap:5px}
+  .schedule-summary{justify-content:flex-start}
+  .schedule-scope-area{display:grid;grid-template-columns:auto minmax(0,1fr)}
+  .schedule-sheet{min-width:900px}
+  .schedule-page-head h1{font-size:22px!important}
+  .schedule-admin-guide{display:none}
+}
+@media(max-width:520px){
+  .schedule-scope-modes button,.schedule-view-switch button{padding:5px 7px!important;font-size:9px!important}
+  .schedule-summary>span{min-width:38px}
+  .schedule-sheet{min-width:820px}
+}
+
