@@ -1233,7 +1233,7 @@ async function saveCurrentVideoProgress(forceCompleted=false){
   else if(forceCompleted&&posDelta>0&&posDelta<=wallDelta+2.5)watchDelta=Math.min(posDelta,wallDelta,15);
   watchLastSamplePosition=position;watchLastSampleAt=now;
   if(!forceCompleted&&Date.now()-watchLastSavedAt<3500)return;
-  await persistVideoProgress(activeVideoId,position,duration,forceCompleted,watchDelta);
+  if(duration>0)await persistVideoProgress(activeVideoId,position,duration,forceCompleted,watchDelta);
 }
 async function renderWatchPlayer(v){
   stopWatchTracking(false);
@@ -1244,13 +1244,13 @@ async function renderWatchPlayer(v){
       const YT=await loadYouTubePlayerApi();player.innerHTML='<div id="watchYoutubePlayer"></div>';
       activeWatchKind='youtube';
       activeWatchPlayer=new YT.Player('watchYoutubePlayer',{videoId:yt,playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1,start:Math.floor(resume)},events:{
-        onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchLastSamplePosition=resume;watchLastSampleAt=Date.now();watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(()=>{}),5000)},
+        onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchLastSamplePosition=Number(e.target.getCurrentTime?.()||0);watchLastSampleAt=Date.now();watchLastSavedAt=0;watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(err=>console.warn('Video progress save failed',err)),5000);saveCurrentVideoProgress(false).catch(err=>console.warn('Initial progress save failed',err))},
         onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false).catch(()=>{})},
-        onError:()=>{const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">YouTube API xatosi · fallback player</div>'}
+        onError:()=>{stopWatchTracking(false);const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">⚠ Ushbu pleerda ko‘rish progressi hisoblanmaydi. Kuzatuvni tiklash uchun sahifani yangilang.</div>'}
       }});
     }catch(e){
       const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));
-      player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">Progress kuzatuvi vaqtincha cheklangan · fallback player</div>';
+      player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">⚠ YouTube API yuklanmadi: bu rejim ko‘rishni hisoblamaydi. Chrome orqali qayta oching.</div>';
     }
   }else if(v.sourceType==='mp4'){
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
