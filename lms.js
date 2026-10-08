@@ -5,6 +5,7 @@ import { installAcademicRecords } from './academic-records.js';
 import { installLibrary } from './library.js';
 import { installCommunications } from './communications.js';
 import { installFinalExams } from './final-exams.js';
+import { installRemoteExams } from './remote-exams.js';
 import { installCurriculum } from './curriculum.js';
 import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady, evaluateProctorTermination } from './proctoring.js';
 import { installMonitoringExport } from './monitoring-export.js';
@@ -38,6 +39,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
   installCommunications(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const finalExams=installFinalExams(app,{mongoose,User,Structure,Course,CourseResult:academic.CourseResult,auth,audit,courseAccess,resolveUserGroupId});
+  installRemoteExams(app,{mongoose,User,Course,auth,audit,resolveUserGroupId});
   const curriculum=installCurriculum(app,{mongoose,User,Structure,Course,Resource,Assignment,Quiz,auth,audit,resolveUserGroupId});
   installMonitoringExport(app,{mongoose,User,Structure,Course,Schedule,Attendance,CourseResult:academic.CourseResult,StudyPlan:academic.StudyPlan,StudentMovement:academic.StudentMovement,auth,audit});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
