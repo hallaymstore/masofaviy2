@@ -1604,7 +1604,7 @@ function renderFinalExams(){
  host.querySelectorAll('[data-exam-view]').forEach(button=>button.onclick=()=>{examViewMode=button.dataset.examView;renderFinalExams()});
  $('#examOnlineOpen')?.addEventListener('click',()=>go('courses'));
 }
-async function loadFinalExams(){try{examCachedRows=await api('/lms/final-exams');$('#finalExamDetail').innerHTML='';renderFinalExams()}catch(e){toast(e.message)}}
+async function loadFinalExams(){window.dispatchEvent(new Event('hallaym-remote-exams-open'));try{examCachedRows=await api('/lms/final-exams');$('#finalExamDetail').innerHTML='';renderFinalExams()}catch(e){toast(e.message)}}
 async function openFinalExam(id){
   try{
     const x=await api('/lms/final-exams/'+id+'/records'),s=x.session,editor=['teacher','admin','superadmin'].includes(user.role),admin=['admin','superadmin'].includes(user.role),byStudent=new Map((x.records||[]).map(r=>[String(r.studentId?._id||r.studentId),r]));
