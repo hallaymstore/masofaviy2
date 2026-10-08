@@ -34,7 +34,7 @@ const iconPaths={home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9
 function icon(name,fallback='•'){if(lowEndUI)return '<span class="fallback-icon" aria-hidden="true">'+esc(fallback)+'</span>';return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.home)+'</svg>'}
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
 function logout(){fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
-function configureRoleUI(){const role=user.role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
+function configureRoleUI(){const role=user.role;document.documentElement.dataset.userRole=role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
 function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
@@ -206,6 +206,7 @@ function modal(title,fields,onSave){
 $('#editorBack')?.addEventListener('click',closeEditor);
 $('#editorCancel')?.addEventListener('click',closeEditor);
 $('#addStructure').onclick=async()=>{if(!cache.structure.length)cache.structure=await api('/structure');const parents=cache.structure.filter(x=>x.active&&(structureType==='department'?x.type==='faculty':structureType==='group'?x.type==='department':false));modal('Yangi '+({faculty:'fakultet',department:'kafedra',group:'guruh'}[structureType]),`<label>Nomi<input name="name" required></label><label>ID<input name="externalId" ${structureType==='group'?'required':''} placeholder="Masalan: ATT-101"></label>${structureType==='faculty'?'':`<label>Yuqori bo‘lim<select name="parentId" required><option value="">Tanlang</option>${parents.map(x=>`<option value="${x._id}">${esc(x.name)}</option>`)}</select></label>`}`,async d=>{await api('/structure',{method:'POST',body:JSON.stringify({...d,type:structureType})});loadStructure()})};
+let scheduleRowsCache=[],scheduleViewMode='week',scheduleScopeMode='group',scheduleScopeKey='';
 function scheduleGroupMatchesUser(schedule){
   if(user?.role!=='student')return true;
   const ug=user?.groupId||user?.group||null,sg=schedule?.groupId||schedule?.group||null;
@@ -217,13 +218,107 @@ function scheduleGroupMatchesUser(schedule){
   const a=new Set(values(ug));
   return values(sg).some(v=>a.has(v));
 }
-function renderScheduleBoard(rows){
-  if(!rows.length)return '<div class="empty"><b>Dars jadvali hali kiritilmagan</b><p>Jadval qo‘lda yoki Excel/CSV orqali qo‘shiladi.</p></div>';
-  const days=['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],today=(new Date().getDay()||7);
-  const grouped=new Map();
-  for(const row of rows){const key=Number(row.weekday)||0;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)}
-  const distance=d=>((d-today)+7)%7;
-  return [...grouped.entries()].sort((a,b)=>distance(a[0])-distance(b[0])).map(([day,list])=>'<section class="schedule-day '+(day===today?'is-today':'')+'"><div class="schedule-day-head"><div><b>'+(day===today?'<span class="today-dot"></span>Bugun · ':'')+esc(days[day]||list[0]?.date||'Sana')+'</b><span>'+list.length+' ta dars</span></div></div><div class="schedule-day-list">'+list.sort((a,b)=>String(a.start).localeCompare(String(b.start))).map(scheduleRow).join('')+'</div></section>').join('');
+function scheduleEntityKey(x){
+  if(!x)return '';
+  if(typeof x==='string')return String(x);
+  return String(x._id||x.externalId||x.code||x.login||x.name||'');
+}
+function scheduleEntityLabel(x,fallback='—'){
+  if(!x)return fallback;
+  if(typeof x==='string')return x;
+  return x.name||x.fullName||x.externalId||x.code||x.login||fallback;
+}
+function scheduleDayNames(){return ['','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba']}
+function scheduleKindLabel(kind){return {lecture:'Ma’ruza',practice:'Amaliyot',seminar:'Seminar',exam:'Nazorat',final_exam:'Yakuniy'}[kind]||'Dars'}
+function scheduleCellLesson(i){
+  const group=scheduleEntityLabel(i.groupId,''),teacher=scheduleEntityLabel(i.teacherId,''),canJoin=['teacher','student'].includes(user?.role)||can('lessons.monitor');
+  let actions='';
+  if(canJoin&&i.kind!=='final_exam')actions+='<button class="sheet-action primary" data-join-lesson="'+esc(i._id)+'">Kirish</button>';
+  if(can('schedule.manage'))actions+='<button class="sheet-action ghost danger-text" data-del-schedule="'+esc(i._id)+'">×</button>';
+  const secondary=user?.role==='student'?teacher:user?.role==='teacher'?group:[group,teacher].filter(Boolean).join(' · ');
+  return '<article class="sheet-lesson lesson-kind-'+esc(i.kind||'lecture')+'">'+
+    '<div class="sheet-lesson-top"><span class="sheet-kind">'+esc(scheduleKindLabel(i.kind))+'</span><span class="sheet-room">'+esc(i.room?i.room+'-xona':'')+'</span></div>'+
+    '<b>'+esc(i.title||i.subject||'Dars')+'</b>'+
+    '<small>'+esc(secondary||i.subject||'')+'</small>'+
+    (i.subject&&i.subject!==i.title?'<em>'+esc(i.subject)+'</em>':'')+
+    (actions?'<div class="sheet-actions">'+actions+'</div>':'')+
+  '</article>';
+}
+function scopedScheduleRows(rows){
+  let out=[...(rows||[])];
+  const today=(new Date().getDay()||7);
+  if(scheduleViewMode==='today')out=out.filter(x=>Number(x.weekday)===today);
+  if(can('schedule.manage')&&scheduleScopeKey){
+    if(scheduleScopeMode==='group')out=out.filter(x=>scheduleEntityKey(x.groupId)===scheduleScopeKey);
+    if(scheduleScopeMode==='teacher')out=out.filter(x=>scheduleEntityKey(x.teacherId)===scheduleScopeKey);
+  }
+  return out;
+}
+function renderScheduleScope(rows){
+  const box=$('#scheduleScopeTabs');if(!box)return;
+  if(!can('schedule.manage')){
+    const label=user?.role==='teacher'?'O‘qituvchi jadvali':'Guruh jadvali';
+    box.innerHTML='<span class="schedule-scope-label">'+esc(label)+'</span>';
+    return;
+  }
+  const source=[...(rows||[])];
+  const map=new Map();
+  for(const r of source){
+    const entity=scheduleScopeMode==='teacher'?r.teacherId:r.groupId,key=scheduleEntityKey(entity);
+    if(key&&!map.has(key))map.set(key,{key,label:scheduleEntityLabel(entity),count:0});
+    if(key)map.get(key).count++;
+  }
+  const items=[...map.values()].sort((a,b)=>a.label.localeCompare(b.label,'uz'));
+  if(scheduleScopeMode!=='all'&&!scheduleScopeKey&&items.length)scheduleScopeKey=items[0].key;
+  box.innerHTML='<div class="schedule-scope-modes">'+
+    '<button type="button" data-scope-mode="group" class="'+(scheduleScopeMode==='group'?'active':'')+'">Guruhlar</button>'+
+    '<button type="button" data-scope-mode="teacher" class="'+(scheduleScopeMode==='teacher'?'active':'')+'">O‘qituvchilar</button>'+
+    '<button type="button" data-scope-mode="all" class="'+(scheduleScopeMode==='all'?'active':'')+'">Umumiy</button>'+
+    '</div>'+
+    (scheduleScopeMode==='all'?'':('<div class="schedule-scope-tabs">'+items.map(x=>'<button type="button" data-scope-key="'+esc(x.key)+'" class="'+(scheduleScopeKey===x.key?'active':'')+'"><b>'+esc(x.label)+'</b><span>'+x.count+'</span></button>').join('')+'</div>'));
+  box.querySelectorAll('[data-scope-mode]').forEach(b=>b.onclick=()=>{
+    scheduleScopeMode=b.dataset.scopeMode;scheduleScopeKey='';renderScheduleWorkspace();
+  });
+  box.querySelectorAll('[data-scope-key]').forEach(b=>b.onclick=()=>{
+    scheduleScopeKey=b.dataset.scopeKey;renderScheduleWorkspace();
+  });
+}
+function renderScheduleSummary(rows){
+  const box=$('#scheduleSummary');if(!box)return;
+  const scoped=scopedScheduleRows(rows),days=new Set(scoped.map(x=>Number(x.weekday)).filter(x=>x>=1&&x<=6));
+  const groups=new Set(scoped.map(x=>scheduleEntityKey(x.groupId)).filter(Boolean));
+  const teachers=new Set(scoped.map(x=>scheduleEntityKey(x.teacherId)).filter(Boolean));
+  box.innerHTML='<span><b>'+scoped.length+'</b><small>dars</small></span><span><b>'+days.size+'</b><small>kun</small></span>'+
+    (user?.role==='student'?'':('<span><b>'+groups.size+'</b><small>guruh</small></span>'))+
+    (user?.role==='teacher'?'':('<span><b>'+teachers.size+'</b><small>o‘qituvchi</small></span>'));
+}
+function renderScheduleSheet(rows){
+  const scoped=scopedScheduleRows(rows);
+  if(!scoped.length)return '<div class="empty schedule-empty"><b>Tanlangan ko‘rinishda dars topilmadi</b><p>Guruh/o‘qituvchi tabini yoki filtrni almashtiring.</p></div>';
+  const days=scheduleViewMode==='today'?[(new Date().getDay()||7)]:[1,2,3,4,5,6];
+  const dayNames=scheduleDayNames(),today=(new Date().getDay()||7);
+  const starts=[...new Set(scoped.map(x=>String(x.start||'')).filter(Boolean))].sort();
+  const rowsBySlot=new Map();
+  for(const r of scoped){
+    const key=String(r.start||'');if(!rowsBySlot.has(key))rowsBySlot.set(key,new Map());
+    const dm=rowsBySlot.get(key),day=Number(r.weekday);if(!dm.has(day))dm.set(day,[]);dm.get(day).push(r);
+  }
+  const header='<div class="sheet-row sheet-head"><div class="sheet-time-head">Vaqt</div>'+days.map(d=>'<div class="sheet-day-head '+(d===today?'is-today':'')+'"><b>'+esc(dayNames[d])+'</b><span>'+scoped.filter(x=>Number(x.weekday)===d).length+' dars</span></div>').join('')+'</div>';
+  const body=starts.map(start=>{
+    const dm=rowsBySlot.get(start)||new Map();
+    const end=[...dm.values()].flat()[0]?.end||'';
+    return '<div class="sheet-row"><div class="sheet-time"><b>'+esc(start)+'</b><span>'+esc(end)+'</span></div>'+
+      days.map(d=>'<div class="sheet-cell '+(d===today?'is-today':'')+'">'+(dm.get(d)||[]).sort((a,b)=>String(a.title).localeCompare(String(b.title),'uz')).map(scheduleCellLesson).join('')+'</div>').join('')+
+    '</div>';
+  }).join('');
+  return '<div class="schedule-sheet" style="--schedule-days:'+days.length+'">'+header+body+'</div>';
+}
+function renderScheduleWorkspace(){
+  renderScheduleScope(scheduleRowsCache);
+  renderScheduleSummary(scheduleRowsCache);
+  const host=$('#scheduleList');if(host)host.innerHTML=renderScheduleSheet(scheduleRowsCache);
+  document.querySelectorAll('[data-schedule-view]').forEach(b=>b.classList.toggle('active',b.dataset.scheduleView===scheduleViewMode));
+  bindScheduleActions();
 }
 async function loadSchedules(){
   try{
@@ -234,10 +329,14 @@ async function loadSchedules(){
     }
     let rows=await api('/schedules'+(p.toString()?'?'+p.toString():''));
     if(user?.role==='student')rows=(rows||[]).filter(scheduleGroupMatchesUser);
-    $('#scheduleList').innerHTML=renderScheduleBoard(rows);
-    bindScheduleActions(); await buildTimetableLinks();
+    scheduleRowsCache=rows||[];
+    if(user?.role==='teacher'){scheduleScopeMode='teacher';scheduleScopeKey=''}
+    if(user?.role==='student'){scheduleScopeMode='group';scheduleScopeKey=''}
+    renderScheduleWorkspace();
+    await buildTimetableLinks();
   }catch(e){toast(e.message)}
 }
+document.querySelectorAll('[data-schedule-view]').forEach(b=>b.addEventListener('click',()=>{scheduleViewMode=b.dataset.scheduleView||'week';renderScheduleWorkspace()}));
 $('#applyScheduleFilter').onclick=loadSchedules;
 $('#clearScheduleFilter').onclick=function(){if($('#scheduleTeacherFilter'))$('#scheduleTeacherFilter').value='';if($('#scheduleGroupFilter'))$('#scheduleGroupFilter').value='';if($('#scheduleDayFilter'))$('#scheduleDayFilter').value='';loadSchedules()};
 function linkBox(label,url){return `<div class="public-link"><b>${esc(label)}</b><div><input value="${esc(url)}" readonly><button data-copy="${esc(url)}">Nusxa</button><a href="${esc(url)}" target="_blank" rel="noopener">Ochish ↗</a></div></div>`}
