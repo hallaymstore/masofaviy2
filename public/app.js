@@ -9,8 +9,8 @@ const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texn
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
 const moduleOn=name=>branding?.modules?.[name]!==false;
 const csrf=()=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('m2_csrf='))?.slice('m2_csrf='.length)||'';
-const api=async(path,options={})=>{const r=await fetch('/api'+path,{...options,credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),...options.headers}});const data=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(data.message)}if(!r.ok)throw Error(data.message||'Xatolik');return data};
-const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}; const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const api=async(path,options={})=>{const r=await fetch('/api'+path,{...options,credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),...options.headers}});const data=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(data.message)}if(!r.ok){const message=data.message||data.error||('Server xatosi: HTTP '+r.status+' · '+path);console.error('API request failed',path,r.status,data);throw Error(message)}return data};
+const toast=t=>{const e=$('#toast');if(!e)return;e.textContent=String(t||'Xatolik tafsiloti aniqlanmadi');e.classList.add('show');clearTimeout(toast._timer);toast._timer=setTimeout(()=>e.classList.remove('show'),6500)}; const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const applyBranding=()=>{
   const product=branding.productName||'HALLAYM EDU',institution=branding.institutionName||'Universitet',short=branding.shortName||institution;
   document.title=product+(institution?' · '+institution:'');
@@ -1733,12 +1733,13 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
     if(proctorExpected){
       const consent=confirm('Kamera nazoratli test: kamera, mikrofon, fullscreen, sahifadan chiqish va yuz holati nazorat qilinadi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Davom etasizmi?');
       if(!consent)return;
-      if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
-        try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch{return toast('Nazoratli test uchun fullscreen ruxsatini bering')}
-      }
+      if(!navigator.mediaDevices?.getUserMedia)throw Error('Bu brauzer kamerani qo‘llamaydi. HTTPS va Chrome orqali oching.');
       try{
         preflight=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
-      }catch{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});return toast('Kamera nazoratli test uchun kamera va mikrofon ruxsatini yoqing')}
+      }catch(err){throw Error('Kamera/mikrofonni ochib bo‘lmadi: '+(err?.name==='NotAllowedError'?'brauzer sozlamasidan ruxsat bering':err?.message||'qurilmalarni tekshiring'))}
+      if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
+        try{await document.documentElement.requestFullscreen()}catch(err){preflight.getTracks().forEach(t=>t.stop());preflight=null;throw Error('To‘liq ekran ochilmadi. Testni Chrome brauzerida qayta boshlang: '+(err?.message||''))}
+      }
     }
     const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:proctorExpected?true:undefined,videoId:videoId||undefined})});
     const cameraBox=x.proctorRequired?'<div class="proctor-camera-box"><video id="proctorPreviewVideo" autoplay muted playsinline></video><div><b>📷 Kamera nazorati faol</b><small id="proctorCameraStatus">Yuzni kamera markazida tuting · oynadan chiqmang</small></div></div>':'';
@@ -1767,7 +1768,7 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
     $('#editor').addEventListener('close',()=>{if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})},{once:true});
   }catch(e){
     try{preflight?.getTracks().forEach(t=>t.stop())}catch{}
-    if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});toast(e.message)
+    if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});console.error('Quiz start failure',e);toast('Test ochilmadi: '+(e?.message||'Noma’lum xatolik'))
   }
 }
 async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div><button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
