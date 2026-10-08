@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.transportRecoveryTimer=null;this.transportRecoveryBusy=false;
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -92,16 +92,36 @@ export class MediaRoomClient{
     this.onState({connected:true,participants:joined.participants||[]});
     return joined;
   }
+  async recoverTransport(transport,label='media'){
+    if(this.closed||!transport||transport.closed||this.transportRecoveryBusy)return false;
+    this.transportRecoveryBusy=true;
+    try{
+      const x=await this.request('restartIce',{transportId:transport.id});
+      if(!x?.iceParameters)throw new Error('ICE parametrlari olinmadi');
+      await transport.restartIce({iceParameters:x.iceParameters});
+      this.onState({transport:label,state:'recovering'});
+      return true;
+    }catch(e){
+      this.onState({transport:label,state:'failed',recoveryFailed:true});
+      return false;
+    }finally{this.transportRecoveryBusy=false}
+  }
+  scheduleTransportRecovery(transport,label,state){
+    this.onState({transport:label,state});
+    if(!['disconnected','failed'].includes(state)||this.closed)return;
+    clearTimeout(this.transportRecoveryTimer);
+    this.transportRecoveryTimer=setTimeout(()=>this.recoverTransport(transport,label),state==='failed'?350:1200);
+  }
   async createTransports(){
     const send=await this.request('createTransport',{direction:'send'});
     this.sendTransport=this.device.createSendTransport({...send,iceServers:this.joinPayload.iceServers||[]});
     this.sendTransport.on('connect',async({dtlsParameters},cb,eb)=>{try{await this.request('connectTransport',{transportId:this.sendTransport.id,dtlsParameters});cb()}catch(e){eb(e)}});
     this.sendTransport.on('produce',async({kind,rtpParameters,appData},cb,eb)=>{try{const x=await this.request('produce',{transportId:this.sendTransport.id,kind,rtpParameters,appData});cb({id:x.id})}catch(e){eb(e)}});
-    this.sendTransport.on('connectionstatechange',s=>{this.onState({transport:'send',state:s})});
+    this.sendTransport.on('connectionstatechange',s=>this.scheduleTransportRecovery(this.sendTransport,'send',s));
     const recv=await this.request('createTransport',{direction:'recv'});
     this.recvTransport=this.device.createRecvTransport({...recv,iceServers:this.joinPayload.iceServers||[]});
     this.recvTransport.on('connect',async({dtlsParameters},cb,eb)=>{try{await this.request('connectTransport',{transportId:this.recvTransport.id,dtlsParameters});cb()}catch(e){eb(e)}});
-    this.recvTransport.on('connectionstatechange',s=>{this.onState({transport:'recv',state:s})});
+    this.recvTransport.on('connectionstatechange',s=>this.scheduleTransportRecovery(this.recvTransport,'recv',s));
   }
   renderShell(){
     this.mount.innerHTML='';
@@ -714,7 +734,7 @@ export class MediaRoomClient{
   }
   clearFeedbackProtection(){
     this.feedbackRiskUntil=0;this.feedbackToneSince=0;
-    clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);
+    clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);clearTimeout(this.transportRecoveryTimer);
     this.setMicGuardGain(.50,.18);this.refreshRemoteAudioVolume();
     this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false,feedbackSafe:Date.now()<this.feedbackSafeUntil});
   }
