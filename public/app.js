@@ -1588,13 +1588,23 @@ $('#importCurriculum')?.addEventListener('click',async()=>{
 });
 
 const finalExamTypeLabel={semester_final:'Semestr yakuniy nazorati',state_attestation:'Davlat attestatsiyasi',thesis_defense:'Himoya'};
-async function loadFinalExams(){
-  try{
-    const rows=await api('/lms/final-exams');$('#finalExamDetail').innerHTML='';
-    $('#finalExamList').innerHTML=rows.map(x=>'<article><div class="lesson-row"><div><small>'+esc(finalExamTypeLabel[x.type]||x.type)+' · '+esc(x.academicYear)+' · '+esc(x.semester)+'-semestr</small><h2>'+esc(x.title)+'</h2><p>'+esc(x.groupId?.name||'')+(x.courseId?' · '+esc(x.courseId.title):'')+'</p><small>'+new Date(x.startsAt).toLocaleString('uz-UZ')+' · '+esc(x.location)+(x.room?' · '+esc(x.room):'')+' · '+esc(x.status)+'</small></div><button class="primary" data-final-exam="'+esc(x._id)+'">Jurnal</button></div></article>').join('')||'<div class="empty"><b>Yakuniy nazorat qaydi yo‘q</b><p>Administrator shaxsan o‘tkaziladigan nazoratni rejalashtiradi.</p></div>';
-    all('[data-final-exam]').forEach(b=>b.onclick=()=>openFinalExam(b.dataset.finalExam));
-  }catch(e){toast(e.message)}
+let examViewMode='cards',examStatusFilter='all',examCachedRows=[];
+function renderFinalExams(){
+ const host=$('#finalExamList');if(!host)return;
+ const labels={planned:'Rejalashtirilgan',in_progress:'Jarayonda',completed:'Yakunlangan',cancelled:'Bekor qilingan'};
+ const filtered=examCachedRows.filter(x=>examStatusFilter==='all'||x.status===examStatusFilter);
+ const counts={all:examCachedRows.length,planned:examCachedRows.filter(x=>x.status==='planned').length,in_progress:examCachedRows.filter(x=>x.status==='in_progress').length,completed:examCachedRows.filter(x=>x.status==='completed').length};
+ const tabs='<div class="exam-toolbar">'+Object.entries({all:'Barchasi',planned:'Rejada',in_progress:'Jarayonda',completed:'Yakunlangan'}).map(([key,label])=>'<button data-exam-filter="'+key+'" class="'+(examStatusFilter===key?'active':'')+'">'+label+' <b>'+counts[key]+'</b></button>').join('')+'<button data-exam-view="cards" class="'+(examViewMode==='cards'?'active':'')+'">▦ Kartalar</button><button data-exam-view="table" class="'+(examViewMode==='table'?'active':'')+'">☷ Jadval</button></div>';
+ const cards=filtered.map(x=>{const date=new Date(x.startsAt);return '<article class="exam-card"><div class="exam-card-top"><span class="exam-chip">🏛 OTMda shaxsan</span><span class="exam-state exam-state-'+esc(x.status)+'">'+esc(labels[x.status]||x.status)+'</span></div><small>'+esc(finalExamTypeLabel[x.type]||x.type)+' · '+esc(x.academicYear)+' · '+esc(x.semester)+'-semestr</small><h3>'+esc(x.title)+'</h3><p>'+esc(x.groupId?.name||'Guruh ko‘rsatilmagan')+(x.courseId?' · '+esc(x.courseId.title):'')+'</p><div class="exam-meta"><span>📅 '+esc(date.toLocaleString('uz-UZ'))+'</span><span>📍 '+esc(x.location||'')+' '+esc(x.room||'')+'</span></div><button class="primary" data-final-exam="'+esc(x._id)+'">'+(user.role==='student'?'Mening qaydim':'Jurnal va tafsilotlar')+' →</button></article>'}).join('');
+ const table='<div class="table-wrap"><table class="exam-table"><thead><tr><th>Nazorat</th><th>Guruh</th><th>Vaqt</th><th>Holat</th><th>Amal</th></tr></thead><tbody>'+filtered.map(x=>'<tr><td><b>'+esc(x.title)+'</b><small> · '+esc(finalExamTypeLabel[x.type]||x.type)+'</small></td><td>'+esc(x.groupId?.name||'—')+'</td><td>'+esc(new Date(x.startsAt).toLocaleString('uz-UZ'))+'</td><td>'+esc(labels[x.status]||x.status)+'</td><td><button data-final-exam="'+esc(x._id)+'">Ochish →</button></td></tr>').join('')+'</tbody></table></div>';
+ const note=user.role==='student'?'Shaxsan o‘tkaziladigan nazoratlar va shaxsiy qaydlaringiz.':user.role==='teacher'?'Siz nazoratchi yoki fan o‘qituvchisi bo‘lgan nazoratlar.':'Akademik yakuniy nazoratlar reyestri va hujjatlashtirilgan jurnal.';
+ host.innerHTML='<div class="exam-summary"><div><b>'+counts.all+'</b><span>Jami nazorat</span></div><div><b>'+counts.planned+'</b><span>Rejada</span></div><div><b>'+counts.in_progress+'</b><span>Jarayonda</span></div><div><b>'+counts.completed+'</b><span>Yakunlangan</span></div></div><p class="exam-intro">'+esc(note)+'</p>'+tabs+(filtered.length?(examViewMode==='table'?table:'<div class="exam-grid">'+cards+'</div>'):'<div class="empty"><b>Nazorat topilmadi</b><p>Filtrni o‘zgartiring.</p></div>')+'<article class="exam-online-info"><div><b>💻 Onlayn mashq testlari va proktoring</b><p>Masofaviy bilimni tekshirish fan testlari orqali amalga oshiriladi. Ushbu testlar OTMda shaxsan o‘tkaziladigan yakuniy nazorat o‘rnini bosmaydi.</p></div><button class="secondary" id="examOnlineOpen">Fan testlariga o‘tish →</button></article>';
+ host.querySelectorAll('[data-final-exam]').forEach(button=>button.onclick=()=>openFinalExam(button.dataset.finalExam));
+ host.querySelectorAll('[data-exam-filter]').forEach(button=>button.onclick=()=>{examStatusFilter=button.dataset.examFilter;renderFinalExams()});
+ host.querySelectorAll('[data-exam-view]').forEach(button=>button.onclick=()=>{examViewMode=button.dataset.examView;renderFinalExams()});
+ $('#examOnlineOpen')?.addEventListener('click',()=>go('courses'));
 }
+async function loadFinalExams(){try{examCachedRows=await api('/lms/final-exams');$('#finalExamDetail').innerHTML='';renderFinalExams()}catch(e){toast(e.message)}}
 async function openFinalExam(id){
   try{
     const x=await api('/lms/final-exams/'+id+'/records'),s=x.session,editor=['teacher','admin','superadmin'].includes(user.role),admin=['admin','superadmin'].includes(user.role),byStudent=new Map((x.records||[]).map(r=>[String(r.studentId?._id||r.studentId),r]));
