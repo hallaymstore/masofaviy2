@@ -1,0 +1,18 @@
+/* Inspection 2026-10-08: compact public timetable, isolated from the main app */
+.public-main.timetable-compact{max-width:1600px;padding:14px 18px}
+.timetable-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.timetable-toolbar label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.timetable-toolbar select{padding:6px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px}
+.timetable-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.timetable-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:780px;font-size:calc(11px * var(--zoom,1))}
+.timetable-grid th,.timetable-grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px;vertical-align:top;text-align:left;overflow-wrap:anywhere}
+.timetable-grid th{position:sticky;top:0;background:var(--bg);z-index:2;font-weight:700;font-size:1em}
+.timetable-grid .time-column{width:88px;background:var(--bg);font-weight:750;white-space:nowrap;position:sticky;left:0;z-index:3}
+.timetable-grid tbody .time-column{color:var(--accent)}
+.timetable-grid td{width:calc((100% - 88px)/6);height:58px}
+.timetable-cell{display:block;padding:5px 6px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-left:3px solid var(--accent);border-radius:4px;margin-bottom:4px}
+.timetable-cell b,.timetable-cell span,.timetable-cell small{display:block;line-height:1.3}
+.timetable-cell small{color:var(--muted);margin-top:3px}
+.timetable-empty{color:var(--muted);text-align:center}
+@media(max-width:700px){.public-main.timetable-compact{padding:10px}.timetable-grid{min-width:750px}.timetable-toolbar{justify-content:flex-start}}
+@media print{.public-header,.timetable-toolbar,#printBtn{display:none!important}.public-main.timetable-compact{max-width:none;padding:0}.timetable-table-wrap{overflow:visible}.timetable-grid{min-width:0;font-size:9px} @page{size:A4 landscape;margin:9mm}}
