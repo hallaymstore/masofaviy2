@@ -1558,7 +1558,7 @@ function connectSocket(){
       if(permitted){
         if(liveProctorTrack?.readyState!=='live')await startLiveLessonProctoring();
         if(liveProctorTrack?.readyState==='live'){
-          active=Boolean(await mediaRoomClient?.startCameraFromExternalTrack?.(liveProctorTrack,x.viewerUserId||''));
+          active=Boolean(await mediaRoomClient?.startCameraFromExternalTrack?.(liveProctorTrack,x.viewerUserId||'',true));
         }
       }
     }catch(e){toast('Kamera uzatilmadi: '+e.message)}
