@@ -1496,15 +1496,20 @@ socket.on('lesson:proctor-camera-request',async({lessonId,userId})=>{
     if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage')&&!hasPermission(socket.user,'lessons.monitor'))return;
     const prev=liveProctorBroadcastByLesson.get(String(lessonId));
     if(prev&&String(prev)!==String(userId))for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(prev))s.emit('lesson:proctor-camera-stop',{lessonId,by:socket.user.fullName});
+    const recipients=lessonRoomSockets(lessonId).filter(peer=>String(peer.user?._id)===String(userId)&&peer.user?.role==='student');
+    if(!recipients.length){socket.emit('lesson:error',{message:'Talaba jonli darsga ulanmagan'});return}
     liveProctorBroadcastByLesson.set(String(lessonId),String(userId));
-    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(userId)&&s.user?.role==='student')s.emit('lesson:proctor-camera-request',{lessonId,by:socket.user.fullName,viewerUserId:String(socket.user._id)});
+    for(const peer of recipients)peer.emit('lesson:proctor-camera-request',{lessonId,by:socket.user.fullName,viewerUserId:String(socket.user._id)});
   }catch{}
 });
 socket.on('lesson:proctor-camera-result',async({lessonId,active})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
-    for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor'))s.emit('lesson:proctor-camera-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,active:Boolean(active)});
+    const expected=liveProctorBroadcastByLesson.get(String(lessonId));
+    if(String(expected||'')!==String(socket.user._id))return; // stale or unsolicited result
+    if(!active)liveProctorBroadcastByLesson.delete(String(lessonId));
+    for(const peer of lessonRoomSockets(lessonId))if(String(peer.user?._id)===String(lesson.teacherId)||hasPermission(peer.user,'live.manage')||hasPermission(peer.user,'lessons.monitor'))peer.emit('lesson:proctor-camera-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,active:Boolean(active)});
   }catch{}
 });
 socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
@@ -1534,10 +1539,19 @@ socket.on('lesson:reaction',({lessonId,reaction})=>{
 });
 socket.on('lesson:spotlight',async({lessonId,userId})=>{
   try{
-    if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+    if(!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
     if(String(socket.user._id)!==String(lesson.teacherId)&&!hasPermission(socket.user,'live.manage'))return;
-    io.to('lesson:'+lessonId).emit('lesson:spotlight',{lessonId,userId:String(userId||''),by:String(socket.user._id),at:Date.now()});
+    const target=String(userId||'');
+    if(target&&!lessonRoomSockets(lessonId).some(peer=>String(peer.user?._id)===target)){
+      socket.emit('lesson:error',{message:'Tanlangan ishtirokchi darsda emas'});return;
+    }
+    const broadcast=liveProctorBroadcastByLesson.get(String(lessonId));
+    if(broadcast&&String(broadcast)!==target){
+      for(const peer of lessonRoomSockets(lessonId))if(String(peer.user?._id)===String(broadcast))peer.emit('lesson:proctor-camera-stop',{lessonId,by:socket.user.fullName});
+      liveProctorBroadcastByLesson.delete(String(lessonId));
+    }
+    io.to('lesson:'+lessonId).emit('lesson:spotlight',{lessonId,userId:target,by:String(socket.user._id),at:Date.now()});
   }catch{}
 });
 socket.on('lesson:mute-all',async({lessonId})=>{
