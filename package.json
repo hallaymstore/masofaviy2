@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "check": "node --check server.js && node --check scripts/copy-face-detection-assets.mjs && node --check scripts/seed-inspection-2026-10-07.mjs && node --check lms.js && node --check scorm.js && node --check resource-upload.js && node --check academic-records.js && node --check library.js && node --check communications.js && node --check auth-security.js && node --check compliance.js && node --check proctoring.js && node --check monitoring-export.js && node --check final-exams.js && node --check curriculum.js && node --check public/app.js && node --check public/timetable.js && node --check public/preview.js && node --check public/sw.js && node --check media-server/server.js",
-    "test": "node --test tests/academic-records.test.js tests/auth-security.test.js tests/curriculum.test.js tests/monitoring-export.test.js tests/proctoring.test.js tests/resource-upload.test.js tests/scorm.test.js",
+    "test": "node --test tests/academic-records.test.js tests/auth-security.test.js tests/curriculum.test.js tests/monitoring-export.test.js tests/proctoring.test.js tests/resource-upload.test.js tests/scorm.test.js tests/live-classroom-ui.test.js tests/quiz-button-markup.test.js",
     "prestart": "npm run build:media-client && npm run check",
     "build:media-client": "node scripts/copy-face-detection-assets.mjs && esbuild frontend/media-client.js --bundle --format=iife --global-name=MasofaviyMediaClientBundle --outfile=public/media-client.bundle.js --minify --target=es2020",
     "seed:inspection": "node scripts/seed-inspection-2026-10-07.mjs",
