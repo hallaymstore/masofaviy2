@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.transportRecoveryTimer=null;this.transportRecoveryBusy=false;
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimer=null;this.transportRecoveryBusy=false;
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -41,7 +41,7 @@ export class MediaRoomClient{
   }
   handleEvent(msg){
     if(!msg?.event)return;
-    if(msg.event==='newProducer'){this.applyProducerPresence(msg.data||{},true);this.maybeConsume(msg.data).catch(this.onError)}
+    if(msg.event==='newProducer'){this.applyProducerPresence(msg.data||{},true);this.maybeConsume(msg.data).then(()=>{if(this.classSpotlightUserId)this.focusUserForClass(this.classSpotlightUserId)}).catch(this.onError)}
     else if(msg.event==='producerClosed'){this.applyProducerPresence(msg.data||{},false);this.closeConsumerByProducer(msg.data?.producerId)}
     else if(msg.event==='producerState')this.applyProducerState(msg.data||{});
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
@@ -130,7 +130,7 @@ export class MediaRoomClient{
     const fullscreen=el('button',{className:'ms-stage-fullscreen',type:'button',title:'To‘liq ekran','aria-label':'Asosiy videoni to‘liq ekranga chiqarish'});fullscreen.textContent='⛶';
     fullscreen.addEventListener('click',()=>this.enterPrimaryFullscreen().catch(this.onError));
     this.mount.append(grid,stageBadge,fullscreen,strip,audioBin);this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;
-    const local=this.ensureTile('local',{fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
+    const local=this.ensureTile('local',{_id:this.user._id||this.user.id,fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
   }
   ensureTile(peerId,user={},local=false){
     if(this.tiles.has(peerId))return this.tiles.get(peerId);
@@ -149,6 +149,7 @@ export class MediaRoomClient{
     tile.addEventListener('dblclick',()=>this.pinUser(tile.dataset.userId||'',tile.dataset.peerId));
     this.installPinchZoom(tile,video);
     tile.append(video,avatar,label,mic,pin);this.grid.appendChild(tile);this.tiles.set(peerId,tile);
+    if(this.classSpotlightUserId&&String(tile.dataset.userId||'')===this.classSpotlightUserId)this.focusUserForClass(this.classSpotlightUserId);
     if(!String(peerId).includes(':screen'))this.upsertParticipantCard(local?(this.room?.peerId||'local'):peerId,user,local);
     return tile;
   }
@@ -196,6 +197,7 @@ export class MediaRoomClient{
     if(this.viewMode==='speaker'&&!this.selectedStagePeerId){
       const preferred=rows.find(x=>x?.user?.role==='teacher')||rows[0];if(preferred?.peerId)this.selectStagePeer(String(preferred.peerId),false);
     }else this.refreshParticipantCardSelection();
+    if(this.classSpotlightUserId)this.focusUserForClass(this.classSpotlightUserId);
   }
   syncParticipantCardVideo(peerId){
     const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
@@ -241,6 +243,30 @@ export class MediaRoomClient{
     if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout','has-focus');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side','focused')}
     else if(this.selectedStagePeerId)this.selectStagePeer(this.selectedStagePeerId,false);
     this.onState({viewMode:this.viewMode});return this.viewMode;
+  }
+  focusUserForClass(userId=''){
+    this.classSpotlightUserId=String(userId||'');
+    // Spotlight is authoritative and idempotent; local double-click Pin retains separate toggle semantics.
+    const selected=[...this.tiles.values()].find(t=>this.classSpotlightUserId&&String(t.dataset.userId||'')===this.classSpotlightUserId);
+    if(!selected){
+      if(this.classSpotlightUserId)return false; // Keep pending spotlight until remote peer joins.
+      for(const t of this.tiles.values())t.classList.remove('pinned','teacher-pip');
+      this.pinnedUserId='';this.grid?.classList.remove('class-spotlight');
+      const teacher=[...this.tiles.values()].find(t=>t.classList.contains('role-teacher'));
+      if(teacher)this.selectStagePeer(teacher.dataset.peerId==='local'?String(this.room?.peerId||'local'):teacher.dataset.peerId,false);
+      return true;
+    }
+    this.setViewMode('speaker');
+    for(const t of this.tiles.values())t.classList.remove('pinned','teacher-pip','focused');
+    selected.classList.add('focused','pinned');
+    this.pinnedUserId=this.classSpotlightUserId;
+    this.grid?.classList.add('class-spotlight','has-focus');
+    this.selectedStagePeerId=String(selected.dataset.peerId||'');
+    const teacher=[...this.tiles.values()].find(t=>t!==selected&&t.classList.contains('role-teacher')&&t.classList.contains('has-video')&&!t.classList.contains('screen-share'));
+    if(teacher)teacher.classList.add('teacher-pip');
+    this.refreshParticipantCardSelection();
+    this.onState({focusedUserId:this.classSpotlightUserId});
+    return true;
   }
   pinUser(userId='',peerId=''){
     const target=[...this.tiles.values()].find(t=>(userId&&t.dataset.userId===String(userId))||(peerId&&t.dataset.peerId===String(peerId)));
@@ -661,6 +687,11 @@ export class MediaRoomClient{
     this.tiles.forEach(t=>t.classList.remove('speaking'));this.participantCards.forEach(c=>c.classList.remove('speaking'));
     const valid=(levels||[]).filter(x=>Number.isFinite(Number(x.volume))).sort((a,b)=>Number(b.volume)-Number(a.volume));
     for(const x of valid.slice(0,3)){const t=this.speakerTile(x.peerId);if(t)t.classList.add('speaking');this.participantCards.get(String(x.peerId||''))?.classList.add('speaking')}
+    const speakingUserIds=[...new Set(valid.slice(0,3).map(x=>{
+      const t=this.speakerTile(x.peerId);return String(t?.dataset.userId||'');
+    }).filter(Boolean))];
+    const speakingKey=speakingUserIds.sort().join(',');
+    if(speakingKey!==this.lastRailSpeakingKey){this.lastRailSpeakingKey=speakingKey;this.onState({speakingUserIds})}
     if(this.viewMode==='gallery'||this.grid?.classList.contains('screen-layout')||this.grid?.classList.contains('has-focus'))return;
     const strongest=valid[0],peer=String(strongest?.peerId||''),now=Date.now();
     if(!peer){this.activeSpeakerCandidate='';return}
