@@ -1,0 +1,60 @@
+/* HALLAYM EDU · live classroom 2026-10-09 · visual layer only
+   Existing mediasoup, attendance, signaling and button IDs remain unchanged. */
+#lesson{max-width:none!important;width:100%;min-width:0}
+#lesson .page-head{background:#101e36;color:#f8fbff;margin:0 0 8px;padding:12px 16px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#lesson .page-head h1{font-size:17px!important;color:#fff;margin:0 0 3px;line-height:1.25}
+#lesson .page-head p{color:#a6b7d4!important;font-size:11px;margin:0}
+#lesson .page-head button{border-radius:7px!important;font-size:11px;padding:8px 11px}
+#lesson .conference-shell{background:#0b1322;border-radius:11px;overflow:hidden;min-height:calc(100dvh - 210px);display:grid!important;grid-template-columns:minmax(0,1fr)!important;border:1px solid #24334d}
+#lesson .conference-main{display:flex!important;flex-direction:column;min-width:0;min-height:0;background:#0b1322}
+#lesson .video-stage{flex:1 1 auto!important;min-height:340px;position:relative;background:#080e19;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#lesson #videoMount{height:100%!important;min-height:320px;width:100%;max-width:100%;padding:6px!important;display:flex;align-items:center;justify-content:center;background:#080e19}
+#lesson #videoMount .ms-grid{width:100%;height:100%;min-width:0;gap:7px!important}
+#lesson #videoMount .ms-tile{border-radius:8px!important;overflow:hidden;background:#17253a;border:1px solid #263a58}
+#lesson #videoMount .ms-video{object-fit:contain!important}
+#lesson #videoMount .ms-label{font-size:11px!important;background:linear-gradient(transparent,#0008);color:#fff}
+#lesson .conference-controls.zoom-dock{position:relative!important;z-index:15;display:flex!important;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px!important;border-top:1px solid #22314b;background:#122039!important;border-radius:0!important;min-height:70px}
+#lesson .zoom-primary{display:flex!important;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;min-width:0;flex:1}
+#lesson .zoom-control{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:66px;min-height:50px;padding:6px 9px!important;border-radius:8px!important;background:transparent;color:#e9f2ff!important;border:1px solid transparent!important;font-size:10px}
+#lesson .zoom-control:hover,#lesson .zoom-control.active-control{background:#243b60!important}
+#lesson .zoom-control.is-off{color:#ffb0b4!important}
+#lesson .zoom-control.danger{background:#c63843!important;color:white!important}
+#lesson .zoom-control .ui-icon{height:19px;width:19px}
+#lesson .zoom-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:#e6efff;font-size:11px}
+#lesson #liveMorePanel{background:#17263e!important;color:#ecf3ff!important;border:1px solid #344766;border-radius:10px!important;box-shadow:0 12px 35px #0007}
+#lesson #liveMorePanel button,#lesson #liveMorePanel select{border-radius:7px!important}
+#lesson .lesson-side{background:var(--surface)!important;border-left:1px solid var(--line);border-radius:12px 0 0 12px!important}
+#lesson .participants-head,#lesson #lessonChatPanel h2{padding:12px 15px!important;border-bottom:1px solid var(--line);font-size:14px!important}
+#lesson #lessonChatPanel{min-height:0!important;display:flex;flex-direction:column}
+#lesson #lessonChatPanel.hidden{display:none!important}
+#lesson #messages{flex:1;min-height:180px;overflow-y:auto;padding:12px;background:var(--soft)}
+#lesson #chatForm{display:flex;gap:7px;padding:10px;background:var(--surface);border-top:1px solid var(--line)}
+#lesson #chatForm input{border-radius:9px!important;flex:1;min-width:0;padding:10px}
+#lesson #chatForm button{min-width:39px;border-radius:9px!important}
+#lesson .participant-row{border-radius:8px!important;padding:8px!important}
+#lesson .participant-name{min-width:0}
+#lesson .participant-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lesson .live-captions{max-width:min(85%,800px);font-size:clamp(12px,1.5vw,17px)}
+@media(max-width:900px){
+ #lesson{width:100vw!important;max-width:100vw!important;margin-left:calc(50% - 50vw)!important;padding:0 4px}
+ #lesson .page-head{border-radius:0;padding:9px 10px!important;margin-bottom:0}
+ #lesson .page-head h1{font-size:14px!important}
+ #lesson .page-head p{font-size:10px}
+ #lesson .conference-shell{min-height:calc(100dvh - 130px);border-radius:0;border-left:0;border-right:0}
+ #lesson .video-stage{min-height:260px;flex:1 1 auto}
+ #lesson #videoMount{min-height:260px}
+ #lesson .conference-controls.zoom-dock{padding:6px 5px calc(7px + env(safe-area-inset-bottom))!important;gap:4px;flex-direction:column-reverse;position:sticky!important;bottom:0}
+ #lesson .zoom-primary{width:100%;justify-content:space-around;gap:2px;flex-wrap:nowrap}
+ #lesson .zoom-control{min-width:0;flex:1 1 0;padding:6px 2px!important;font-size:9px!important;min-height:48px}
+ #lesson .zoom-status{justify-content:space-between;width:100%;padding:0 9px;font-size:10px}
+ #lesson .lesson-side{top:58px!important;bottom:0!important;width:min(390px,96vw)!important;border-radius:11px 0 0 11px!important}
+ #lesson #videoMount .ms-grid.screen-layout .ms-tile.screen-share{min-height:220px}
+ #lesson #videoMount .ms-grid.screen-layout .ms-tile.screen-camera-pip{min-width:100px!important;width:34%!important;right:8px;bottom:8px}
+}
+@media(max-width:640px) and (orientation:landscape){
+ #lesson .page-head{display:none!important}
+ #lesson .conference-shell{min-height:100dvh;height:100dvh}
+ #lesson .conference-controls.zoom-dock{position:absolute!important;bottom:0;left:0;right:0;background:#122039e8!important}
+ #lesson .video-stage{min-height:0;height:100%}
+ #lesson .zoom-status{display:none!important}
+}
