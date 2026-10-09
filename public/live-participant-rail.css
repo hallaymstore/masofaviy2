@@ -48,3 +48,13 @@
 #lesson .student-rail-card .rail-avatar{background:#3a6597!important}
 #lesson .student-rail-card.offline .rail-presence-dot{background:#a7b6cb}
 #lesson .student-rail-card:hover{background:#305983!important;border-color:#7bc0fc!important}
+
+/* The roster is scoped to the scheduled group, not the entire department. */
+#lesson .rail-group-name{display:inline-block;max-width:160px;vertical-align:middle;font-size:10px!important;font-weight:700!important;color:#b7dafb!important;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#lesson .lesson-roster-audit{margin:8px 0;padding:9px 12px;border:1px solid #bdd7f2;border-radius:8px;background:#f0f6ff;color:#17365b;font-size:12px;line-height:1.45}
+#lesson .lesson-roster-audit summary{cursor:pointer;font-weight:800}
+#lesson .lesson-roster-audit p{margin:5px 0;overflow-wrap:anywhere}
+#lesson .lesson-roster-audit small{display:block;margin-top:8px;font-size:11px;color:#496381}
+#lesson #videoMount .ms-teacher-pip-stage{cursor:pointer!important;pointer-events:auto!important;padding:0!important;appearance:none}
+#lesson #videoMount .ms-teacher-pip-stage:focus-visible{outline:3px solid #facc15!important;outline-offset:2px!important}
+#lesson #videoMount .ms-teacher-pip-stage:hover{border-color:#a4f6ff!important}

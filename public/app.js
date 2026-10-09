@@ -872,6 +872,11 @@ async function openConference(payload){
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
     mediaRoomClient=new window.MasofaviyMediaClientBundle.MediaRoomClient({
       socket,joinPayload:join,mount,user,lowEnd:lowEndUI,
+      onTeacherPiPClick:({userId})=>{
+        if(!activeLessonId||!userId)return;
+        if(user.role==='teacher'||can('live.manage'))socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId});
+        else mediaRoomClient?.focusUserForClass?.(userId);
+      },
       onState:state=>{
         if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — o‘chirish':'Mikrofon OFF — yoqish')}
         if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
@@ -963,8 +968,10 @@ function updateLessonRailStatus(userId,proctor){
   el.classList.toggle('face-ready',Boolean(proctor?.cameraReady&&proctor?.faceState==='present'));
   const tag=el.querySelector('.rail-proctor-status');if(tag)tag.textContent=proctor?.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Uzoqlashgan':'⚠ Yuz topilmadi'):'○ Kamera yo‘q';
 }
-function renderLessonStudentRail(rows){
+function renderLessonStudentRail(rows,groupAudit=null){
   lessonRailRows=rows||[];
+  const groupLabel=$('#lessonRailGroup');
+  if(groupLabel){const g=groupAudit?.group;groupLabel.textContent=g?.name?' · '+g.name:'';groupLabel.title=g?.code?'Guruh kodi: '+g.code+' · Ushbu darsga biriktirilgan guruh':'Dars guruhining ro‘yxati';}
   const host=$('#lessonStudentRailItems'),label=$('#lessonStudentRailCount');if(!host)return;
   if(label)label.textContent=String(lessonRailRows.filter(r=>r.online).length)+' / '+String(lessonRailRows.length);
   host.innerHTML=lessonRailRows.map(r=>{
@@ -994,7 +1001,7 @@ function requestStudentOnStage(id){
 async function loadLessonParticipants(){
   if(!activeLessonId)return;
   try{
-    const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[];renderLessonStudentRail(rows);const label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
+    const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],audit=x.groupAudit||null;renderLessonStudentRail(rows,audit);const label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
     const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length,face:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return p.cameraReady&&p.faceState==='present'}).length,attentionLow:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60}).length};
     const summary='<div class="attendance-summary">'+
@@ -1006,7 +1013,9 @@ async function loadLessonParticipants(){
       '<span><b>'+counts.absent+'</b><small>Yo‘q</small></span>'+
     '</div>';
     const toolbar=editable?'<div class="attendance-manual-toolbar"><div><b>Qo‘lda davomat</b><small>Avtomatik nazorat + o‘qituvchi tuzatishi</small></div><div><button class="ghost" id="attendanceMarkAll" type="button">Barchasini belgilash</button><button class="primary" id="attendanceSave" type="button">Davomatni saqlash</button></div></div>':'';
-    $('#lessonParticipants').innerHTML=summary+toolbar+rows.map(r=>{
+    const auditCounts=items=>(Array.isArray(items)?items:[]).map(x=>esc(x.name)+' ('+Number(x.count||0)+')').join(', ')||'Kiritilmagan';
+    const auditInfo=audit?'<details class="lesson-roster-audit"><summary>Guruh tarkibini tekshirish · '+esc(audit.group?.name||'Guruh')+' · '+rows.length+' ta akkaunt</summary><p><b>Guruh kodi:</b> '+esc(audit.group?.code||'Kiritilmagan')+'</p><p><b>Yo‘nalishlar:</b> '+auditCounts(audit.byDirection)+'</p><p><b>Kurslar:</b> '+auditCounts(audit.byCourseYear)+'</p><p><b>Importdagi guruh belgilari:</b> '+auditCounts(audit.declaredGroupLabels)+'</p><small>Ro‘yxat dars jadvalidagi groupId bilan biriktirilgan faol talaba akkauntlaridir. Guruh kodlari noto‘g‘ri biriktirilgan bo‘lsa, administrator foydalanuvchi profilini tuzatishi kerak.</small></details>':'';
+    $('#lessonParticipants').innerHTML=summary+auditInfo+toolbar+rows.map(r=>{
       const checked=['present','late'].includes(r.status)||r.online;
       const manual=Boolean(r.manualMarkedAt),liveP=liveProctorStates.get(String(r._id))||{},p={...(r.proctor||{}),...liveP},canInspect=(user.role==='teacher'||can('live.manage')||can('lessons.monitor'))&&r.online;
       const pState=p.faceState||'unknown',pReady=Boolean(p.cameraReady),pObserved=Number(p.observedSeconds||0),pPresent=Number(p.presentSeconds||0),pAttention=Number(p.attentionPercent||0);

@@ -15,6 +15,7 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
+import { summarizeLiveLessonGroup } from './lesson-roster.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 import { installCompliance } from './compliance.js';
 
@@ -1022,11 +1023,14 @@ async function attendanceSweep(){
 }
 async function participantSnapshot(scheduleId){
   const lesson=await Schedule.findById(scheduleId).lean();if(!lesson)return null;
-  const dateKey=localDateKey(),students=await User.find({role:'student',active:true,groupId:lesson.groupId}).select('_id fullName login').sort({fullName:1}).lean();
+  const dateKey=localDateKey(),[group,students]=await Promise.all([
+    Structure.findById(lesson.groupId).select('_id name code externalId').lean(),
+    User.find({role:'student',active:true,groupId:lesson.groupId}).select('_id fullName login direction courseYear group').sort({fullName:1}).lean()
+  ]);
   const online=onlineStudentIds(scheduleId),rows=await Attendance.find({lessonId:String(scheduleId),dateKey,userId:{$in:students.map(s=>s._id)}}).lean(),by=new Map(rows.map(r=>[String(r.userId),r]));
   const session=await LiveSession.findOne({scheduleId:lesson._id,dateKey}).lean();
   const scheduleMinutes=Math.max(1,timeToMinutes(lesson.end)-timeToMinutes(lesson.start)),now=new Date();
-  return {session:session?{startedAt:session.startedAt,lastAttendanceCheckpointMinute:session.lastAttendanceCheckpointMinute||0,lastAttendanceCheckpointAt:session.lastAttendanceCheckpointAt}:null,students:students.map(s=>{const r=by.get(String(s._id)),isOnline=online.has(String(s._id));let liveMinutes=Number(r?.minutes||0);if(isOnline&&r?.lastJoinedAt)liveMinutes+=Math.max(0,Math.floor((now-new Date(r.lastJoinedAt))/60000));const pct=Math.max(0,Math.min(100,Math.round(liveMinutes/scheduleMinutes*100)));const pk=String(scheduleId)+':'+String(s._id),liveP=liveProctorStates.get(pk),observed=Number(r?.proctorObservedSeconds||0),present=Number(r?.proctorFacePresentSeconds||0),away=Number(r?.proctorFaceAwaySeconds||0),missing=Number(r?.proctorFaceMissingSeconds||0);return {_id:s._id,attendanceId:r?._id||null,fullName:s.fullName,login:s.login,online:isOnline,status:r?.status||'pending',joinedAt:r?.joinedAt||null,leftAt:r?.leftAt||null,lastCheckedAt:r?.lastCheckedAt||null,manualMarkedAt:r?.manualMarkedAt||null,minutes:liveMinutes,presencePercent:pct,reconnectCount:r?.reconnectCount||0,checkpointCount:Array.isArray(r?.checkpoints)?r.checkpoints.length:0,proctor:{cameraReady:Boolean(liveP?.cameraReady??r?.proctorCameraReady),faceState:liveP?.faceState||r?.proctorFaceState||'unknown',observedSeconds:observed,presentSeconds:present,awaySeconds:away,missingSeconds:missing,attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,lastAt:liveP?.at||r?.proctorLastAt||null,violations:Number(r?.proctorViolations||0)}}})};
+  return {groupAudit:summarizeLiveLessonGroup(group,students),session:session?{startedAt:session.startedAt,lastAttendanceCheckpointMinute:session.lastAttendanceCheckpointMinute||0,lastAttendanceCheckpointAt:session.lastAttendanceCheckpointAt}:null,students:students.map(s=>{const r=by.get(String(s._id)),isOnline=online.has(String(s._id));let liveMinutes=Number(r?.minutes||0);if(isOnline&&r?.lastJoinedAt)liveMinutes+=Math.max(0,Math.floor((now-new Date(r.lastJoinedAt))/60000));const pct=Math.max(0,Math.min(100,Math.round(liveMinutes/scheduleMinutes*100)));const pk=String(scheduleId)+':'+String(s._id),liveP=liveProctorStates.get(pk),observed=Number(r?.proctorObservedSeconds||0),present=Number(r?.proctorFacePresentSeconds||0),away=Number(r?.proctorFaceAwaySeconds||0),missing=Number(r?.proctorFaceMissingSeconds||0);return {_id:s._id,attendanceId:r?._id||null,fullName:s.fullName,login:s.login,online:isOnline,status:r?.status||'pending',joinedAt:r?.joinedAt||null,leftAt:r?.leftAt||null,lastCheckedAt:r?.lastCheckedAt||null,manualMarkedAt:r?.manualMarkedAt||null,minutes:liveMinutes,presencePercent:pct,reconnectCount:r?.reconnectCount||0,checkpointCount:Array.isArray(r?.checkpoints)?r.checkpoints.length:0,proctor:{cameraReady:Boolean(liveP?.cameraReady??r?.proctorCameraReady),faceState:liveP?.faceState||r?.proctorFaceState||'unknown',observedSeconds:observed,presentSeconds:present,awaySeconds:away,missingSeconds:missing,attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,lastAt:liveP?.at||r?.proctorLastAt||null,violations:Number(r?.proctorViolations||0)}}})};
 }
 const mediaJoinPayload=(user,roomName,lesson)=>({provider:'mediasoup',roomName,mediaProfile:mediaProfileFor(lesson),mediaTicket:mediaTicketFor(user,roomName,lesson),iceServers:mediaIceServers(user)});
 app.post('/api/media/verify',async(req,res)=>{try{

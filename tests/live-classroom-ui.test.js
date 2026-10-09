@@ -8,7 +8,7 @@ test('participant rail and direct participants button exist in live page',()=>{
   assert.ok(html.includes('live-participant-rail.css'));
 });
 test('role-based rail uses real students and does not infer video from proctor presence',()=>{
-  assert.ok(app.includes('renderLessonStudentRail(rows)'));
+  assert.ok(app.includes('renderLessonStudentRail(rows,audit)'));
   assert.ok(app.includes('student-rail-card'));
   assert.ok(app.includes('faceState'));
   assert.ok(app.includes("requestStudentOnStage(id)"));

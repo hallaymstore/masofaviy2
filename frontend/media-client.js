@@ -15,8 +15,8 @@ const el=(tag,attrs={})=>{
 const safe=s=>String(s??'');
 
 export class MediaRoomClient{
-  constructor({socket,joinPayload,mount,user,lowEnd=false,onState=()=>{},onError=()=>{}}){
-    this.socket=socket;this.joinPayload=joinPayload;this.mount=mount;this.user=user;this.onState=onState;this.onError=onError;
+  constructor({socket,joinPayload,mount,user,lowEnd=false,onState=()=>{},onError=()=>{},onTeacherPiPClick=()=>{}}){
+    this.socket=socket;this.joinPayload=joinPayload;this.mount=mount;this.user=user;this.onState=onState;this.onError=onError;this.onTeacherPiPClick=onTeacherPiPClick;
     const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection,weakNet=Boolean(conn?.saveData)||/2g|3g/.test(String(conn?.effectiveType||''));
     const mem=Number(navigator.deviceMemory||0),cores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
@@ -154,11 +154,12 @@ export class MediaRoomClient{
     const selfLabel=el('div',{className:'ms-inline-self-label'});
     selfLabel.textContent=this.user.fullName||this.user.login||'Siz';
     selfStage.append(selfVideo,selfLabel);
-    const teacherPiP=el('div',{className:'ms-teacher-pip-stage',role:'region','aria-label':'O‘qituvchi kichik oynasi'});
+    const teacherPiP=el('button',{className:'ms-teacher-pip-stage',type:'button',title:'O‘qituvchini asosiy ekranga qaytarish','aria-label':'O‘qituvchini asosiy ekranga qaytarish'});
     const teacherPiPVideo=el('video',{autoplay:true,playsInline:true,muted:true});
     teacherPiPVideo.className='ms-teacher-pip-video';
     const teacherPiPLabel=el('div',{className:'ms-teacher-pip-label'});teacherPiPLabel.textContent='O‘qituvchi';
     teacherPiP.append(teacherPiPVideo,teacherPiPLabel);
+    teacherPiP.addEventListener('click',()=>this.restoreTeacherFromPiP());
     const emptyStage=el('div',{className:'ms-empty-stage is-visible',role:'status'});
     const emptyTitle=el('strong');emptyTitle.textContent='Hozir video ko‘rsatilmayapti';
     const emptyHint=el('span');emptyHint.textContent='Kamera o‘chiq yoki hali uzatilmagan';
@@ -482,6 +483,15 @@ export class MediaRoomClient{
       const playing=video.play();
       if(playing?.catch)playing.catch(()=>this.onState({cameraPreviewBlocked:true}));
     }
+  }
+  restoreTeacherFromPiP(){
+    const tiles=[...(this.tiles?.values()||[])];
+    const teacher=tiles.find(t=>t.classList.contains('role-teacher')&&this.primaryTileTrack(t))
+      ||(this.user?.role==='teacher'&&this.primaryTileTrack(this.tiles.get('local'))?this.tiles.get('local'):null);
+    const id=String(teacher?.dataset?.userId||'');
+    if(!id)return false;
+    this.onTeacherPiPClick({userId:id,peerId:String(teacher.dataset.peerId||'')});
+    return true;
   }
   syncTeacherPiP(primary){
     const root=this.teacherPiP,video=this.teacherPiPVideo;
