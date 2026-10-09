@@ -76,3 +76,36 @@ test('WebRTC connection quality reports actual RTT and interval video packet los
   client.recvTransport.connectionState='failed';
   assert.equal((await client.getNetworkHealth()).state,'failed');
 });
+
+test('dedicated inline camera player reuses the same MediaStreamTrack and can be hidden',()=>{
+  const client=Object.create(MediaRoomClient.prototype);
+  const stage={classList:classes(),attrs:{},setAttribute(k,v){this.attrs[k]=v}};
+  const track={kind:'video',readyState:'live',enabled:true};
+  const oldMediaStream=globalThis.MediaStream;
+  globalThis.MediaStream=class{constructor(tracks){this.tracks=tracks}getVideoTracks(){return this.tracks}};
+  const video={srcObject:null,muted:false,autoplay:false,playsInline:false,played:0,play(){this.played++;return Promise.resolve()}};
+  try{
+    client.closed=false;client.onState=()=>{};client.selfStage=stage;client.selfStageVideo=video;
+    client.syncStandaloneCameraStage(true,track);
+    assert.equal(stage.classList.contains('is-visible'),true);
+    assert.equal(video.srcObject.getVideoTracks()[0],track);
+    assert.equal(video.played,1);
+    assert.equal(stage.attrs['aria-hidden'],'false');
+    client.syncStandaloneCameraStage(false);
+    assert.equal(stage.classList.contains('is-visible'),false);
+    assert.equal(stage.attrs['aria-hidden'],'true');
+    assert.equal(video.srcObject,null);
+  }finally{globalThis.MediaStream=oldMediaStream}
+});
+test('independent local camera stage does not rely on legacy ms-tile or picture-in-picture markup',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const media=readFileSync(new URL('../frontend/media-client.js',import.meta.url),'utf8');
+  const css=readFileSync(new URL('../public/live-classroom-2026.css',import.meta.url),'utf8');
+  assert.ok(media.includes("className:'ms-inline-self-stage'"));
+  assert.ok(media.includes("className='ms-inline-self-video'"));
+  assert.ok(media.includes('this.mount.append(grid,selfStage,stageBadge,fullscreen,strip,audioBin)'));
+  assert.ok(css.includes('.ms-inline-self-stage.is-visible'));
+  assert.ok(css.includes('z-index:19!important'));
+  assert.ok(media.includes('this.syncStandaloneCameraStage(preferLocal,track)'));
+  assert.ok(media.includes('this.ensureInlineVideoStage();this.onState({camera:false})'));
+});

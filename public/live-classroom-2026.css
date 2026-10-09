@@ -102,3 +102,52 @@
  display:block!important;visibility:visible!important;opacity:1!important;
  width:100%!important;height:100%!important;object-fit:contain!important
 }
+
+/* Stable video element independent of legacy .ms-tile fullscreen/speaker/grid selectors.
+   Uses the same local MediaStreamTrack; no second getUserMedia. */
+#lesson #videoMount.video-mount{position:relative!important;isolation:isolate}
+#lesson #videoMount .ms-inline-self-stage{
+ display:none!important;
+ position:absolute!important;
+ inset:4px!important;
+ z-index:19!important;
+ min-width:0!important;
+ min-height:0!important;
+ overflow:hidden!important;
+ border:1px solid #4878a5!important;
+ border-radius:9px!important;
+ background:#112c4e!important;
+ box-sizing:border-box!important;
+ pointer-events:none!important;
+}
+#lesson #videoMount .ms-inline-self-stage.is-visible{
+ display:block!important;
+ visibility:visible!important;
+ opacity:1!important;
+}
+#lesson #videoMount .ms-inline-self-stage video.ms-inline-self-video{
+ position:absolute!important;
+ inset:0!important;
+ width:100%!important;
+ height:100%!important;
+ display:block!important;
+ visibility:visible!important;
+ opacity:1!important;
+ object-fit:contain!important;
+ background:#112c4e!important;
+}
+#lesson #videoMount .ms-inline-self-label{
+ position:absolute!important;
+ right:12px!important;
+ bottom:12px!important;
+ z-index:2!important;
+ max-width:65%!important;
+ padding:6px 10px!important;
+ font-size:12px!important;
+ font-weight:700!important;
+ border-radius:6px!important;
+ color:#fff!important;
+ background:rgba(9,25,45,.78)!important;
+}
+#lesson #videoMount .ms-stage-fullscreen{z-index:32!important}
+#lesson #videoMount .ms-stage-badge{z-index:31!important}
