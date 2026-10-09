@@ -41,6 +41,9 @@ test('schedule draws subject group teacher and topic from stored course relation
 });
 test('management input buttons are available, teacher and student cannot create catalog',()=>{
  assert.ok(app.includes('academicEntryWizard.addSubject()'));
+ assert.ok(load('public/index.html').includes('O‘qituvchiga fan biriktirish'));
+ assert.ok(entry.includes('setTimeout(()=>addCourse(),60)'));
+ assert.ok(app.includes('1. + Yangi fan nomini kiritish'));
  assert.ok(app.includes('academicEntryWizard.addCourse()'));
  assert.ok(app.includes('academicEntryWizard.addSchedule()'));
  assert.ok(app.includes("['superadmin','admin','tech','rectorate','dean','department','tutor'].includes"));

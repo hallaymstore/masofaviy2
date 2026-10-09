@@ -1,14 +1,14 @@
 export function createAcademicEntryWizard({api,esc,modal,toast,reloadCourses,reloadSchedules}){
  const opt=(id,label)=>'<option value="'+esc(id)+'">'+esc(label)+'</option>';
  async function addSubject(){
-  modal('Fanlar katalogi · yangi fan','<p>Fanni bir marta kiriting. Keyin guruh va o‘qituvchilarga ro‘yxatdan biriktirasiz.</p><label>Fan nomi<input name="title" required minlength="3" placeholder="Masalan: Statistika nazariyasi"></label><label>Fan kodi<input name="code" required minlength="2" maxlength="40" placeholder="STAT-101"></label><label>Tavsif<textarea name="description"></textarea></label>',async d=>{await api('/lms/subjects',{method:'POST',body:JSON.stringify(d)});toast('Fan katalogga qo‘shildi. Endi “+ Fan biriktirish” tugmasini bosing.')});
+  modal('Fanlar katalogi · yangi fan','<p>Fanni bir marta kiriting. Keyin guruh va o‘qituvchilarga ro‘yxatdan biriktirasiz.</p><label>Fan nomi<input name="title" required minlength="3" placeholder="Masalan: Statistika nazariyasi"></label><label>Fan kodi<input name="code" required minlength="2" maxlength="40" placeholder="STAT-101"></label><label>Tavsif<textarea name="description"></textarea></label>',async d=>{await api('/lms/subjects',{method:'POST',body:JSON.stringify(d)});toast('Fan katalogga qo‘shildi. Endi guruh va o‘qituvchiga biriktiring.');setTimeout(()=>addCourse(),60)});
  }
  async function addCourse(){
   try{
    const setup=await api('/lms/setup-options');const {subjects,groups,teachers}=setup;
    if(!subjects.length){toast('Avval fanlar katalogiga fan kiriting');return addSubject()}
    if(!groups.length||!teachers.length)return toast('Avval guruh va o‘qituvchini kiriting');
-   modal('Fanni guruh va o‘qituvchiga biriktirish',
+   modal('2-qadam: Fan → guruh → o‘qituvchi',
     '<p>Fan nomini qo‘lda yozmang — katalogdan tanlang.</p><label>Fan<select name="subjectId" required>'+subjects.map(x=>opt(x._id,x.title+' · '+x.code)).join('')+'</select></label>'+
     '<label>Guruh<select name="groupId" required>'+groups.filter(x=>x.active).map(x=>opt(x._id,x.name+' · '+(x.externalId||x.code||''))).join('')+'</select></label>'+
     '<label>O‘qituvchi<select name="teacherId" required>'+teachers.filter(x=>x.active!==false).map(x=>opt(x._id,x.fullName+' (@'+x.login+')')).join('')+'</select></label>'+
