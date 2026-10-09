@@ -913,7 +913,8 @@ async function openConference(payload){
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',user.role==='student'?(cameraOn?'Broadcast kamera ON — boshqalarga ko‘rinadi. Proktor kamera lokal alohida ishlaydi':'Broadcast kamera OFF — boshqalarga ko‘rinmaydi. Proktor kamera lokal ishlashda davom etadi'):(cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish'))}
         if(state.cameraBusy!==undefined){const b=$('#callCamera');if(b){b.disabled=Boolean(state.cameraBusy);b.classList.toggle('is-busy',Boolean(state.cameraBusy));b.setAttribute('aria-busy',state.cameraBusy?'true':'false')}}
         if(state.screen!==undefined){const b=$('#callScreen');b?.classList.toggle('active-control',Boolean(state.screen));b?.setAttribute('aria-pressed',state.screen?'true':'false')}
-        if(state.echoGuard!==undefined)$('#echoGuard')?.classList.toggle('active-control',state.echoGuard);
+        if(state.proximityGuard!==undefined){const b=$('#echoGuard');b?.classList.toggle('active-control',state.proximityGuard);b?.setAttribute('aria-pressed',state.proximityGuard?'true':'false')}
+        if(state.autoHalfDuplex&&Date.now()-(window._lastAudioSafetyNotice||0)>20000){window._lastAudioSafetyNotice=Date.now();toast('Chiyillash aniqlandi: karnay xavfsizlik uchun vaqtincha o‘chirildi. Eshitish uchun mikrofonni OFF qiling yoki quloqchin ulang.')}
         if(state.audioBlocked)toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing');
         if(state.aecUnavailable)toast('Qurilmangizda echo cancellation faol emas. Quloqchin ishlating va karnay ovozini pasaytiring.');
         if(state.videoQuality&&$('#videoQuality'))$('#videoQuality').value=state.videoQuality;
@@ -948,7 +949,7 @@ async function openConference(payload){
       if(isTeachingRole&&localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic();
     }
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||'auto';
-    $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
+    $('#echoGuard')?.classList.toggle('active-control',mediaRoomClient.proximityGuard);$('#echoGuard')?.setAttribute('aria-pressed',mediaRoomClient.proximityGuard?'true':'false');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
     studentCameraGranted=user.role!=='student';studentMicGranted=true; // Student broadcast is opt-in on every camera ON action.
     showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
@@ -1223,7 +1224,7 @@ $('#callCamera').onclick=async()=>{
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
-$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');mediaRoomClient.setEchoGuard(true);$('#echoGuard').classList.add('active-control');toast('Echo va chiyillashga qarshi himoya doimiy yoqilgan')});
+$('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const on=mediaRoomClient.setProximityGuard(!mediaRoomClient.proximityGuard);toast(on?'Yaqin qurilmalar rejimi ON: mikrofon yoniq paytda karnay ovozi bloklanadi. Eshitish uchun mikrofonni OFF qiling.':'Yaqin qurilmalar rejimi OFF. Echo cancellation va chiyillash kuzatuvi faol qoladi.');});
 $('#callChat').onclick=()=>showLessonSide('chat');
 function applyInclusivePrefs(){
   document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
@@ -1687,7 +1688,7 @@ function connectSocket(){
   socket.on('lesson:feedback-protect',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||!mediaRoomClient)return;
     const applied=mediaRoomClient.engageCoordinatedFeedbackGuard?.(x.duration||120000,x.frequency||0);
-    if(applied)toast(x.escalated?'Yaqin qurilmalar aniqlandi · 10 daqiqa zero-feedback rejimi':'Feedback to‘xtatildi · 2 daqiqa zero-feedback rejimi');
+    if(applied)toast('Chiyillashga qarshi vaqtincha xavfsiz rejim yoqildi. Eshitish uchun mikrofonni o‘chiring yoki quloqchin ulang.');
   });
   socket.on('lesson:proctor-state',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;

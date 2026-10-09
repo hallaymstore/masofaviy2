@@ -1545,10 +1545,12 @@ socket.on('lesson:proctor-camera-result',async({lessonId,active})=>{
 });
 socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
   if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
-  const now=Date.now(),key=String(lessonId),freq=Math.max(0,Math.min(12000,Number(frequency)||0)),base=Math.max(1800,Math.min(6500,Number(duration)||3800));
+  const now=Date.now(),key=String(lessonId),freq=Math.max(0,Math.min(12000,Number(frequency)||0));
+  if(freq<450||freq>8500)return; // only narrowband squeal, never general speech/room noise
   const prev=liveFeedbackProtectionByLesson.get(key);
-  const strikes=prev&&now-prev.at<9000?Math.min(4,(prev.strikes||1)+1):1;
-  const ms=strikes>=2?600000:120000;
+  if(prev&&now-prev.at<2500)return; // prevent rapid alerts from silencing the classroom
+  const strikes=prev&&now-prev.at<18000?Math.min(3,(prev.strikes||1)+1):1;
+  const ms=strikes>=2?90000:30000;
   liveFeedbackProtectionByLesson.set(key,{at:now,strikes,until:now+ms});
   io.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,strikes,escalated:strikes>=2,by:String(socket.user._id),at:now});
 });
