@@ -48,3 +48,9 @@ test('class spotlight must be available to students, private proctor stream rema
  assert.ok(app.includes("startCameraFromExternalTrack?.(liveProctorTrack,x.viewerUserId||'',true)"));
  assert.ok(sfu.includes("if(!producer?.appData?.proctorBroadcast)return true"));
 });
+
+test('student video remains local until teacher grants or spotlight consent',()=>{
+ assert.ok(app.includes("studentCameraGranted=user.role!=='student'"));
+ assert.ok(app.includes("user?.role==='student'&&!studentCameraGranted"));
+ assert.ok(app.includes('if(permitted)'));
+});
