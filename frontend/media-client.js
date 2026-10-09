@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimer=null;this.transportRecoveryBusy=false;
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -64,14 +64,19 @@ export class MediaRoomClient{
     return id?{deviceId:{ideal:id},...video}:video;
   }
   async getMediaOnce(kind){
+    if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw new Error('Kamera/mikrofon uchun HTTPS va brauzer ruxsati kerak');
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera';
     const first=kind==='audio'?{audio:this.getPreferredConstraints('audio'),video:false}:{audio:false,video:this.getPreferredConstraints('video')};
     try{return await navigator.mediaDevices.getUserMedia(first)}
     catch(e){
-      if(['OverconstrainedError','NotFoundError','DevicesNotFoundError'].includes(e?.name)){
+      if(kind==='video'&&['OverconstrainedError','NotFoundError','DevicesNotFoundError','NotReadableError','AbortError'].includes(e?.name)){
         localStorage.removeItem(key);
-        const fallback=kind==='audio'?{audio:this.getPreferredConstraints('audio',{ignoreDevice:true}),video:false}:{audio:false,video:this.getPreferredConstraints('video',{ignoreDevice:true})};
-        return navigator.mediaDevices.getUserMedia(fallback);
+        if(['NotReadableError','AbortError'].includes(e.name))await new Promise(resolve=>setTimeout(resolve,450));
+        return navigator.mediaDevices.getUserMedia({audio:false,video:{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:24}}});
+      }
+      if(kind==='audio'&&['OverconstrainedError','NotFoundError','DevicesNotFoundError'].includes(e?.name)){
+        localStorage.removeItem(key);
+        return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
       }
       throw e;
     }
@@ -93,24 +98,33 @@ export class MediaRoomClient{
     return joined;
   }
   async recoverTransport(transport,label='media'){
-    if(this.closed||!transport||transport.closed||this.transportRecoveryBusy)return false;
-    this.transportRecoveryBusy=true;
+    if(this.closed||!transport||transport.closed||this.transportRecoveryBusy.has(label))return false;
+    this.transportRecoveryBusy.add(label);
     try{
-      const x=await this.request('restartIce',{transportId:transport.id});
-      if(!x?.iceParameters)throw new Error('ICE parametrlari olinmadi');
-      await transport.restartIce({iceParameters:x.iceParameters});
-      this.onState({transport:label,state:'recovering'});
-      return true;
-    }catch(e){
+      for(let attempt=0;attempt<2;attempt++){
+        if(this.closed||transport.closed)return false;
+        try{
+          const x=await this.request('restartIce',{transportId:transport.id});
+          if(!x?.iceParameters)throw new Error('ICE parametrlari olinmadi');
+          await transport.restartIce({iceParameters:x.iceParameters});
+          this.onState({transport:label,state:'recovering'});
+          return true;
+        }catch(e){if(attempt===0)await new Promise(resolve=>setTimeout(resolve,700));}
+      }
       this.onState({transport:label,state:'failed',recoveryFailed:true});
       return false;
-    }finally{this.transportRecoveryBusy=false}
+    }finally{this.transportRecoveryBusy.delete(label)}
   }
   scheduleTransportRecovery(transport,label,state){
     this.onState({transport:label,state});
-    if(!['disconnected','failed'].includes(state)||this.closed)return;
-    clearTimeout(this.transportRecoveryTimer);
-    this.transportRecoveryTimer=setTimeout(()=>this.recoverTransport(transport,label),state==='failed'?350:1200);
+    clearTimeout(this.transportRecoveryTimers.get(label));
+    this.transportRecoveryTimers.delete(label);
+    if(this.closed||!['disconnected','failed'].includes(state))return;
+    const timer=setTimeout(()=>{
+      this.transportRecoveryTimers.delete(label);
+      this.recoverTransport(transport,label).catch(this.onError);
+    },state==='failed'?1400:3000);
+    this.transportRecoveryTimers.set(label,timer);
   }
   async createTransports(){
     const send=await this.request('createTransport',{direction:'send'});
@@ -556,7 +570,8 @@ export class MediaRoomClient{
     this.proctorCameraBroadcast=false;this.onState({camera:false,proctorBroadcast:false});return true;
   }
   async toggleCamera(){
-    const p=this.producers.get('camera');
+    let p=this.producers.get('camera');
+    if(p&&p.track?.readyState!=='live'){await this.closeProducer('camera');p=null;}
     if(p){
       if(p.paused){p.resume();p.track.enabled=true;await this.request('resumeProducer',{producerId:p.id}).catch(()=>{});this.updateParticipantCardCamera(this.room?.peerId,true);this.onState({camera:true});return true}
       p.pause();p.track.enabled=false;await this.request('pauseProducer',{producerId:p.id}).catch(()=>{});this.updateParticipantCardCamera(this.room?.peerId,false);this.onState({camera:false});return false;
@@ -573,11 +588,24 @@ export class MediaRoomClient{
         :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]:[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]);
       try{track.contentHint='motion'}catch{}
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:teacher?1200:(this.ultraLite?300:(lite?650:1000))},appData:{mediaTag:'camera',role:this.user.role,quality:teacher?'1080p':'adaptive'}});
-      this.producers.set('camera',producer);this.proctorCameraBroadcast=false;this.attachLocalVideo(track);producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
+      this.producers.set('camera',producer);this.proctorCameraBroadcast=false;this.attachLocalVideo(track);clearTimeout(this.cameraRecoveryTimer);this.cameraRecoveryAttempts=0;producer.on('trackended',()=>this.handleUnexpectedCameraEnd(producer));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
       this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});return false;
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
+  }
+  async handleUnexpectedCameraEnd(producer){
+    if(this.closed||this.producers.get('camera')!==producer)return;
+    await this.closeProducer('camera');
+    this.onState({camera:false,cameraInterrupted:true});
+    if(this.user?.role!=='teacher')return;
+    const retry=async()=>{
+      if(this.closed||this.producers.has('camera')||this.cameraRecoveryAttempts>=3)return;
+      this.cameraRecoveryAttempts++;
+      const ok=await this.toggleCamera();
+      if(!ok&&!this.closed&&this.cameraRecoveryAttempts<3)this.cameraRecoveryTimer=setTimeout(retry,1800*this.cameraRecoveryAttempts);
+    };
+    this.cameraRecoveryTimer=setTimeout(retry,1200);
   }
   attachLocalVideo(track){
     const tile=this.ensureTile('local',{fullName:this.user.fullName,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true),video=qs('video',tile);video.srcObject=new MediaStream([track]);tile.classList.add('has-video');this.updateParticipantCardCamera(this.room?.peerId,true);this.syncParticipantCardVideo(this.room?.peerId);
@@ -766,7 +794,7 @@ export class MediaRoomClient{
   }
   clearFeedbackProtection(){
     this.feedbackRiskUntil=0;this.feedbackToneSince=0;
-    clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);clearTimeout(this.transportRecoveryTimer);
+    clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);
     this.setMicGuardGain(.50,.18);this.refreshRemoteAudioVolume();
     this.onState({feedbackGuard:false,coordinatedFeedback:false,severeFeedback:false,halfDuplex:false,feedbackSafe:Date.now()<this.feedbackSafeUntil});
   }
@@ -809,7 +837,7 @@ export class MediaRoomClient{
     if(this.audioUnlockHandler){document.removeEventListener('pointerdown',this.audioUnlockHandler);document.removeEventListener('keydown',this.audioUnlockHandler);this.audioUnlockHandler=null;this.audioUnlockInstalled=false}
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
-    this.stopFeedbackMonitor();clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
+    this.stopFeedbackMonitor();clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);clearTimeout(this.cameraRecoveryTimer);for(const timer of this.transportRecoveryTimers.values())clearTimeout(timer);this.transportRecoveryTimers.clear();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
     for(const c of this.consumers.values())try{c.close()}catch{}
     try{await this.audioCtx?.close()}catch{};this.audioCtx=null;

@@ -870,7 +870,8 @@ async function openConference(payload){
             socket.emit('lesson:feedback-alert',{lessonId:activeLessonId,frequency:Number(state.feedbackFrequency)||0,duration:120000});
           }
         }
-        if(state.transport){const bad=['failed','disconnected'].includes(state.state);$('#connectionBanner')?.classList.toggle('hidden',!bad);if(bad)autoRejoinLesson();}
+        if(state.transport){const bad=['failed','disconnected','recovering'].includes(state.state);$('#connectionBanner')?.classList.toggle('hidden',!bad);if(state.recoveryFailed)autoRejoinLesson(true);if(state.state==='connected'){$('#callRejoin')?.classList.add('hidden');clearTimeout(autoRejoinTimer);autoRejoinTimer=null;}}
+        if(state.cameraInterrupted)toast('Kamera uzildi. Avtomatik tiklash tekshirilmoqda.');
       },
       onError:e=>toast(e.message||String(e))
     });
@@ -879,6 +880,11 @@ async function openConference(payload){
       if(!proctorOk)throw new Error('Jonli darsga kirish uchun kamera ruxsati va proktor kamera majburiy');
     }
     await mediaRoomClient.connect();
+    if(user.role==='teacher'){
+      // Default teacher camera/microphone ON; honor explicit OFF choices on reconnect.
+      if(localStorage.getItem('m2-teacher-camera-wanted')!=='0')await mediaRoomClient.toggleCamera();
+      if(localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic();
+    }
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||'auto';
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
@@ -1131,14 +1137,14 @@ $('#closeLessonDrawer')?.addEventListener('click',()=>setLessonDrawer(false));
 $('#lessonDrawerBackdrop')?.addEventListener('click',()=>setLessonDrawer(false));
 $('#callMic').onclick=async()=>{
   if(!mediaRoomClient)return toast('Avval video xonaga kiring');
-  try{await mediaRoomClient.toggleMic()}catch(e){toast(e.message)}
+  try{const wanted=!micOn;const result=await mediaRoomClient.toggleMic();if(user?.role==='teacher'&&result===wanted)localStorage.setItem('m2-teacher-mic-wanted',wanted?'1':'0')}catch(e){toast(e.message)}
 };
 $('#callCamera').onclick=async()=>{
   if(!mediaRoomClient)return toast('Avval video xonaga kiring');
   if(user?.role==='student'&&!studentCameraGranted){
     return toast(liveProctorTrack?.readyState==='live'?'Proktor kamerangiz mahalliy faol. Video o‘qituvchi tanlab, siz rozilik berganingizdan keyin uzatiladi.':'Proktor kamera hozir faol emas. Darsga qayta ulaning.');
   }
-  try{await mediaRoomClient.toggleCamera()}catch(e){toast(e.message)}
+  try{const wanted=!cameraOn;const result=await mediaRoomClient.toggleCamera();if(user?.role==='teacher'&&result===wanted)localStorage.setItem('m2-teacher-camera-wanted',wanted?'1':'0')}catch(e){toast(e.message)}
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});

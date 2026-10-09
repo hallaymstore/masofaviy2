@@ -54,3 +54,29 @@ test('student video remains local until teacher grants or spotlight consent',()=
  assert.ok(app.includes("user?.role==='student'&&!studentCameraGranted"));
  assert.ok(app.includes('if(permitted)'));
 });
+
+test('only enrolled group students can enter a live room and pass media verification',()=>{
+ const join=server.slice(server.indexOf("app.post('/api/live/rooms/:scheduleId/join'"),server.indexOf("app.post('/api/live/rooms/:scheduleId/end'"));
+ assert.ok(join.includes('await scheduleAccess(req.user,lesson)'));
+ const access=server.slice(server.indexOf('const scheduleAccess=async'),server.indexOf('const ensureAutomaticLiveSession=async'));
+ assert.ok(access.includes("user.role==='student'"));
+ assert.ok(access.includes("String(gid||'')===String(lesson.groupId)"));
+ const verify=server.slice(server.indexOf("app.post('/api/media/verify'"),server.indexOf('const scheduleAccess=async'));
+ assert.ok(verify.includes('await scheduleAccess(user,lesson)'));
+});
+test('media recovery independently handles send/receive and avoids premature full rejoin',()=>{
+ assert.ok(media.includes('transportRecoveryTimers=new Map()'));
+ assert.ok(media.includes('transportRecoveryBusy=new Set()'));
+ assert.ok(media.includes('restartIce'));
+ assert.ok(media.includes('getUserMedia({audio:false,video:{width:{ideal:640}'));
+ assert.ok(app.includes('if(state.recoveryFailed)autoRejoinLesson(true)'));
+ assert.ok(!app.includes("if(bad)autoRejoinLesson();"));
+});
+
+test('teacher webcam and microphone start by default but respect manual OFF on reconnect',()=>{
+ assert.ok(app.includes("user.role==='teacher'"));
+ assert.ok(app.includes("m2-teacher-camera-wanted"));
+ assert.ok(app.includes("m2-teacher-mic-wanted"));
+ assert.ok(app.includes("if(localStorage.getItem('m2-teacher-camera-wanted')!=='0')await mediaRoomClient.toggleCamera()"));
+ assert.ok(app.includes("if(localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic()"));
+});

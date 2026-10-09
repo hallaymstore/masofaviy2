@@ -7,7 +7,7 @@
 #lesson .lesson-student-rail-items::-webkit-scrollbar{height:4px}
 #lesson .lesson-student-rail-items::-webkit-scrollbar-thumb{background:#344965;border-radius:5px}
 #lesson .student-rail-card{position:relative;flex:0 0 112px!important;width:112px!important;min-width:112px!important;max-width:112px!important;height:77px!important;min-height:77px!important;display:grid!important;grid-template-columns:36px minmax(0,1fr)!important;grid-template-rows:auto auto!important;gap:2px 6px;align-items:center;text-align:left;background:#213451!important;color:#ebf4ff!important;border:1px solid #35506f!important;border-radius:8px!important;scroll-snap-align:start;padding:8px 5px!important;cursor:pointer}
-#lesson .student-rail-card.offline{opacity:.52}
+#lesson .student-rail-card.offline{opacity:1;background:#25476e!important;border-color:#476c96!important}
 #lesson .student-rail-card .rail-avatar{grid-column:1;grid-row:1 / span 2;width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:#345481;color:#fff;font-size:12px;font-weight:800}
 #lesson .student-rail-card>b{grid-column:2;grid-row:1;font-size:10px;line-height:1.2;max-height:27px;overflow:hidden;overflow-wrap:anywhere}
 #lesson .student-rail-card>small{grid-column:2;grid-row:2;font-size:8px;line-height:1.2;color:#b5c6df;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -40,3 +40,11 @@
  #lesson .rail-title{display:none}
  #lesson .lesson-student-rail-items{padding:4px 0}
 }
+
+/* Offline is a status, never a dimming veil. */
+#lesson .lesson-student-rail{background:#173758!important;color:#fff!important;border-top-color:#466a93!important}
+#lesson .student-rail-card,#lesson .student-rail-card.offline{opacity:1!important;background:#25476e!important;color:#fff!important;border-color:#476c96!important}
+#lesson .student-rail-card>small{color:#deebff!important;font-size:9px!important}
+#lesson .student-rail-card .rail-avatar{background:#3a6597!important}
+#lesson .student-rail-card.offline .rail-presence-dot{background:#a7b6cb}
+#lesson .student-rail-card:hover{background:#305983!important;border-color:#7bc0fc!important}
