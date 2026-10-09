@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -212,6 +212,7 @@ export class MediaRoomClient{
       const preferred=rows.find(x=>x?.user?.role==='teacher')||rows[0];if(preferred?.peerId)this.selectStagePeer(String(preferred.peerId),false);
     }else this.refreshParticipantCardSelection();
     if(this.classSpotlightUserId)this.focusUserForClass(this.classSpotlightUserId);
+    else this.ensureInlineVideoStage();
   }
   syncParticipantCardVideo(peerId){
     const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
@@ -248,6 +249,7 @@ export class MediaRoomClient{
   selectStagePeer(peerId,emitState=true){
     const id=String(peerId||''),target=this.participantTile(id);if(!target)return false;
     for(const t of this.tiles.values())t.classList.remove('focused');target.classList.add('focused');this.grid?.classList.add('has-focus');this.selectedStagePeerId=id;this.resetZoom(target);this.refreshParticipantCardSelection();
+    this.grid?.classList.remove('local-camera-stage');
     if(emitState)this.onState({focusedUserId:target.dataset.userId||id});return true;
   }
   setViewMode(mode){
@@ -256,6 +258,7 @@ export class MediaRoomClient{
     this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');this.grid?.classList.toggle('teacher-stage-layout',this.viewMode==='speaker');
     if(this.viewMode==='gallery'){this.grid?.classList.remove('speaker-layout','has-focus');for(const t of this.tiles.values())t.classList.remove('active-speaker','speaker-side','focused')}
     else if(this.selectedStagePeerId)this.selectStagePeer(this.selectedStagePeerId,false);
+    this.ensureInlineVideoStage();
     this.onState({viewMode:this.viewMode});return this.viewMode;
   }
   focusUserForClass(userId=''){
@@ -281,6 +284,7 @@ export class MediaRoomClient{
     // The course instructor may join as a privileged staff user, not only "teacher".
     const teacher=[...this.tiles.values()].find(t=>t!==selected&&t.classList.contains('role-teacher')&&t.classList.contains('has-video')&&!t.classList.contains('screen-share'))
       ||(this.user?.role!=='student'&&this.tiles.get('local')!==selected&&this.tiles.get('local')?.classList.contains('has-video')?this.tiles.get('local'):null);
+    this.grid?.classList.remove('local-camera-stage');
     if(teacher)teacher.classList.add('teacher-pip');
     this.refreshParticipantCardSelection();
     this.onState({focusedUserId:this.classSpotlightUserId});
@@ -425,7 +429,44 @@ export class MediaRoomClient{
       const hasLiveStage=Boolean(selected?.classList.contains('has-video')&&selectedTrack?.readyState==='live');
       if(!hasLiveStage)this.selectStagePeer(String(this.room?.peerId||'local'),false);
     }
+    this.ensureInlineVideoStage();
     if(video?.srcObject&&video.paused)video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));
+  }
+  ensureInlineVideoStage(){
+    const grid=this.grid,local=this.tiles.get('local');
+    if(!grid||this.closed)return false;
+    if(this.classSpotlightUserId||grid.classList.contains('screen-layout')||this.viewMode==='gallery'){
+      grid.classList.remove('local-camera-stage');return false;
+    }
+    const video=local?qs('video',local):null,track=video?.srcObject?.getVideoTracks?.()[0];
+    const localProducer=this.producers.get('camera');
+    const localLive=Boolean(local?.classList.contains('has-video')&&track?.readyState==='live'&&track.enabled&&localProducer&&!localProducer.paused);
+    const selected=this.participantTile(this.selectedStagePeerId);
+    const selectedVideo=selected?qs('video',selected):null,selectedTrack=selectedVideo?.srcObject?.getVideoTracks?.()[0];
+    const selectedLive=Boolean(selected?.classList.contains('has-video')&&selectedTrack?.readyState==='live');
+    const preferLocal=localLive&&(!selectedLive||selected===local);
+    if(preferLocal&&selected!==local)this.selectStagePeer(String(this.room?.peerId||'local'),false);
+    grid.classList.toggle('local-camera-stage',preferLocal);
+    return preferLocal;
+  }
+  async getNetworkHealth(){
+    const states=[this.sendTransport?.connectionState,this.recvTransport?.connectionState].filter(Boolean);
+    const state=states.includes('failed')?'failed':states.includes('disconnected')?'disconnected':states.includes('connecting')?'connecting':states.every(x=>x==='connected')&&states.length===2?'connected':'unknown';
+    let rttMs=0,received=0,lost=0;
+    try{
+      const report=await this.recvTransport?.getStats?.();
+      if(report)for(const stat of report.values()){
+        if(stat.type==='candidate-pair'&&stat.state==='succeeded'&&(stat.nominated||stat.selected)&&Number.isFinite(stat.currentRoundTripTime))rttMs=Math.max(rttMs,stat.currentRoundTripTime*1000);
+        if(stat.type==='inbound-rtp'&&!stat.isRemote&&(stat.kind==='video'||stat.mediaType==='video')){
+          received+=Number(stat.packetsReceived||0);lost+=Number(stat.packetsLost||0);
+        }
+      }
+    }catch{}
+    const previous=this.networkStats||{received:0,lost:0,at:0};
+    const dReceived=received-previous.received,dLost=lost-previous.lost;
+    const validSample=received>0&&previous.at>0&&dReceived>=0&&dLost>=0&&(dReceived+dLost)>=30;
+    if(received>0&&(!previous.at||validSample||dReceived<0||dLost<0))this.networkStats={received,lost,at:Date.now()};
+    return {state,rttMs,lossPercent:validSample?100*dLost/(dReceived+dLost):null};
   }
   async prepareSpeechTrack(rawTrack){
     try{await rawTrack.applyConstraints({echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1}).catch(()=>{})}catch{}
@@ -640,7 +681,7 @@ export class MediaRoomClient{
     video.srcObject=new MediaStream([track]);
     tile.classList.add('has-video');
     this.restoreInlineCamera(true);
-    video.onloadedmetadata=()=>{if(!this.closed&&!document.hidden&&video.srcObject)video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));};
+    video.onloadedmetadata=()=>{if(!this.closed&&!document.hidden&&video.srcObject){this.ensureInlineVideoStage();video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));}};
     this.updateParticipantCardCamera(this.room?.peerId,true);this.syncParticipantCardVideo(this.room?.peerId);
   }
   async toggleScreen(){

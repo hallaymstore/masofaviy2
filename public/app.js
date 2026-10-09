@@ -687,18 +687,35 @@ function startLessonClock(){
 }
 function startNetworkMonitor(){
   clearInterval(networkTimer);
-  const update=()=>{
-    const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
-    let quality='good',label='Yaxshi';
-    if(!navigator.onLine){quality='bad';label='Ulanish yo‘q'}
-    else if(conn){const rtt=Number(conn.rtt||0),down=Number(conn.downlink||0),type=String(conn.effectiveType||'');if(/2g/.test(type)||rtt>500||(down&&down<0.8)){quality='bad';label='Yomon'}else if(/3g/.test(type)||rtt>250||(down&&down<2)){quality='mid';label='O‘rtacha'}}
-    const b=$('#networkQualityBadge');if(b){b.className='network-quality '+quality;b.textContent='● '+label}
-    if(mediaRoomClient&&!mediaRoomClient.lowBandwidthMode){
-      const q=quality==='bad'?'240':quality==='mid'?'360':'auto';
-      if(lastAutoQuality!==q){lastAutoQuality=q;mediaRoomClient.setReceiveQuality(q).catch(()=>{})}
-    }
-    $('#connectionBanner')?.classList.toggle('hidden',navigator.onLine&&socket?.connected!==false);
-  };update();networkTimer=setInterval(update,ultraLiteUI?7000:(lowEndUI?5000:3000))
+  let sampling=false;
+  const update=async()=>{
+    if(sampling)return;
+    sampling=true;
+    try{
+      const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+      const media=mediaRoomClient&&!mediaRoomClient.closed?mediaRoomClient:null;
+      const health=media?await media.getNetworkHealth():null;
+      let quality='good',label='Yaxshi';
+      if(!navigator.onLine||socket?.connected===false){quality='bad';label='Ulanish yo‘q'}
+      else if(health?.state==='failed'){quality='bad';label='Ulanish uzilgan'}
+      else if(health?.state==='disconnected'||health?.state==='connecting'){quality='mid';label='Tiklanmoqda'}
+      else if(health?.lossPercent!=null&&health.lossPercent>12){quality='bad';label='Yomon'}
+      else if((health?.lossPercent!=null&&health.lossPercent>3)||(health?.rttMs||0)>280){quality='mid';label='O‘rtacha'}
+      else if(conn){
+        // Network Information API values are estimates, not actual classroom/WebRTC packet loss.
+        const rtt=Number(conn.rtt||0),down=Number(conn.downlink||0),type=String(conn.effectiveType||'');
+        if(/2g|3g/.test(type)||rtt>400||(down&&down<1)){quality='mid';label='O‘rtacha'}
+      }
+      if(!activeLessonId)return;
+      const b=$('#networkQualityBadge');if(b){b.className='network-quality '+quality;b.textContent='● '+label;b.title=health?'WebRTC: '+health.state+(health.rttMs?' · RTT '+Math.round(health.rttMs)+' ms':'')+(health.lossPercent!=null?' · paket yo‘qotish '+health.lossPercent.toFixed(1)+'%':''):'Brauzer tarmoq bahosi (taxminiy)';}
+      if(media&&!media.lowBandwidthMode){
+        const q=quality==='bad'?'240':quality==='mid'?'360':'auto';
+        if(lastAutoQuality!==q){lastAutoQuality=q;media.setReceiveQuality(q).catch(()=>{})}
+      }
+      $('#connectionBanner')?.classList.toggle('hidden',navigator.onLine&&socket?.connected!==false&&health?.state!=='failed'&&health?.state!=='disconnected');
+    }catch(e){console.warn('Network quality sampling failed',e?.message||e)}
+    finally{sampling=false}
+  };update();networkTimer=setInterval(update,ultraLiteUI?7000:(lowEndUI?5000:3500))
 }
 function showReaction(m){
   if(ultraLiteUI)return;

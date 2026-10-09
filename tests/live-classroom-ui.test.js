@@ -97,3 +97,22 @@ test('administrator operating a lesson remains available as an educator PiP on s
  assert.ok(media.includes("this.user?.role!=='student'&&this.tiles.get('local')!==selected"));
  assert.ok(media.includes("if(teacher)teacher.classList.add('teacher-pip')"));
 });
+
+test('local camera stage remains visible despite legacy speaker layout CSS',()=>{
+ const css=file('public/live-classroom-2026.css');
+ assert.ok(media.includes('ensureInlineVideoStage(){'));
+ assert.ok(media.includes("grid.classList.toggle('local-camera-stage',preferLocal)"));
+ assert.ok(media.includes("const localLive=Boolean(local?.classList.contains('has-video')"));
+ assert.ok(css.includes('.ms-grid.local-camera-stage:not(.screen-layout):not(.class-spotlight)>.ms-tile.local.has-video'));
+ assert.ok(css.includes('display:block!important;visibility:visible!important;opacity:1!important'));
+ assert.ok(media.includes('this.ensureInlineVideoStage();'));
+});
+test('network indicator prioritizes real WebRTC statistics over estimated browser downlink',()=>{
+ assert.ok(media.includes('async getNetworkHealth(){'));
+ assert.ok(media.includes("stat.type==='candidate-pair'"));
+ assert.ok(media.includes("stat.type==='inbound-rtp'"));
+ assert.ok(app.includes('await media.getNetworkHealth()'));
+ assert.ok(app.includes("health.lossPercent>12"));
+ assert.ok(app.includes('Network Information API values are estimates'));
+ assert.ok(!app.includes("(down&&down<0.8)"));
+});
