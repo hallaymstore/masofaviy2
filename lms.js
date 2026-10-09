@@ -13,7 +13,10 @@ import { installCoursework } from './coursework.js';
 import { normalizeGradeScale } from './coursework-rules.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
-  const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
+  const subjectCatalogSchema=new mongoose.Schema({code:{type:String,required:true,trim:true,uppercase:true},title:{type:String,required:true,trim:true,maxlength:180},description:{type:String,trim:true,maxlength:1000},active:{type:Boolean,default:true},createdBy:{type:id,ref:'User'}},{timestamps:true});
+  subjectCatalogSchema.index({code:1},{unique:true});
+  const SubjectCatalog=mongoose.models.SubjectCatalog||mongoose.model('SubjectCatalog',subjectCatalogSchema);
+  const courseSchema=new mongoose.Schema({subjectId:{type:id,ref:'SubjectCatalog'},code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
   const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},accessCount:{type:Number,default:0,min:0},lastAccessedAt:Date,createdBy:{type:id,ref:'User'}},{timestamps:true});
   const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},category:{type:String,enum:['assignment','independent_work','practice'],default:'assignment',index:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,enum:[2,5,10,100]},gradeScale:{type:Number,default:100,enum:[2,5,10,100]},published:{type:Boolean,default:true}},{timestamps:true});
@@ -26,6 +29,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const Course=mongoose.model('Course',courseSchema),Resource=mongoose.model('Resource',resourceSchema),Assignment=mongoose.model('Assignment',assignmentSchema),Submission=mongoose.model('Submission',submissionSchema),Quiz=mongoose.model('Quiz',quizSchema),Attempt=mongoose.model('QuizAttempt',attemptSchema),GradeChange=mongoose.model('GradeChange',gradeChangeSchema);
   const fail=(res,e)=>res.status(e.status||400).json({message:e.message||'So‘rov bajarilmadi'});
   const checkId=value=>{if(!mongoose.isValidObjectId(value))throw Object.assign(new Error('ID noto‘g‘ri'),{status:400})};
+  const contentManagers=new Set(['superadmin','admin','tech','rectorate','dean','department','tutor']);
   const groupOversight=async(user,groupId)=>{
     if(!['dean','department','tutor'].includes(user?.role))return false;
     const group=await Structure.findById(groupId).select('_id parentId').lean();
@@ -39,9 +43,9 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const courseAccess=async(req,courseId,write=false)=>{
     checkId(courseId);const course=await Course.findById(courseId).lean();if(!course||!course.active)throw Object.assign(new Error('Fan topilmadi'),{status:404});
     const teacher=String(course.teacherId)===String(req.user._id);
-    const admin=['superadmin','admin'].includes(req.user.role);
+    const admin=['superadmin','admin','tech','rectorate'].includes(req.user.role);
     const student=req.user.role==='student'&&String(await resolveUserGroupId(req.user))===String(course.groupId);
-    const oversight=!write&&(['tech','rectorate'].includes(req.user.role)||await groupOversight(req.user,course.groupId));
+    const oversight=await groupOversight(req.user,course.groupId);
     if(!(teacher||admin||oversight||(!write&&student)))throw Object.assign(new Error('Bu fanga ruxsat yo‘q'),{status:403});
     return course;
   };
@@ -57,6 +61,42 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const curriculum=installCurriculum(app,{mongoose,User,Structure,Course,Resource,Assignment,Quiz,auth,audit,resolveUserGroupId});
   installMonitoringExport(app,{mongoose,User,Structure,Course,Schedule,Attendance,CourseResult:academic.CourseResult,StudyPlan:academic.StudyPlan,StudentMovement:academic.StudentMovement,auth,audit});
   const url=value=>{const s=String(value||'').trim();if(!/^https:\/\//i.test(s)||s.length>2000)throw new Error('Faqat HTTPS havola qabul qilinadi');return s};
+  app.get('/api/lms/subjects',auth,wrap(async(req,res)=>{
+    const rows=await SubjectCatalog.find({active:true}).select('_id code title description').sort({title:1}).limit(1000).lean();
+    res.json(rows);
+  }));
+  app.post('/api/lms/subjects',auth,wrap(async(req,res)=>{
+    if(!contentManagers.has(req.user.role))return res.status(403).json({message:'Fanlar katalogini yaratish huquqi yo‘q'});
+    const title=String(req.body.title||'').trim(),code=String(req.body.code||'').trim().toUpperCase(),description=String(req.body.description||'').trim();
+    if(title.length<3||title.length>180||!(/^[A-Z0-9_-]{2,40}$/.test(code)))throw new Error('Fan nomi kamida 3 belgi, kod esa 2–40 ta lotin harfi/raqam bo‘lsin');
+    const exists=await SubjectCatalog.findOne({code}).lean();
+    if(exists)throw Object.assign(new Error('Bu kodli fan katalogda mavjud'),{status:409});
+    const row=await SubjectCatalog.create({title,code,description,createdBy:req.user._id});
+    audit(req,'SUBJECT_CREATE','SubjectCatalog',row.id);
+    res.status(201).json({_id:row.id,title:row.title,code:row.code});
+  }));
+  app.get('/api/lms/setup-options',auth,wrap(async(req,res)=>{
+    if(!contentManagers.has(req.user.role))return res.status(403).json({message:'O‘quv jarayonini biriktirish huquqi yo‘q'});
+    let groups=await Structure.find({type:'group',active:true}).select('_id name externalId code').sort({name:1}).lean();
+    if(['dean','department','tutor'].includes(req.user.role)){
+      const permitted=[];for(const g of groups)if(await groupOversight(req.user,g._id))permitted.push(g);
+      groups=permitted;
+    }
+    const [teachers,subjects,courses]=await Promise.all([
+      User.find({role:'teacher',active:true}).select('_id fullName login').sort({fullName:1}).limit(2500).lean(),
+      SubjectCatalog.find({active:true}).select('_id title code').sort({title:1}).lean(),
+      Course.find({active:true,groupId:{$in:groups.map(g=>g._id)}}).select('_id title code groupId teacherId subjectId').sort({title:1}).lean()
+    ]);
+    res.json({groups,teachers,subjects,courses});
+  }));
+  app.get('/api/lms/course-topics/:id',auth,wrap(async(req,res)=>{
+    const course=await courseAccess(req,req.params.id);
+    const video=mongoose.models.VideoLesson,results=await Promise.all([
+      Resource.find({courseId:course._id,published:true}).select('_id title kind').sort({title:1}).limit(150).lean(),
+      video?video.find({courseId:course._id,published:true}).select('_id title topicTitle').sort({sequence:1}).limit(150).lean():Promise.resolve([])
+    ]);
+    res.json([...results[0].map(x=>({...x,source:'resource'})),...results[1].map(x=>({...x,source:'video',title:x.topicTitle||x.title}))]);
+  }));
   app.get('/api/lms/courses',auth,wrap(async(req,res)=>{
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
     else if(req.user.role==='teacher')filter.teacherId=req.user._id;
@@ -85,12 +125,17 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     res.json({generatedAt:new Date(),groupsWithoutCourses:groups.filter(g=>!courses.some(c=>String(c.groupId?._id||c.groupId)===String(g._id))).map(g=>({id:g._id,name:g.name,code:g.externalId})),courses:courses.map(c=>({id:c._id,title:c.title,code:c.code,group:c.groupId?.name,teacher:c.teacherId?.fullName,studentCount:enrolled.get(String(c.groupId?._id||c.groupId))?.size||0,checks:{syllabus:Boolean(c.syllabusUrl),resources:(rc.get(String(c._id))||0)>0,assignments:(ac.get(String(c._id))||0)>0,quizzes:(qc.get(String(c._id))||0)>0}})),teacherLoad:[...teaching.values()].map(t=>({teacher:t.teacher?.fullName||'',login:t.teacher?.login||'',uniqueStudents:t.students.size,courseCount:t.courseCount,aboveFifty:t.students.size>50})),academicRecords:{studyPlans,finalResults,movements},libraryItems});
   }));
   app.post('/api/lms/courses',auth,wrap(async(req,res)=>{
-    if(!['superadmin','admin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    const {code,title,language,teacherId,groupId,credits,syllabusUrl}=req.body;
+    if(!contentManagers.has(req.user.role))return res.status(403).json({message:'Fan biriktirish huquqi yo‘q'});
+    const {language,teacherId,groupId,credits,syllabusUrl,subjectId}=req.body;
+    checkId(subjectId);const subject=await SubjectCatalog.findOne({_id:subjectId,active:true}).lean();if(!subject)throw new Error('Avval katalogdan fanni tanlang');
+    const code=subject.code,title=subject.title;
+    if(['dean','department','tutor'].includes(req.user.role)&&!await groupOversight(req.user,groupId))return res.status(403).json({message:'Bu guruhga fan biriktirishga ruxsat yo‘q'});
     checkId(teacherId);checkId(groupId);
     const [teacher,group]=await Promise.all([User.findOne({_id:teacherId,role:'teacher',active:true}),Structure.findOne({_id:groupId,type:'group',active:true})]);
     if(!teacher||!group)throw new Error('O‘qituvchi yoki guruh topilmadi');
-    const row=await Course.create({code:String(code||'').trim(),title:String(title||'').trim(),language:String(language||'').trim(),teacherId,groupId,credits:Number(credits)||0,syllabusUrl:syllabusUrl?url(syllabusUrl):''});
+    if(!['superadmin','admin','tech','rectorate'].includes(req.user.role)&&!await groupOversight(req.user,groupId))throw Object.assign(new Error('Bu guruhga fan biriktirish vakolati yo‘q'),{status:403});
+    if(await Course.exists({code:String(code||'').trim(),groupId}))throw Object.assign(new Error('Bu guruh uchun fan kodi mavjud'),{status:409});
+    const row=await Course.create({subjectId,code,title,language:String(language||'uz').trim(),teacherId,groupId,credits:Number(credits)||0,syllabusUrl:syllabusUrl?url(syllabusUrl):''});
     audit(req,'COURSE_CREATE','Course',row.id);res.status(201).json(row);
   }));
   app.get('/api/lms/courses/:id',auth,wrap(async(req,res)=>{

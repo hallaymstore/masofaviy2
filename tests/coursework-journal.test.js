@@ -71,7 +71,7 @@ test('assignment attachment uses existing authenticated GridFS controls and MIME
 test('teacher and oversight roles can open journal and weekly/monthly CSV UI',()=>{
  assert.ok(html.includes('id="courseworkJournalBoard"'));
  assert.ok(app.includes('createCourseworkUi('));
- assert.ok(app.includes("courses:['student','teacher','admin','superadmin','rectorate','dean','department','tutor']"));
+ assert.ok(app.includes("courses:['student','teacher','admin','superadmin','tech','rectorate','dean','department','tutor']"));
  assert.ok(readFileSync(new URL('../public/coursework-ui.js',import.meta.url),'utf8').includes("option value=\"month\""));
 });
 test('demo seed opt-in, isolated records and realistic assignments plus files',()=>{
