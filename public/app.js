@@ -1020,8 +1020,8 @@ function updateRaisedHandAlert(){
 function approveRaisedHand(){
   const first=[...raisedHandUsers.values()][0];
   if(!first||!activeLessonId)return;
-  socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:first.userId});
-  toast(first.fullName+' asosiy ekranga chiqarildi');
+  requestStudentOnStage(first.userId);
+  toast(first.fullName+' bilan asosiy sahnaga chiqish so‘rovi yuborildi');
 }
 $('#raisedHandOpen')?.addEventListener('click',()=>showLessonSide('participants'));
 $('#raisedHandSpotlight')?.addEventListener('click',approveRaisedHand);
