@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/remote-exams.css?v=20261008-1">
   <link rel="stylesheet" href="/course-mobile-fix.css?v=20261008-1">
   <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-1">
+  <link rel="stylesheet" href="/live-participant-rail.css?v=20261009-1">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -259,12 +260,14 @@
       <div class="conference-shell">
         <div class="conference-main">
           <div class="video-stage"><div id="raisedHandAlert" class="raised-hand-alert hidden"><button id="raisedHandOpen" type="button">✋ <b id="raisedHandAlertText">Qo‘l ko‘tarildi</b></button><button id="raisedHandSpotlight" class="raised-hand-approve" type="button">Ekranga chiqarish</button></div><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
+          <section id="lessonStudentRail" class="lesson-student-rail" aria-label="Guruh ishtirokchilari"><div class="rail-title"><span>👥 Ishtirokchilar <b id="lessonStudentRailCount">0</b></span><button id="railOpenParticipants" type="button">Ro‘yxat va davomat ↗</button></div><div id="lessonStudentRailItems" class="lesson-student-rail-items" role="list"><span class="rail-loading">Ishtirokchilar yuklanmoqda…</span></div></section>
           <div class="conference-controls zoom-dock">
             <div class="zoom-primary">
               <button id="callMic" class="zoom-control"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
               <button id="callCamera" class="zoom-control"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
               <button id="callChat" class="zoom-control"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
               <button id="callRaiseHand" class="zoom-control"><span>✋</span><span>Qo‘l</span></button>
+              <button id="callParticipants" class="zoom-control" type="button" title="Qatnashuvchilar va davomat"><span data-ico="users" data-fallback="☷"></span><span>Talabalar</span></button>
               <button id="callMore" class="zoom-control"><span>•••</span><span>Yana</span></button>
               <button id="callHangup" class="zoom-control danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
             </div>
