@@ -29,7 +29,7 @@ export function validateQuizQuestions(rows){
  });
 }
 
-export function openQuizComposer({modal,api,courseId,openCourse,toast,esc}){
+export function openQuizComposer({modal,api,courseId,openCourse,toast,esc,onQuizCreated}){
  const body='<label>Test nomi<input name="title" minlength="3" required placeholder="Masalan: 4-mavzu testi"></label>'+
  '<div class="quiz-settings-grid"><label>Davomiylik (daqiqa)<input name="durationMinutes" type="number" min="1" max="240" value="30" required></label><label>Maksimal urinish<input name="maxAttempts" type="number" min="1" max="10" value="1" required></label></div>'+
  '<div class="quiz-composer-toolbar"><strong>Test savollari</strong><span id="quizCount">1 ta savol</span><button type="button" id="quizAddQuestion">+ Savol qo‘shish</button></div><div id="quizQuestionCards"></div>'+
@@ -42,8 +42,8 @@ export function openQuizComposer({modal,api,courseId,openCourse,toast,esc}){
    correctIndex:[...card.querySelectorAll('.quiz-option-correct')].findIndex(el=>el.checked)
   }));
   const questions=validateQuizQuestions(rows);
-  await api('/lms/courses/'+courseId+'/quizzes',{method:'POST',body:JSON.stringify({title:d.title,durationMinutes:Number(d.durationMinutes)||30,maxAttempts:Number(d.maxAttempts)||1,proctorRequired:d.proctorRequired==='true',published:true,questions})});
-  await openCourse(courseId);toast(questions.length+' ta savolli test qo‘shildi');
+  const created=await api('/lms/courses/'+courseId+'/quizzes',{method:'POST',body:JSON.stringify({title:d.title,durationMinutes:Number(d.durationMinutes)||30,maxAttempts:Number(d.maxAttempts)||1,proctorRequired:d.proctorRequired==='true',published:true,questions})});
+  if(onQuizCreated)await onQuizCreated(created);setTimeout(()=>openCourse(courseId),40);toast(questions.length+' ta savolli test qo‘shildi');
  });
  const board=document.querySelector('#quizQuestionCards'),count=document.querySelector('#quizCount');if(!board)return;
  let nextId=0;

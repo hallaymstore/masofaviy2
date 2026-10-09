@@ -10,6 +10,7 @@ import { installCurriculum } from './curriculum.js';
 import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady, evaluateProctorTermination } from './proctoring.js';
 import { installMonitoringExport } from './monitoring-export.js';
 import { installCoursework } from './coursework.js';
+import { installCourseTopics } from './course-topics.js';
 import { normalizeGradeScale } from './coursework-rules.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
@@ -50,6 +51,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     return course;
   };
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
+  installCourseTopics(app,{mongoose,Course,Resource,Assignment,Quiz,auth,audit,courseAccess});
   installScorm(app,{mongoose,auth,audit,courseAccess});
   installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId});
   installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
@@ -140,8 +142,9 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   }));
   app.get('/api/lms/courses/:id',auth,wrap(async(req,res)=>{
     const course=await courseAccess(req,req.params.id);
-    const [resources,assignments,quizzes]=await Promise.all([Resource.find({courseId:course._id,published:true}).lean(),Assignment.find({courseId:course._id,published:true}).lean(),Quiz.find({courseId:course._id,published:true}).select('-questions.correctIndex').lean()]);
-    res.json({course,resources,assignments,quizzes});
+    const VideoLesson=mongoose.models.VideoLesson;
+    const [resources,assignments,quizzes,videos]=await Promise.all([Resource.find({courseId:course._id,published:true}).lean(),Assignment.find({courseId:course._id,published:true}).lean(),Quiz.find({courseId:course._id,published:true}).select('-questions.correctIndex').lean(),VideoLesson?VideoLesson.find({courseId:course._id,published:true}).select('_id title description courseId sourceType').limit(250).lean():[]]);
+    res.json({course,resources,assignments,quizzes,videos});
   }));
   app.post('/api/lms/courses/:id/resources',auth,wrap(async(req,res)=>{
     await courseAccess(req,req.params.id,true);const row=await Resource.create({courseId:req.params.id,title:String(req.body.title||'').trim(),kind:req.body.kind,url:url(req.body.url),description:String(req.body.description||'').slice(0,4000),createdBy:req.user._id});audit(req,'RESOURCE_CREATE','Resource',row.id);res.status(201).json(row);

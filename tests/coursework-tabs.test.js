@@ -34,10 +34,12 @@ test('teacher grade tab fetches course-specific submissions and supports pending
  assert.ok(ui.includes("'/grade-change':'/grade'"));
  assert.ok(ui.includes("return {refreshCourse,grading,journals,allowJournal}"));
 });
-test('teacher resources, upload, new assignment and quiz actions appear above resources upon selecting course',()=>{
- assert.ok(app.includes("bar.className='coursework-quick-actions'"));
- assert.ok(app.includes("'newResource','uploadResource','newAssignment','newQuiz'"));
+test('teacher has one course add menu with topic-first choices, while existing actions remain wired',()=>{
+ const plan=readFileSync(new URL('../public/course-plan-ui.js',import.meta.url),'utf8');
+ assert.ok(plan.includes('data-course-create="topic"'));
+ for(const kind of ['resource','upload','assignment','quiz'])assert.ok(plan.includes('data-course-create="'+kind+'"'));
+ assert.ok(app.includes('coursePlanHtml(x,topicTree'));
  assert.ok(app.includes("$('#courseList').hidden=true"));
  assert.ok(app.includes("$('#backToCourseList')"));
- assert.ok(css.includes('.coursework-quick-actions'));
+ assert.ok(css.includes('.course-topic-add-menu'));
 });
