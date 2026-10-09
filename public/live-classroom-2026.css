@@ -315,3 +315,25 @@
 #schedule .personal-weekly-marks span{font-size:11px;font-weight:800;color:#09745a}
 #schedule .personal-weekly-marks small{grid-column:1/-1;color:#55708d;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:600px){#grades .personal-grade-toolbar label{flex:1 1 43%}#grades .personal-grade-toolbar{padding:10px;gap:8px}#grades .personal-grade-stats b{font-size:19px}#grades .personal-grade-stats>div{padding:9px}#grades .personal-grade-stats span{font-size:10px}#grades .personal-grade-list{grid-template-columns:1fr}#schedule .personal-weekly-day{flex-basis:200px}}
+
+#history .lesson-history-controls{display:flex;gap:9px;flex-wrap:wrap;align-items:end;padding:12px;background:var(--card,#fff);border:1px solid #cbddec;border-radius:8px}
+#history .lesson-history-controls label{display:flex;flex:1 1 145px;flex-direction:column;gap:5px;font-size:12px}
+#history .lesson-history-controls select,#history .lesson-history-controls input{width:100%;padding:8px;border:1px solid #abc6e0;border-radius:6px;background:var(--card,#fff);color:var(--text,#15365a)}
+#history .lesson-history-controls button{padding:9px 12px;border:1px solid #91b9e5;border-radius:6px;background:#eff6ff;color:#134d95;font-weight:700}
+#history .lesson-history-explain,#history .lesson-history-warning{padding:10px;margin:10px 0;background:#edf5ff;border-left:3px solid #287cce;font-size:12px;color:#376080}
+#history .lesson-history-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px}
+#history .lesson-history-item{text-align:left;border:1px solid #c5d9ed;border-radius:8px;padding:12px;background:var(--card,#fff);color:var(--text,#173557);cursor:pointer;display:flex;flex-direction:column;gap:8px}
+#history .lesson-history-item small{display:block;color:var(--muted,#567);margin:5px 0}
+#history .lesson-history-detail-heading,#history .lesson-history-stats{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+#history .lesson-history-detail-heading>div{flex:1 1 300px}
+#history .lesson-history-stats span{padding:9px;background:#eaf3ff;border-radius:6px;font-size:12px}
+#history .lesson-history-scroll{overflow-x:auto;max-width:100%;border:1px solid #c7ddeb;border-radius:8px}
+#history .lesson-history-table{border-collapse:collapse;min-width:890px;width:100%;font-size:12px}
+#history .lesson-history-table th,#history .lesson-history-table td{padding:9px;border-bottom:1px solid #dae7f4;vertical-align:top;text-align:left}
+#history .lesson-history-table th{background:#e8f2ff;color:#164d86}
+#history .lesson-history-table small{display:block;color:#647f98;font-size:11px}
+#history .lesson-history-person-time summary{cursor:pointer;color:#1164be}
+#history .lesson-history-person-time>div{padding:8px;background:#f4f8ff;border:1px solid #d5e4ef;border-radius:6px;margin-top:5px;min-width:250px}
+#history .lesson-history-person-time ol{padding-left:19px;white-space:normal}
+#history .lesson-history-state{font-weight:700;padding:4px;background:#e8f1fc;border-radius:5px}
+#history .lesson-history-state.present{color:#08744d}#history .lesson-history-state.absent{color:#a62d2d}#history .lesson-history-state.late{color:#9a6a00}

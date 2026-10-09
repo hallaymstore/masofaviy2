@@ -15,6 +15,8 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
+import { installLessonHistory } from './lesson-history.js';
+import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from './lesson-history-timeline.js';
 import { summarizeLiveLessonGroup } from './lesson-roster.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 import { installCompliance } from './compliance.js';
@@ -117,8 +119,10 @@ const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['facu
 structureSchema.index({ type: 1, externalId: 1 }, { unique: true, sparse: true });
 const scheduleSchema = new mongoose.Schema({ title: { type: String, required: true }, subject: String, groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure', required: true }, teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, weekday: { type: Number, min: 1, max: 7 }, date: String, start: String, end: String, room: String, kind: { type: String, enum: ['lecture','practice','seminar','exam','final_exam'], default: 'lecture' }, recurring: { type: Boolean, default: true }, liveEnabled:{type:Boolean,default:true}, maxParticipants:{type:Number,default:100,min:2,max:500} }, { timestamps: true });
 const auditSchema = new mongoose.Schema({ actorId: mongoose.Schema.Types.ObjectId, actorLogin: String, actorName: String, action: String, entity: String, entityId: String, ip: String, meta: mongoose.Schema.Types.Mixed }, { timestamps: true });
-const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, reconnectCount:{type:Number,default:0,min:0}, lastJoinedAt:Date, status: { type: String, enum: ['present','late','absent','excused'] }, lastCheckedAt:Date, manualMarkedAt:Date, manualMarkedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}, manualNote:{type:String,trim:true,maxlength:300}, proctorCameraReady:{type:Boolean,default:false}, proctorFaceState:{type:String,enum:['unknown','present','away','missing'],default:'unknown'}, proctorObservedSeconds:{type:Number,default:0,min:0}, proctorFacePresentSeconds:{type:Number,default:0,min:0}, proctorFaceAwaySeconds:{type:Number,default:0,min:0}, proctorFaceMissingSeconds:{type:Number,default:0,min:0}, proctorLastAt:Date, proctorViolations:{type:Number,default:0,min:0}, checkpoints:[{minute:Number,at:Date,state:{type:String,enum:['present','late','absent']}}] }, { timestamps: true });
-const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0},lastAttendanceCheckpointMinute:{type:Number,default:0},lastAttendanceCheckpointAt:Date}, {timestamps:true});
+const attendanceSchema = new mongoose.Schema({ lessonId: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, dateKey: String, joinedAt: Date, leftAt: Date, minutes: Number, reconnectCount:{type:Number,default:0,min:0}, lastJoinedAt:Date, status: { type: String, enum: ['present','late','absent','excused'] }, lastCheckedAt:Date, manualMarkedAt:Date, manualMarkedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}, manualNote:{type:String,trim:true,maxlength:300}, proctorCameraReady:{type:Boolean,default:false}, proctorFaceState:{type:String,enum:['unknown','present','away','missing'],default:'unknown'}, proctorObservedSeconds:{type:Number,default:0,min:0}, proctorFacePresentSeconds:{type:Number,default:0,min:0}, proctorFaceAwaySeconds:{type:Number,default:0,min:0}, proctorFaceMissingSeconds:{type:Number,default:0,min:0}, proctorLastAt:Date, proctorViolations:{type:Number,default:0,min:0}, checkpoints:[{minute:Number,at:Date,state:{type:String,enum:['present','late','absent']}}],presenceIntervals:[{joinedAt:Date,leftAt:Date}],proctorTimeline:[{startedAt:Date,endedAt:Date,state:{type:String,enum:['unknown','present','away','missing'],default:'unknown'},detectorStatus:{type:String,default:'unknown'},cameraReady:{type:Boolean,default:false}}],proctorTimelineOverflow:{type:Boolean,default:false} }, { timestamps: true });
+attendanceSchema.index({lessonId:1,dateKey:1,userId:1});
+const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0},lastAttendanceCheckpointMinute:{type:Number,default:0},lastAttendanceCheckpointAt:Date,rosterSnapshot:{type:[{userId:mongoose.Schema.Types.ObjectId,fullName:String,login:String}],default:undefined},teacherSnapshot:{type:mongoose.Schema.Types.Mixed},rosterCapturedAt:Date}, {timestamps:true});
+liveSessionSchema.index({groupId:1,dateKey:-1});
 liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
 const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},courseId:{type:mongoose.Schema.Types.ObjectId,ref:'Course',index:true},moduleTitle:{type:String,trim:true,maxlength:180,default:'Asosiy modul'},topicTitle:{type:String,trim:true,maxlength:220},sequence:{type:Number,min:0,max:10000,default:0,index:true},checkpointQuizId:{type:mongoose.Schema.Types.ObjectId,ref:'Quiz',default:null},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
 const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},lastPositionSeconds:{type:Number,default:0,min:0},durationSeconds:{type:Number,default:0,min:0},completed:{type:Boolean,default:false},completedAt:Date,liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
@@ -1048,6 +1052,14 @@ const scheduleAccess=async(user,lesson,mode='join')=>{
   if(user.role==='student'){const gid=await resolveUserGroupId(user);return String(gid||'')===String(lesson.groupId)}
   try{const scope=await resolveScope(user,{});return scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{return false}
 };
+const captureHistoryRoster=async lesson=>{
+  const [students,teacher]=await Promise.all([
+    User.find({role:'student',active:true,groupId:lesson.groupId}).select('_id fullName login').lean(),
+    User.findById(lesson.teacherId).select('_id fullName login').lean()
+  ]);
+  return {rosterSnapshot:students.map(s=>({userId:s._id,fullName:s.fullName,login:s.login})),
+    teacherSnapshot:teacher?{_id:teacher._id,fullName:teacher.fullName,login:teacher.login}:null,rosterCapturedAt:new Date()};
+};
 const ensureAutomaticLiveSession=async(lesson,dateKey=localDateKey(),nowMinute=localMinuteOfDay())=>{
   if(!lesson||lesson.kind==='final_exam'||lesson.liveEnabled===false)return {session:null,activated:false};
   const startMinute=timeToMinutes(lesson.start),endMinute=timeToMinutes(lesson.end);
@@ -1057,13 +1069,14 @@ const ensureAutomaticLiveSession=async(lesson,dateKey=localDateKey(),nowMinute=l
   if(session?.status==='ended')return {session,activated:false};
   const roomName=roomNameFor(lesson._id,dateKey),now=new Date();
   if(session){
+    if(!Array.isArray(session.rosterSnapshot))Object.assign(session,await captureHistoryRoster(lesson));
     session.groupId=lesson.groupId;session.teacherId=lesson.teacherId;session.roomName=roomName;session.providerHost='mediasoup';
     session.status='active';session.startedAt=session.startedAt||now;session.endedAt=null;session.lastAttendanceCheckpointMinute=0;session.lastAttendanceCheckpointAt=null;session.startedBy=undefined;
     await session.save();
     return {session,activated:true};
   }
   try{
-    session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:now,lastAttendanceCheckpointMinute:0,lastAttendanceCheckpointAt:null});
+    session=await LiveSession.create({scheduleId:lesson._id,dateKey,groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:now,lastAttendanceCheckpointMinute:0,lastAttendanceCheckpointAt:null,...(await captureHistoryRoster(lesson))});
     return {session,activated:true};
   }catch(e){
     if(e?.code!==11000)throw e;
@@ -1088,7 +1101,7 @@ app.get('/api/live/rooms', auth, async(req,res)=>{
     const endedAt=new Date();
     await LiveSession.updateMany({dateKey,scheduleId:{$in:expiredIds},status:'active'},{$set:{status:'ended',endedAt,currentParticipants:0}});
     for(const sid of expiredIds){
-      const row=bySchedule[String(sid)];if(row){row.status='ended';row.endedAt=endedAt}
+      const row=bySchedule[String(sid)];if(row){row.status='ended';row.endedAt=endedAt;await finalizeLessonHistoryAttendance(row,endedAt)}
       io.to('lesson:'+String(sid)).emit('lesson:auto-ended',{scheduleId:String(sid),endedAt});io.emit('live:changed',{scheduleId:String(sid),status:'ended',automatic:true});
     }
   }
@@ -1128,7 +1141,7 @@ app.post('/api/live/rooms/:scheduleId/attendance',auth,async(req,res)=>{
     let row=await Attendance.findOne({lessonId:String(lesson._id),userId:sid,dateKey}).sort({createdAt:1});
     if(!row)row=new Attendance({lessonId:String(lesson._id),userId:sid,dateKey,minutes:0,checkpoints:[]});
     row.status=status;
-    if((status==='present'||status==='late')&&!row.joinedAt)row.joinedAt=now;
+    // Manual attendance does not imply a real WebRTC join timestamp.
     if(status==='absent'&&!row.leftAt)row.leftAt=now;
     row.manualMarkedAt=now;
     row.manualMarkedBy=mongoose.isValidObjectId(req.user._id)?req.user._id:undefined;
@@ -1148,6 +1161,7 @@ app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
   const allowed=String(lesson.teacherId)===String(req.user._id)||hasPermission(req.user,'live.manage');if(!allowed)return res.status(403).json({message:'Bu darsni boshlash huquqi yo‘q'});
   const dateKey=localDateKey(),roomName=roomNameFor(lesson._id,dateKey);
   const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey},{$set:{groupId:lesson.groupId,teacherId:lesson.teacherId,roomName,providerHost:'mediasoup',status:'active',startedAt:new Date(),endedAt:null,lastAttendanceCheckpointMinute:0,lastAttendanceCheckpointAt:null,startedBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined}}, {new:true,upsert:true,setDefaultsOnInsert:true});
+  if(!Array.isArray(session.rosterSnapshot)){Object.assign(session,await captureHistoryRoster(lesson));await session.save()}
   audit(req,'LIVE_START','LiveSession',session.id,{scheduleId:String(lesson._id),roomName});
   io.emit('live:changed',{scheduleId:String(lesson._id),status:'active'});
   const populatedLesson=await Schedule.findById(lesson._id).populate('groupId','name externalId code').populate('teacherId','fullName login').lean();
@@ -1177,6 +1191,7 @@ app.post('/api/live/rooms/:scheduleId/end', auth, async(req,res)=>{
   if(String(lesson.teacherId)!==String(req.user._id)&&!hasPermission(req.user,'live.manage'))return res.status(403).json({message:'Bu darsni yakunlash huquqi yo‘q'});
   const session=await LiveSession.findOneAndUpdate({scheduleId:lesson._id,dateKey:localDateKey(),status:'active'},{$set:{status:'ended',endedAt:new Date(),currentParticipants:0}},{new:true});
   if(session){
+    await finalizeLessonHistoryAttendance(session,session.endedAt);
     audit(req,'LIVE_END','LiveSession',session.id,{scheduleId:String(lesson._id)});io.emit('live:changed',{scheduleId:String(lesson._id),status:'ended'});
   }
   res.json({ok:true});
@@ -1195,6 +1210,15 @@ const autoStartLiveLessons=async()=>{
 setInterval(autoStartLiveLessons,15000).unref?.();
 setTimeout(autoStartLiveLessons,1500).unref?.();
 
+async function finalizeLessonHistoryAttendance(session,endedAt){
+  if(!session?.scheduleId||!session?.dateKey)return;
+  const open=await Attendance.find({lessonId:String(session.scheduleId),dateKey:session.dateKey,joinedAt:{$ne:null},leftAt:null});
+  for(let i=0;i<open.length;i+=20){
+    await Promise.all(open.slice(i,i+20).map(async row=>{
+      if(recordPresenceLeave(row,row.lastJoinedAt,endedAt))await row.save();
+    }));
+  }
+}
 const autoEndLiveLessons=async()=>{
   try{
     const dateKey=localDateKey(),nowMinute=localMinuteOfDay(),active=await LiveSession.find({dateKey,status:'active'}).select('_id scheduleId').lean();
@@ -1205,6 +1229,7 @@ const autoEndLiveLessons=async()=>{
     const endedAt=new Date(),ids=expired.map(x=>x._id);
     await LiveSession.updateMany({_id:{$in:ids},status:'active'},{$set:{status:'ended',endedAt,currentParticipants:0}});
     for(const row of expired){
+      await finalizeLessonHistoryAttendance({scheduleId:row.scheduleId,dateKey},endedAt);
       const sid=String(row.scheduleId);
       io.to('lesson:'+sid).emit('lesson:auto-ended',{scheduleId:sid,endedAt});
       io.emit('live:changed',{scheduleId:sid,status:'ended',automatic:true});
@@ -1423,8 +1448,9 @@ app.get('/api/media/status',auth,async(req,res)=>{
   res.json({provider:'mediasoup',cluster:sfuClusterStatus(),turnEnabled:Boolean(mediaIceServers().length)});
 });
 
+installLessonHistory(app,{mongoose,auth,User,Schedule,Structure,Attendance,LiveSession,resolveScope});
 io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active||data.id!=='demo'&&Number(data.sv||0)!==Number(socket.user.sessionVersion||0)) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
-io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||''),data=msg?.data||{};let node=null;if(method==='join'){try{const payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});node=pickSfuNode(String(payload.roomName||''));if(node){clientNodeMap.set(socket.id,node.id);clientRoomMap.set(socket.id,String(payload.roomName||''))}}catch{}}else{const nodeId=clientNodeMap.get(socket.id);if(nodeId)node=sfuNodes.get(nodeId)}if(!node||!sfuSendTo(node,{clientId:socket.id,id,method,data}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet media klasterida sog‘lom SFU node topilmadi'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=await Attendance.create({lessonId:String(lessonId),userId:socket.user._id,dateKey,joinedAt:now,lastJoinedAt:now,status:late?'late':'present',minutes:0,reconnectCount:0});else{row.leftAt=null;row.lastJoinedAt=now;row.reconnectCount=(row.reconnectCount||0)+1;if(late&&row.status==='present')row.status='late';await row.save()}socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;socket.data.activeLessonId=String(lessonId);io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
+io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||''),data=msg?.data||{};let node=null;if(method==='join'){try{const payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});node=pickSfuNode(String(payload.roomName||''));if(node){clientNodeMap.set(socket.id,node.id);clientRoomMap.set(socket.id,String(payload.roomName||''))}}catch{}}else{const nodeId=clientNodeMap.get(socket.id);if(nodeId)node=sfuNodes.get(nodeId)}if(!node||!sfuSendTo(node,{clientId:socket.id,id,method,data}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet media klasterida sog‘lom SFU node topilmadi'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});if(socket.data.activeLessonId===String(lessonId)&&socket.data.attendanceId)return;socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=new Attendance({lessonId:String(lessonId),userId:socket.user._id,dateKey,status:late?'late':'present',minutes:0,reconnectCount:0});else if(!row.joinedAt&&!row.manualMarkedAt&&row.status!=='excused')row.status=late?'late':'present';recordPresenceJoin(row,now);await row.save();socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;socket.data.activeLessonId=String(lessonId);io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
@@ -1479,15 +1505,13 @@ socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState,detectorS
     const next={cameraReady:Boolean(cameraReady),faceState:state,detectorStatus:detector,at:now};liveProctorStates.set(key,next);
     let attendanceRow=null;
     if(socket.data.attendanceId){
-      const inc={};
-      if(delta>0){
-        inc.proctorObservedSeconds=delta;
-        if(previousState==='present')inc.proctorFacePresentSeconds=delta;
-        else if(previousState==='away')inc.proctorFaceAwaySeconds=delta;
-        else if(previousState==='missing')inc.proctorFaceMissingSeconds=delta;
+      const row=await Attendance.findById(socket.data.attendanceId);
+      const sameJoin=!socket.data.attendanceSessionStartedAt||new Date(row?.lastJoinedAt||0).getTime()===new Date(socket.data.attendanceSessionStartedAt).getTime();
+      if(row&&!row.leftAt&&sameJoin){
+        recordProctorObservation(row,{faceState:state,detectorStatus:detector,cameraReady},now,row.proctorLastAt);
+        await row.save();
+        attendanceRow=row.toObject();
       }
-      if(state!=='present'&&state!=='unknown'&&state!==previousState)inc.proctorViolations=(inc.proctorViolations||0)+1;
-      const update={$set:{proctorCameraReady:Boolean(cameraReady),proctorFaceState:state,proctorLastAt:now}};if(Object.keys(inc).length)update.$inc=inc;attendanceRow=await Attendance.findByIdAndUpdate(socket.data.attendanceId,update,{new:true}).lean();
     }
     const observed=Number(attendanceRow?.proctorObservedSeconds||0),present=Number(attendanceRow?.proctorFacePresentSeconds||0);
     const payload={lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:Boolean(cameraReady),faceState:state,detectorStatus:detector,at:now.toISOString(),observedSeconds:observed,presentSeconds:present,awaySeconds:Number(attendanceRow?.proctorFaceAwaySeconds||0),missingSeconds:Number(attendanceRow?.proctorFaceMissingSeconds||0),attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,violations:Number(attendanceRow?.proctorViolations||0)};
@@ -1584,7 +1608,7 @@ socket.on('lesson:leave', async({lessonId})=>{ try{if(lessonId){
     liveProctorBroadcastByLesson.delete(String(lessonId));
   }else if(currentBroadcast===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(lessonId));
   socket.leave('lesson:'+lessonId);
-}if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId){socket.data.activeLessonId=null;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}}catch{} });
+}if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){if(recordPresenceLeave(row,socket.data.attendanceSessionStartedAt,new Date()))await row.save()}socket.data.attendanceId=null;socket.data.attendanceSessionStartedAt=null}if(lessonId){socket.data.activeLessonId=null;io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'})}}catch{} });
 socket.on('disconnect', async()=>{
   const activeLesson=socket.data.activeLessonId;
   if(activeLesson){
@@ -1601,7 +1625,7 @@ socket.on('disconnect', async()=>{
   const oldNode=oldNodeId?sfuNodes.get(oldNodeId):null;
   if(oldNode)sfuSendTo(oldNode,{clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});
   clientNodeMap.delete(socket.id);clientRoomMap.delete(socket.id);
-  if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){row.leftAt=new Date();const sessionStart=socket.data.attendanceSessionStartedAt||row.joinedAt;row.minutes=(row.minutes||0)+Math.max(1,Math.round((row.leftAt-sessionStart)/60000));await row.save()}} }); });
+  if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){if(recordPresenceLeave(row,socket.data.attendanceSessionStartedAt,new Date()))await row.save()}} }); });
 
 async function ensureQdtuTestAccounts(){
   const groups=await Structure.find({type:'group',active:true,externalId:/^QDTU-MT-2026-/}).sort({externalId:1}).lean();
