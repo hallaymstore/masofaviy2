@@ -220,3 +220,28 @@
 #lesson .live-proctor-status video{display:block;width:58px;height:43px;object-fit:cover;border-radius:5px;background:#071e38;border:1px solid #6aa8ce;flex-shrink:0}
 #lesson .live-proctor-status span{display:block;max-width:235px;line-height:1.3}
 @media(max-width:600px){#lesson .live-proctor-status video{width:42px;height:34px}#lesson .live-proctor-status{gap:6px}}
+
+/* Group coursework / grade register: compact, low-memory, accessible. */
+:is(#courses,#reports) .coursework-module,:is(#courses,#reports) .coursework-journal{margin:12px 0}
+:is(#courses,#reports) .coursework-journal-head{display:flex;gap:9px;align-items:end;flex-wrap:wrap;padding:12px;border:1px solid var(--border,#d8e2ee);border-radius:9px;background:var(--card,#fff)}
+:is(#courses,#reports) .coursework-journal-head h3{width:100%;margin:0 0 4px}
+:is(#courses,#reports) .coursework-journal-head label{font-size:12px;display:flex;flex-direction:column;gap:4px;min-width:130px;flex:1 1 140px}
+:is(#courses,#reports) .coursework-journal-head select,:is(#courses,#reports) .coursework-journal-head input{padding:8px;min-height:36px;max-width:100%;border:1px solid #98b6d7;border-radius:6px;background:var(--input-bg,#fff);color:var(--text,#123)}
+:is(#courses,#reports) .coursework-table-scroll{width:100%;overflow-x:auto;border:1px solid #c7d8e9;border-radius:8px;margin-top:8px}
+:is(#courses,#reports) .coursework-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+:is(#courses,#reports) .coursework-table th,:is(#courses,#reports) .coursework-table td{padding:9px 11px;border-bottom:1px solid #dbe6f0;text-align:left}
+:is(#courses,#reports) .coursework-table thead th{position:sticky;top:0;background:#eaf2fc;color:#153c64}
+:is(#courses,#reports) .coursework-table th:first-child,:is(#courses,#reports) .coursework-table td:first-child{position:sticky;left:0;z-index:1;background:var(--card,#fff)}
+:is(#courses,#reports) .coursework-table th small,:is(#courses,#reports) .coursework-table td small{display:block;color:#6c84a2;font-size:10px}
+:is(#courses,#reports) .coursework-task{margin:9px 0;padding:10px;border:1px solid #bdd0e5;border-radius:8px;background:var(--card,#fff)}
+:is(#courses,#reports) .coursework-task summary{display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font-size:13px;flex-wrap:wrap}
+:is(#courses,#reports) .coursework-task summary span{font-size:11px;color:#507196}
+:is(#courses,#reports) .coursework-task p{margin:8px 0}
+:is(#courses,#reports) .coursework-files{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+:is(#courses,#reports) .coursework-files a,:is(#courses,#reports) .coursework-sub a{font-size:12px;word-break:break-word}
+:is(#courses,#reports) .coursework-upload{display:inline-flex;flex-direction:column;max-width:100%;font-size:12px;gap:5px;margin:8px}
+:is(#courses,#reports) .coursework-upload input{font-size:12px;max-width:220px}
+:is(#courses,#reports) .coursework-sub{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;padding:8px;margin:6px 0;background:rgba(133,169,207,.11);border-radius:6px;border:1px solid #d1e0ef}
+:is(#courses,#reports) .coursework-sub small{display:block;color:#557390;font-size:11px}
+:is(#courses,#reports) .coursework-module button,:is(#courses,#reports) .coursework-journal button{min-height:34px}
+@media(max-width:640px){:is(#courses,#reports) .coursework-journal-head label{flex:1 1 100%}:is(#courses,#reports) .coursework-table{font-size:11px}}

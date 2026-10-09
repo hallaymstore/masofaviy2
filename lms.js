@@ -9,12 +9,14 @@ import { installRemoteExams } from './remote-exams.js';
 import { installCurriculum } from './curriculum.js';
 import { PROCTOR_EVENT_TYPES, summarizeProctorEvents, proctorSubmissionReady, evaluateProctorTermination } from './proctoring.js';
 import { installMonitoringExport } from './monitoring-export.js';
+import { installCoursework } from './coursework.js';
+import { normalizeGradeScale } from './coursework-rules.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const courseSchema=new mongoose.Schema({code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
   const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},accessCount:{type:Number,default:0,min:0},lastAccessedAt:Date,createdBy:{type:id,ref:'User'}},{timestamps:true});
-  const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},category:{type:String,enum:['assignment','independent_work','practice'],default:'assignment',index:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,min:1,max:1000},published:{type:Boolean,default:true}},{timestamps:true});
+  const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},category:{type:String,enum:['assignment','independent_work','practice'],default:'assignment',index:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,enum:[2,5,10,100]},gradeScale:{type:Number,default:100,enum:[2,5,10,100]},published:{type:Boolean,default:true}},{timestamps:true});
   const submissionSchema=new mongoose.Schema({assignmentId:{type:id,ref:'Assignment',required:true},studentId:{type:id,ref:'User',required:true},text:String,url:String,submittedAt:Date,score:{type:Number,min:0},feedback:String,gradedBy:{type:id,ref:'User'},gradedAt:Date},{timestamps:true});
   submissionSchema.index({assignmentId:1,studentId:1},{unique:true});
   const quizSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},durationMinutes:{type:Number,min:1,max:240,default:30},maxAttempts:{type:Number,min:1,max:10,default:1},published:{type:Boolean,default:false},proctorRequired:{type:Boolean,default:false},questions:[{prompt:{type:String,required:true},options:[String],correctIndex:{type:Number,required:true,min:0}}]},{timestamps:true});
@@ -23,17 +25,28 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const Course=mongoose.model('Course',courseSchema),Resource=mongoose.model('Resource',resourceSchema),Assignment=mongoose.model('Assignment',assignmentSchema),Submission=mongoose.model('Submission',submissionSchema),Quiz=mongoose.model('Quiz',quizSchema),Attempt=mongoose.model('QuizAttempt',attemptSchema),GradeChange=mongoose.model('GradeChange',gradeChangeSchema);
   const fail=(res,e)=>res.status(e.status||400).json({message:e.message||'So‘rov bajarilmadi'});
   const checkId=value=>{if(!mongoose.isValidObjectId(value))throw Object.assign(new Error('ID noto‘g‘ri'),{status:400})};
+  const groupOversight=async(user,groupId)=>{
+    if(!['dean','department','tutor'].includes(user?.role))return false;
+    const group=await Structure.findById(groupId).select('_id parentId').lean();
+    if(!group)return false;
+    const dept=group.parentId?await Structure.findById(group.parentId).select('_id parentId type').lean():null;
+    const same=(a,b)=>Boolean(a&&b&&String(a)===String(b));
+    if(user.role==='tutor')return same(user.groupId,group._id);
+    if(user.role==='department')return same(user.departmentId,dept?._id)||same(user.groupId,group._id);
+    return same(user.facultyId,dept?.parentId)||same(user.facultyId,group.parentId);
+  };
   const courseAccess=async(req,courseId,write=false)=>{
     checkId(courseId);const course=await Course.findById(courseId).lean();if(!course||!course.active)throw Object.assign(new Error('Fan topilmadi'),{status:404});
     const teacher=String(course.teacherId)===String(req.user._id);
     const admin=['superadmin','admin'].includes(req.user.role);
     const student=req.user.role==='student'&&String(await resolveUserGroupId(req.user))===String(course.groupId);
-    const oversight=!write&&['tech','rectorate','dean','department','tutor'].includes(req.user.role);
+    const oversight=!write&&(['tech','rectorate'].includes(req.user.role)||await groupOversight(req.user,course.groupId));
     if(!(teacher||admin||oversight||(!write&&student)))throw Object.assign(new Error('Bu fanga ruxsat yo‘q'),{status:403});
     return course;
   };
   const wrap=fn=>async(req,res)=>{try{await fn(req,res)}catch(e){fail(res,e)}};
   installScorm(app,{mongoose,auth,audit,courseAccess});
+  installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId});
   installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
   const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
@@ -47,7 +60,9 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
     else if(req.user.role==='teacher')filter.teacherId=req.user._id;
     else if(!['superadmin','admin','tech','rectorate','dean','department','tutor'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    res.json(await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId parentId').sort({title:1}).lean());
+    let rows=await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId parentId').sort({title:1}).lean();
+    if(['dean','department','tutor'].includes(req.user.role)){const allowed=[];for(const row of rows)if(await groupOversight(req.user,row.groupId?._id||row.groupId))allowed.push(row);rows=allowed}
+    res.json(rows);
   }));
   app.get('/api/lms/compliance',auth,wrap(async(req,res)=>{
     if(!['admin','superadmin'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
@@ -86,7 +101,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     await courseAccess(req,req.params.id,true);const row=await Resource.create({courseId:req.params.id,title:String(req.body.title||'').trim(),kind:req.body.kind,url:url(req.body.url),description:String(req.body.description||'').slice(0,4000),createdBy:req.user._id});audit(req,'RESOURCE_CREATE','Resource',row.id);res.status(201).json(row);
   }));
   app.post('/api/lms/courses/:id/assignments',auth,wrap(async(req,res)=>{
-    await courseAccess(req,req.params.id,true);const category=['assignment','independent_work','practice'].includes(req.body.category)?req.body.category:'assignment';const row=await Assignment.create({courseId:req.params.id,title:String(req.body.title||'').trim(),category,instructions:String(req.body.instructions||'').trim(),dueAt:req.body.dueAt||undefined,maxScore:Number(req.body.maxScore)||100});audit(req,'ASSIGNMENT_CREATE','Assignment',row.id);res.status(201).json(row);
+    await courseAccess(req,req.params.id,true);const category=['assignment','independent_work','practice'].includes(req.body.category)?req.body.category:'assignment';const row=await Assignment.create({courseId:req.params.id,title:String(req.body.title||'').trim(),category,instructions:String(req.body.instructions||'').trim(),dueAt:req.body.dueAt||undefined,maxScore:normalizeGradeScale(req.body.maxScore||100),gradeScale:normalizeGradeScale(req.body.maxScore||100)});audit(req,'ASSIGNMENT_CREATE','Assignment',row.id);res.status(201).json(row);
   }));
   app.post('/api/lms/assignments/:id/submit',auth,wrap(async(req,res)=>{
     if(req.user.role!=='student')return res.status(403).json({message:'Faqat talaba topshiradi'});checkId(req.params.id);const assignment=await Assignment.findById(req.params.id);if(!assignment||!assignment.published)throw Object.assign(new Error('Topshiriq topilmadi'),{status:404});await courseAccess(req,assignment.courseId);
