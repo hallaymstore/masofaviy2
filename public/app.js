@@ -708,8 +708,13 @@ function startNetworkMonitor(){
       }
       if(!activeLessonId)return;
       const b=$('#networkQualityBadge');if(b){b.className='network-quality '+quality;b.textContent='● '+label;b.title=health?'WebRTC: '+health.state+(health.rttMs?' · RTT '+Math.round(health.rttMs)+' ms':'')+(health.lossPercent!=null?' · paket yo‘qotish '+health.lossPercent.toFixed(1)+'%':''):'Brauzer tarmoq bahosi (taxminiy)';}
-      if(media&&!media.lowBandwidthMode){
-        const q=quality==='bad'?'240':quality==='mid'?'360':'auto';
+      // Never throttle a 1080p teacher/screen stream based solely on the browser's
+      // estimated connection speed. WebRTC congestion control handles transient changes.
+      if(media&&!media.lowBandwidthMode&&(localStorage.getItem('m2-video-quality')||'auto')==='auto'){
+        const loss=health?.lossPercent;
+        const veryPoor=health?.state==='failed'||health?.state==='disconnected'||(loss!=null&&loss>12)||(health?.rttMs||0)>850;
+        const degraded=health?.state==='connecting'||(loss!=null&&loss>5)||(health?.rttMs||0)>500;
+        const q=veryPoor?'240':degraded?'360':'auto';
         if(lastAutoQuality!==q){lastAutoQuality=q;media.setReceiveQuality(q).catch(()=>{})}
       }
       $('#connectionBanner')?.classList.toggle('hidden',navigator.onLine&&socket?.connected!==false&&health?.state!=='failed'&&health?.state!=='disconnected');

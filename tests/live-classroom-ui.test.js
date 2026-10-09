@@ -101,8 +101,8 @@ test('administrator operating a lesson remains available as an educator PiP on s
 test('local camera stage remains visible despite legacy speaker layout CSS',()=>{
  const css=file('public/live-classroom-2026.css');
  assert.ok(media.includes('ensureInlineVideoStage(){'));
- assert.ok(media.includes("grid.classList.toggle('local-camera-stage',preferLocal)"));
- assert.ok(media.includes("const localLive=Boolean(local?.classList.contains('has-video')"));
+ assert.ok(media.includes("this.grid.classList.toggle('local-camera-stage',Boolean(primary===local))"));
+ assert.ok(media.includes('const track=this.primaryTileTrack(primary)'));
  assert.ok(css.includes('.ms-grid.local-camera-stage:not(.screen-layout):not(.class-spotlight)>.ms-tile.local.has-video'));
  assert.ok(css.includes('display:block!important;visibility:visible!important;opacity:1!important'));
  assert.ok(media.includes('this.ensureInlineVideoStage();'));

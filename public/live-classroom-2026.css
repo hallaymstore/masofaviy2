@@ -171,3 +171,30 @@
 }
 #lesson #videoMount .ms-empty-camera-action[hidden]{display:none!important}
 #lesson #videoMount .ms-empty-camera-action:focus-visible{outline:3px solid white!important;outline-offset:3px!important}
+
+/* The instructor remains visible when screen sharing or a student is on stage. */
+#lesson #videoMount .ms-teacher-pip-stage{
+ display:none!important;position:absolute!important;z-index:27!important;
+ top:12px!important;right:12px!important;width:clamp(144px,22%,290px)!important;
+ aspect-ratio:16/9!important;max-height:35%!important;
+ border-radius:9px!important;overflow:hidden!important;
+ border:2px solid #78adf2!important;background:#0a2343!important;
+ box-shadow:0 5px 23px rgba(0,0,0,.42)!important;
+}
+#lesson #videoMount .ms-teacher-pip-stage.is-visible{
+ display:block!important;visibility:visible!important;opacity:1!important;
+}
+#lesson #videoMount .ms-teacher-pip-video{
+ display:block!important;position:absolute!important;inset:0!important;
+ width:100%!important;height:100%!important;object-fit:cover!important;
+}
+#lesson #videoMount .ms-teacher-pip-label{
+ position:absolute!important;bottom:4px!important;left:5px!important;right:5px!important;
+ padding:3px 6px!important;background:rgba(5,17,34,.8)!important;
+ color:#fff!important;text-align:left!important;font-weight:700!important;
+ font-size:11px!important;text-overflow:ellipsis!important;overflow:hidden!important;white-space:nowrap!important;
+}
+@media(max-width:600px){
+ #lesson #videoMount .ms-teacher-pip-stage{top:8px!important;right:8px!important;width:35%!important;min-width:110px!important}
+ #lesson #videoMount .ms-teacher-pip-label{font-size:9px!important}
+}

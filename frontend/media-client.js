@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
-    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
+    this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.explicitStagePeerId='';this.stageRefreshTimer=null;this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -94,6 +94,9 @@ export class MediaRoomClient{
     this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
     for(const p of joined.producers||[])await this.maybeConsume(p);
+    clearInterval(this.stageRefreshTimer);
+    this.stageRefreshTimer=setInterval(()=>{if(!this.closed&&!document.hidden)this.ensureInlineVideoStage()},1800);
+    this.ensureInlineVideoStage();
     this.onState({connected:true,participants:joined.participants||[]});
     return joined;
   }
@@ -151,6 +154,11 @@ export class MediaRoomClient{
     const selfLabel=el('div',{className:'ms-inline-self-label'});
     selfLabel.textContent=this.user.fullName||this.user.login||'Siz';
     selfStage.append(selfVideo,selfLabel);
+    const teacherPiP=el('div',{className:'ms-teacher-pip-stage',role:'region','aria-label':'O‘qituvchi kichik oynasi'});
+    const teacherPiPVideo=el('video',{autoplay:true,playsInline:true,muted:true});
+    teacherPiPVideo.className='ms-teacher-pip-video';
+    const teacherPiPLabel=el('div',{className:'ms-teacher-pip-label'});teacherPiPLabel.textContent='O‘qituvchi';
+    teacherPiP.append(teacherPiPVideo,teacherPiPLabel);
     const emptyStage=el('div',{className:'ms-empty-stage is-visible',role:'status'});
     const emptyTitle=el('strong');emptyTitle.textContent='Hozir video ko‘rsatilmayapti';
     const emptyHint=el('span');emptyHint.textContent='Kamera o‘chiq yoki hali uzatilmagan';
@@ -158,8 +166,9 @@ export class MediaRoomClient{
     enableCamera.textContent='Kamerani yoqish';
     enableCamera.addEventListener('click',()=>document.querySelector('#callCamera')?.click());
     emptyStage.append(emptyTitle,emptyHint,enableCamera);
-    this.mount.append(grid,emptyStage,selfStage,stageBadge,fullscreen,strip,audioBin);
-    this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;this.selfStage=selfStage;this.selfStageVideo=selfVideo;
+    this.mount.append(grid,emptyStage,selfStage,teacherPiP,stageBadge,fullscreen,strip,audioBin);
+    this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;this.selfStage=selfStage;this.selfStageVideo=selfVideo;this.selfStageLabel=selfLabel;
+    this.teacherPiP=teacherPiP;this.teacherPiPVideo=teacherPiPVideo;this.teacherPiPLabel=teacherPiPLabel;
     this.emptyStage=emptyStage;this.emptyTitle=emptyTitle;this.emptyHint=emptyHint;this.emptyCameraAction=enableCamera;
     const local=this.ensureTile('local',{_id:this.user._id||this.user.id,fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
   }
@@ -267,7 +276,9 @@ export class MediaRoomClient{
     const id=String(peerId||''),target=this.participantTile(id);if(!target)return false;
     for(const t of this.tiles.values())t.classList.remove('focused');target.classList.add('focused');this.grid?.classList.add('has-focus');this.selectedStagePeerId=id;this.resetZoom(target);this.refreshParticipantCardSelection();
     this.grid?.classList.remove('local-camera-stage');
-    if(emitState){this.ensureInlineVideoStage();this.onState({focusedUserId:target.dataset.userId||id})}return true;
+    if(emitState)this.explicitStagePeerId=id;
+    this.ensureInlineVideoStage();
+    if(emitState)this.onState({focusedUserId:target.dataset.userId||id});return true;
   }
   setViewMode(mode){
     this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
@@ -313,10 +324,10 @@ export class MediaRoomClient{
   pinUser(userId='',peerId=''){
     const target=[...this.tiles.values()].find(t=>(userId&&t.dataset.userId===String(userId))||(peerId&&t.dataset.peerId===String(peerId)));
     for(const t of this.tiles.values())t.classList.remove('pinned','focused');
-    if(!target){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
+    if(!target){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.ensureInlineVideoStage();this.onState({pinnedUserId:''});return false}
     const already=this.pinnedUserId&&(target.dataset.userId===this.pinnedUserId||target.dataset.peerId===this.pinnedUserId);
-    if(already){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.onState({pinnedUserId:''});return false}
-    target.classList.add('pinned','focused');this.grid?.classList.add('has-focus');this.pinnedUserId=target.dataset.userId||target.dataset.peerId;this.onState({pinnedUserId:this.pinnedUserId});return true;
+    if(already){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.ensureInlineVideoStage();this.onState({pinnedUserId:''});return false}
+    target.classList.add('pinned','focused');this.grid?.classList.add('has-focus');this.pinnedUserId=target.dataset.userId||target.dataset.peerId;this.ensureInlineVideoStage();this.onState({pinnedUserId:this.pinnedUserId});return true;
   }
   getPrimaryVideoTile(){
     const tiles=[...this.tiles.values()];
@@ -452,7 +463,7 @@ export class MediaRoomClient{
     this.ensureInlineVideoStage();
     if(video?.srcObject&&video.paused)video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));
   }
-  syncStandaloneCameraStage(show,track){
+  syncStandaloneCameraStage(show,track,label=''){
     const root=this.selfStage,video=this.selfStageVideo;
     if(!root||!video)return;
     const ready=Boolean(show&&track?.readyState==='live'&&track.enabled&&!this.closed);
@@ -463,26 +474,46 @@ export class MediaRoomClient{
       return;
     }
     const current=video.srcObject?.getVideoTracks?.()[0];
+    const changed=current!==track;
+    if(changed)video.srcObject=new MediaStream([track]);
+    video.muted=true;video.autoplay=true;video.playsInline=true;
+    if(this.selfStageLabel)this.selfStageLabel.textContent=label||this.user?.fullName||'Asosiy video';
+    if(changed||video.paused){
+      const playing=video.play();
+      if(playing?.catch)playing.catch(()=>this.onState({cameraPreviewBlocked:true}));
+    }
+  }
+  syncTeacherPiP(primary){
+    const root=this.teacherPiP,video=this.teacherPiPVideo;
+    if(!root||!video)return;
+    const tiles=[...(this.tiles?.values()||[])];
+    const teacher=tiles.find(t=>t.classList.contains('role-teacher')&&this.primaryTileTrack(t))
+      ||(this.user?.role==='teacher'?this.tiles.get('local'):null);
+    const track=teacher&&teacher!==primary?this.primaryTileTrack(teacher):null;
+    const show=Boolean(track&&!this.closed);
+    root.classList.toggle('is-visible',show);
+    root.setAttribute('aria-hidden',show?'false':'true');
+    if(!show){if(video.srcObject)video.srcObject=null;return;}
+    const current=video.srcObject?.getVideoTracks?.()[0];
     if(current!==track)video.srcObject=new MediaStream([track]);
-    video.muted=true;
-    video.autoplay=true;
-    video.playsInline=true;
-    // A second video element is safe; it reads from the same captured track.
-    const playing=video.play();
-    if(playing?.catch)playing.catch(()=>this.onState({cameraPreviewBlocked:true}));
+    video.muted=true;video.playsInline=true;video.autoplay=true;
+    this.teacherPiPLabel.textContent=qs('.ms-label b',teacher)?.textContent||this.user?.fullName||'O‘qituvchi';
+    if(current!==track||video.paused)video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));
+  }
+  primaryTileTrack(tile){
+    if(!tile?.classList?.contains('has-video'))return null;
+    const track=qs('video',tile)?.srcObject?.getVideoTracks?.()[0];
+    if(!track||track.readyState!=='live'||!track.enabled)return null;
+    if(tile===this.tiles.get('local')){
+      const producer=this.producers.get('camera');
+      if(!producer||producer.paused)return null;
+    }
+    return track;
   }
   refreshEmptyStage(){
     if(!this.emptyStage)return;
-    const selected=this.participantTile(this.selectedStagePeerId)||this.tiles.get('local');
-    const video=selected?qs('video',selected):null;
-    const track=video?.srcObject?.getVideoTracks?.()[0];
-    const screen=[...(this.tiles?.values()||[])].find(tile=>tile.classList?.contains('screen-share')&&tile.classList?.contains('has-video'));
-    const screenTrack=screen?qs('video',screen)?.srcObject?.getVideoTracks?.()[0]:null;
-    const hasMainVideo=Boolean(
-      this.selfStage?.classList.contains('is-visible')||
-      (selected?.classList?.contains('has-video')&&track?.readyState==='live'&&track.enabled)||
-      (screenTrack?.readyState==='live'&&screenTrack.enabled)
-    );
+    // Hidden speaker/gallery tiles are NOT proof that a video is visible.
+    const hasMainVideo=Boolean(this.selfStage?.classList.contains('is-visible'));
     this.emptyStage.classList.toggle('is-visible',!hasMainVideo);
     const isStudent=this.user?.role==='student';
     const isPresenter=['teacher','admin','superadmin'].includes(this.user?.role);
@@ -495,26 +526,35 @@ export class MediaRoomClient{
     this.emptyCameraAction.disabled=Boolean(this.mediaBusy?.camera);
   }
   ensureInlineVideoStage(){
-    const grid=this.grid,local=this.tiles.get('local');
-    if(!grid||this.closed)return false;
-    if(grid.classList.contains('screen-layout')||this.viewMode==='gallery'){
-      grid.classList.remove('local-camera-stage');
-      this.syncStandaloneCameraStage(false);
-      this.refreshEmptyStage();
-      return false;
-    }
-    const video=local?qs('video',local):null,track=video?.srcObject?.getVideoTracks?.()[0];
-    const localProducer=this.producers.get('camera');
-    const localLive=Boolean(local?.classList.contains('has-video')&&track?.readyState==='live'&&track.enabled&&localProducer&&!localProducer.paused);
+    if(!this.grid||this.closed)return false;
+    const tiles=[...this.tiles.values()],local=this.tiles.get('local');
+    const usable=tile=>Boolean(this.primaryTileTrack(tile));
+    const byUserId=id=>tiles.find(tile=>String(tile.dataset?.userId||'')===String(id));
+    const pinned=tiles.find(tile=>tile.classList.contains('pinned'));
+    const screen=tiles.find(tile=>tile.classList.contains('screen-share')&&usable(tile));
     const selected=this.participantTile(this.selectedStagePeerId);
-    const selectedVideo=selected?qs('video',selected):null,selectedTrack=selectedVideo?.srcObject?.getVideoTracks?.()[0];
-    const selectedLive=Boolean(selected?.classList.contains('has-video')&&selectedTrack?.readyState==='live');
-    const preferLocal=localLive&&!this.classSpotlightUserId&&(!selectedLive||selected===local);
-    if(preferLocal&&selected!==local&&!this.classSpotlightUserId)this.selectStagePeer(String(this.room?.peerId||'local'),false);
-    grid.classList.toggle('local-camera-stage',preferLocal);
-    this.syncStandaloneCameraStage(preferLocal,track);
+    const teacher=tiles.find(tile=>tile.classList.contains('role-teacher')&&usable(tile));
+    let primary=null;
+    if(this.classSpotlightUserId){
+      // Do not silently replace a selected student's missing stream with the teacher.
+      const spotlight=byUserId(this.classSpotlightUserId);
+      primary=usable(spotlight)?spotlight:null;
+    }else if(this.grid.classList.contains('screen-layout')&&screen){
+      primary=screen;
+    }else if(this.pinnedUserId&&pinned){
+      primary=usable(pinned)?pinned:null;
+    }else if(this.explicitStagePeerId&&selected&&String(selected.dataset.peerId||'')===String(this.explicitStagePeerId)){
+      primary=usable(selected)?selected:null;
+    }else{
+      primary=[teacher,selected,local,screen,...tiles].find(usable)||null;
+    }
+    const track=this.primaryTileTrack(primary);
+    const label=primary?(qs('.ms-label b',primary)?.textContent||this.user?.fullName||'Video'):'';
+    this.grid.classList.toggle('local-camera-stage',Boolean(primary===local));
+    this.syncStandaloneCameraStage(Boolean(track),track,label);
+    this.syncTeacherPiP(primary);
     this.refreshEmptyStage();
-    return preferLocal;
+    return Boolean(track);
   }
   async getNetworkHealth(){
     const states=[this.sendTransport?.connectionState,this.recvTransport?.connectionState].filter(Boolean);
@@ -755,7 +795,7 @@ export class MediaRoomClient{
     const p=this.producers.get('screen');
     if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
     try{
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:2560},height:{ideal:1080,max:1440},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false}),track=stream.getVideoTracks()[0];
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false}),track=stream.getVideoTracks()[0];
       try{track.contentHint='detail'}catch{}
       const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?900000:(lite?2800000:4500000),maxFramerate:this.ultraLite?20:30}],appData:{mediaTag:'screen',role:this.user.role,quality:'1080p'}});
       this.producers.set('screen',producer);
@@ -818,6 +858,8 @@ export class MediaRoomClient{
 
       const teacherTile=this.tiles.get(meta.peerId);if(teacherTile?.classList.contains('has-video'))teacherTile.classList.add('screen-camera-pip');
     }else if(user.role==='teacher'&&this.tiles.get(String(meta.peerId)+':screen'))tile.classList.add('screen-camera-pip');
+    this.ensureInlineVideoStage();
+    video.onloadedmetadata=()=>this.ensureInlineVideoStage();
   }
   async updateVisibility(){
     if(this.closed)return;const pause=document.hidden;
@@ -834,6 +876,7 @@ export class MediaRoomClient{
     if(data.kind!=='video')return;
     const tile=this.participantTile(peerId);if(tile)tile.classList.toggle('has-video',!data.paused&&Boolean(qs('video',tile)?.srcObject));
     this.updateParticipantCardCamera(peerId,!data.paused);
+    this.ensureInlineVideoStage();
   }
   removeConsumer(producerId){
     const c=this.consumers.get(producerId);if(!c)return;const meta=c.appData?.meta;
@@ -846,9 +889,9 @@ export class MediaRoomClient{
       this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');
       if(!this.grid?.querySelector('.screen-share')){
         this.grid?.classList.remove('screen-layout');
-
       }
     }
+    this.ensureInlineVideoStage();
   }
   removePeerTile(peerId){for(const [producerId,consumer] of [...this.consumers]){if(String(consumer.appData?.meta?.peerId||'')===String(peerId))this.removeConsumer(producerId)}this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.peerId===String(peerId))a.remove()});for(const [key,t] of [...this.tiles]){if(String(key)===String(peerId)||String(key).startsWith(String(peerId)+':')){t.remove();this.tiles.delete(key)}}const card=this.participantCards.get(String(peerId));if(card){card.remove();this.participantCards.delete(String(peerId))}this.participantMediaState.delete(String(peerId));if(String(this.selectedStagePeerId)===String(peerId)){this.selectedStagePeerId='';const next=[...this.participantCards.keys()][0];if(next)this.selectStagePeer(next,false)}if(!this.grid?.querySelector('.screen-share'))this.grid?.classList.remove('screen-layout')}
   speakerTile(peerId){
@@ -981,6 +1024,7 @@ export class MediaRoomClient{
     if(this.audioUnlockHandler){document.removeEventListener('pointerdown',this.audioUnlockHandler);document.removeEventListener('keydown',this.audioUnlockHandler);this.audioUnlockHandler=null;this.audioUnlockInstalled=false}
     try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
+    clearInterval(this.stageRefreshTimer);this.stageRefreshTimer=null;
     this.stopFeedbackMonitor();clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);clearTimeout(this.cameraRecoveryTimer);for(const timer of this.transportRecoveryTimers.values())clearTimeout(timer);this.transportRecoveryTimers.clear();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
     for(const p of this.producers.values()){try{p.track?.stop()}catch{}try{p.close()}catch{}}
     for(const c of this.consumers.values())try{c.close()}catch{}
