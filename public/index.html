@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/exam-dashboard.css?v=20261008-1">
   <link rel="stylesheet" href="/remote-exams.css?v=20261008-1">
   <link rel="stylesheet" href="/course-mobile-fix.css?v=20261008-1">
-  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-9">
+  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-10">
   <link rel="stylesheet" href="/live-participant-rail.css?v=20261009-3">
   <title>HALLAYM EDU</title>
 </head>
@@ -156,7 +156,18 @@
       <div class="info-note"><b>Shaxsan o‘tkaziladi</b><span>Bu bo‘lim onlayn test emas. Talabaning qatnashuvi va shaxsi hujjat bilan tekshirilgani auditga yoziladi.</span></div>
       <div id="remoteExamHub" class="remote-hub"></div><div id="finalExamList" class="list"></div><div id="finalExamDetail" class="list"></div>
     </section>
-    <section id="courses" class="page"><div class="page-head"><div><h1>Fanlar va vazifalar</h1><p>O‘quv resurslari, topshiriqlar, testlar va akademik yozuvlar</p></div><div><button id="myAcademic" class="hidden">O‘quv rejam</button> <button id="manageAcademic" class="hidden">Akademik yozuvlar</button> <button id="courseCompliance" class="hidden">Tayyorlik</button> <button id="reviewGrades" class="hidden">Baho so‘rovlari</button> <button id="teacherCourseCreate" class="primary hidden">+ Guruhga fan</button> <button id="addCourse" class="primary hidden">+ Fan qo‘shish</button></div></div><div id="courseworkJournalBoard" class="coursework-journal"></div><div id="courseList" class="list"></div><div id="courseDetail" class="list"></div></section>
+    <section id="courses" class="page"><div class="page-head"><div><h1>Fanlar va vazifalar</h1><p>O‘quv resurslari, topshiriqlar, testlar va akademik yozuvlar</p></div><div><button id="myAcademic" class="hidden">O‘quv rejam</button> <button id="manageAcademic" class="hidden">Akademik yozuvlar</button> <button id="courseCompliance" class="hidden">Tayyorlik</button> <button id="reviewGrades" class="hidden">Baho so‘rovlari</button> <button id="teacherCourseCreate" class="primary hidden">+ Guruhga fan</button> <button id="addCourse" class="primary hidden">+ Fan qo‘shish</button></div></div><div class="coursework-workspace-tabs" role="tablist" aria-label="Fanlar va vazifalar bo‘limlari">
+  <button type="button" role="tab" aria-selected="true" aria-controls="courseworkTasksPane" data-coursework-tab="tasks" class="active">📚 Resurslar va vazifalar</button>
+  <button type="button" role="tab" aria-selected="false" aria-controls="courseworkGradesPane" data-coursework-tab="grades" class="hidden">✍️ Javoblarni baholash</button>
+  <button type="button" role="tab" aria-selected="false" aria-controls="courseworkJournalPane" data-coursework-tab="journal" class="hidden">📊 Elektron jurnal</button>
+</div>
+<div id="courseworkTasksPane" class="coursework-pane" role="tabpanel">
+  <p class="coursework-pane-intro">Guruhni tanlang. Keyin fan materiallari, fayl yuklash, yangi topshiriq va javoblar ochiladi.</p>
+  <div id="courseList" class="list"></div>
+  <div id="courseDetail" class="list"></div>
+</div>
+<div id="courseworkGradesPane" class="coursework-pane" role="tabpanel" hidden><div id="courseworkGradesBoard" class="coursework-grades"></div></div>
+<div id="courseworkJournalPane" class="coursework-pane" role="tabpanel" hidden><div id="courseworkJournalBoard" class="coursework-journal"></div></div></section>
     <section id="dashboard" class="page active">
       <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugun nimalar bo‘layotganini shu yerdan ko‘rasiz</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
       <div class="edu-banner"><span data-ico="book" data-fallback="📘"></span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval guruhlar va akkauntlarni tayyorlang. Keyin jadvalni qo‘shasiz.</p></div></div>
@@ -454,5 +465,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-stage9"></script><script type="module" src="/app.js?v=20261009-coursework11"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-stage9"></script><script type="module" src="/app.js?v=20261009-tabs12"></script>
 </body></html>

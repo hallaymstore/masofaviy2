@@ -1789,6 +1789,41 @@ $('#addLibraryItem')?.addEventListener('click',async()=>{
 });
 
 const courseworkUi=createCourseworkUi({api,esc,csrf,toast,modal});
+let courseworkTab='tasks';
+function selectCourseworkTab(tab='tasks'){
+  const eligible=courseworkUi.allowJournal(user?.role);
+  const canGrade=['teacher','admin','superadmin'].includes(user?.role);
+  if(tab==='grades'&&!canGrade)tab='tasks';
+  if(tab==='journal'&&!eligible)tab='tasks';
+  courseworkTab=tab;
+  all('[data-coursework-tab]').forEach(button=>{
+    const active=button.dataset.courseworkTab===tab;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-selected',String(active));
+    button.tabIndex=active?0:-1;
+  });
+  for(const key of ['tasks','grades','journal']){
+    const pane=$('#coursework'+key[0].toUpperCase()+key.slice(1)+'Pane');
+    if(pane)pane.hidden=key!==tab;
+  }
+  const button=$('#teacherCourseCreate');
+  if(button)button.classList.toggle('hidden',tab!=='tasks'||user?.role!=='teacher');
+  const add=$('#addCourse');
+  if(add)add.classList.toggle('hidden',tab!=='tasks'||!['admin','superadmin'].includes(user?.role));
+  if(tab==='grades')courseworkUi.grading($('#courseworkGradesBoard'),user?.role).catch(e=>toast(e.message));
+  if(tab==='journal')courseworkUi.journals($('#courseworkJournalBoard'),user?.role).catch(e=>toast(e.message));
+}
+all('[data-coursework-tab]').forEach(button=>{
+  button.addEventListener('click',()=>selectCourseworkTab(button.dataset.courseworkTab));
+  button.addEventListener('keydown',e=>{
+    if(!['ArrowLeft','ArrowRight'].includes(e.key))return;
+    e.preventDefault();
+    const options=all('[data-coursework-tab]:not(.hidden)');
+    const i=options.indexOf(button),direction=e.key==='ArrowRight'?1:-1;
+    const target=options[(i+direction+options.length)%options.length];
+    target?.focus();if(target)selectCourseworkTab(target.dataset.courseworkTab);
+  });
+});
 $('#teacherCourseCreate')?.addEventListener('click',async()=>{
  try{
   const groups=await api('/coursework/teacher-groups');
@@ -1801,9 +1836,10 @@ $('#teacherCourseCreate')?.addEventListener('click',async()=>{
  }catch(e){toast(e.message)}
 });
 async function loadCourses(){
-  try{$('#courseCompliance').classList.toggle('hidden',!['admin','superadmin'].includes(user.role));const rows=await api('/lms/courses');$('#courseDetail').innerHTML='';$('#courseList').innerHTML=rows.map(c=>'<article><h2>'+esc(c.title)+'</h2><p>'+esc(c.code)+' · '+esc(c.language)+' · '+esc(c.groupId?.name||'')+' · '+esc(c.teacherId?.fullName||'')+'</p><button class="primary" data-course="'+esc(c._id)+'">Ochish</button></article>').join('')||'<div class="empty">Hozircha fanlar biriktirilmagan.</div>';all('[data-course]').forEach(b=>b.onclick=()=>openCourse(b.dataset.course));
-    if(courseworkUi.allowJournal(user.role))courseworkUi.journals($('#courseworkJournalBoard'),user.role).catch(e=>toast(e.message));
-    else $('#courseworkJournalBoard').innerHTML='';
+  try{$('#courseCompliance').classList.toggle('hidden',!['admin','superadmin'].includes(user.role));const rows=await api('/lms/courses');$('#courseDetail').innerHTML='';$('#courseList').hidden=false;$('#courseList').innerHTML=rows.map(c=>'<article><h2>'+esc(c.title)+'</h2><p>'+esc(c.code)+' · '+esc(c.language)+' · '+esc(c.groupId?.name||'')+' · '+esc(c.teacherId?.fullName||'')+'</p><button class="primary" data-course="'+esc(c._id)+'">Ochish</button></article>').join('')||'<div class="empty">Hozircha fanlar biriktirilmagan.</div>';all('[data-course]').forEach(b=>b.onclick=()=>openCourse(b.dataset.course));
+    all('[data-coursework-tab="grades"]').forEach(b=>b.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(user.role)));
+    all('[data-coursework-tab="journal"]').forEach(b=>b.classList.toggle('hidden',!courseworkUi.allowJournal(user.role)));
+    selectCourseworkTab('tasks');
   }catch(e){toast(e.message)}
 }
 async function uploadCourseResource(courseId,data){
@@ -1813,7 +1849,7 @@ async function uploadCourseResource(courseId,data){
 }
 $('#courseCompliance').onclick=async()=>{try{const x=await api('/lms/compliance');$('#courseDetail').innerHTML='<article><h2>Akademik tayyorlik</h2><p>Hisobot kiritilgan ma’lumotlarga asoslanadi. 1:50 me’yorining rasmiy talqini uchun OTM tasdig‘i kerak.</p><h3>Fansiz guruhlar</h3><p>'+esc(x.groupsWithoutCourses.map(g=>g.name).join(', ')||'Yo‘q')+'</p><h3>Fanlar</h3>'+x.courses.map(c=>'<p>'+esc(c.title)+' · '+esc(c.group)+' · '+esc(c.studentCount)+' talaba · '+Object.entries(c.checks).map(([k,v])=>esc(k)+': '+(v?'✓':'✗')).join(' · ')+'</p>').join('')+'<h3>O‘qituvchi yuklamasi</h3>'+x.teacherLoad.map(t=>'<p>'+esc(t.teacher)+' · '+esc(t.uniqueStudents)+' talaba'+(t.aboveFifty?' · 50 dan ko‘p':'')+'</p>').join('')+'</article>'}catch(e){toast(e.message)}};
 async function openCourse(id){
-  try{const [x,scorm]=await Promise.all([api('/lms/courses/'+id),api('/lms/courses/'+id+'/scorm')]),editor=user.role==='teacher'||['admin','superadmin'].includes(user.role);let html='<article><h2>'+esc(x.course.title)+'</h2><p>'+esc(x.course.code)+' · '+esc(x.course.language)+'</p>';
+  try{const [x,scorm]=await Promise.all([api('/lms/courses/'+id),api('/lms/courses/'+id+'/scorm')]),editor=user.role==='teacher'||['admin','superadmin'].includes(user.role);let html='<article><button type="button" id="backToCourseList">← Fanlar ro‘yxatiga qaytish</button><h2>'+esc(x.course.title)+'</h2><p>'+esc(x.course.code)+' · '+esc(x.course.language)+'</p>';
     if(x.course.syllabusUrl)html+='<p><a href="'+esc(x.course.syllabusUrl)+'" target="_blank" rel="noopener noreferrer">Fan dasturi ↗</a></p>';
     html+='<h3>Materiallar</h3>'+(x.resources.map(r=>{const source=r.fileId?'/api/lms/resources/'+encodeURIComponent(r._id)+'/content':'/api/lms/resources/'+encodeURIComponent(r._id)+'/open';const media=r.fileId&&(r.kind==='video'?'<video controls preload="none" style="max-width:100%;max-height:360px" src="'+esc(source)+'"></video>':r.kind==='audio'?'<audio controls preload="none" src="'+esc(source)+'"></audio>':r.kind==='image'?'<img loading="lazy" alt="'+esc(r.title)+'" style="max-width:100%;max-height:320px" src="'+esc(source)+'">':'');return '<div class="lesson-row"><div><b>'+esc(r.title)+'</b><small>'+esc(r.kind)+(r.size?' · '+Math.ceil(r.size/1024)+' KB':'')+'</small>'+(media?'<details><summary>Ko‘rish</summary>'+media+'</details>':'')+'</div><a href="'+esc(source)+'" target="_blank" rel="noopener noreferrer">Ochish ↗</a>'+(editor?'<button data-library-resource="'+esc(r._id)+'" data-library-title="'+esc(r.title)+'">Kutubxonaga</button><button data-delete-resource="'+esc(r._id)+'">O‘chirish</button>':'')+'</div>'}).join('')||'<p>Material yo‘q</p>');
     if(editor)html+='<button id="newResource">+ Havola</button> <button id="uploadResource">+ Fayl yuklash</button> <button id="newAssignment">+ Topshiriq</button> <button id="newQuiz">+ Test</button> <button id="resourceUsage">Resurs faolligi</button> <button id="courseResults">Yakuniy natijalar</button>';
@@ -1821,6 +1857,23 @@ async function openCourse(id){
     html+='<h3>SCORM paketlar</h3>'+(scorm.map(p=>'<div class="lesson-row"><div><b>'+esc(p.title)+'</b><small>'+esc(p.standard)+' · '+esc(p.scoes?.length||1)+' SCO</small></div>'+(user.role==='student'?(p.scoes?.length?p.scoes.map(s=>'<button data-scorm="'+esc(p._id)+'" data-sco="'+esc(s.identifier)+'">'+esc(s.title||'Ochish')+'</button>').join(' '):'<button data-scorm="'+esc(p._id)+'">Ochish</button>'):'')+'</div>').join('')||'<p>Paket yo‘q</p>')+(editor?'<label>SCORM ZIP (8 MB gacha)<input id="scormFile" type="file" accept=".zip"></label><button id="uploadScorm">Yuklash</button>':'')+'<div id="scormPlayer"></div>';
     html+='<h3>Testlar</h3>'+(x.quizzes.map(q=>'<p>'+esc(q.title)+(q.proctorRequired?' · Imtihon oynasi nazorati':'')+' <button '+(user.role==='student'?'data-quiz="'+esc(q._id)+'" data-quiz-proctor="'+(q.proctorRequired?'1':'0')+'"':'data-quiz-review="'+esc(q._id)+'"')+'>'+(user.role==='student'?'Boshlash':'Urinishlar')+'</button></p>').join('')||'<p>Test yo‘q</p>')+'</article>';
     $('#courseDetail').innerHTML=html+'<article id="courseworkDetailPanel" class="coursework-module"></article>';
+    $('#courseList').hidden=true;
+    $('#backToCourseList')?.addEventListener('click',()=>{
+      $('#courseList').hidden=false;
+      $('#courseDetail').innerHTML='';
+      $('#courseList').scrollIntoView({block:'start'});
+    });
+    if(editor){
+      const article=$('#courseDetail article');
+      const bar=document.createElement('div');
+      bar.className='coursework-quick-actions';
+      for(const key of ['newResource','uploadResource','newAssignment','newQuiz']){
+        const button=$('#'+key);
+        if(button)bar.appendChild(button);
+      }
+      article?.querySelector('h3')?.before(bar);
+    }
+    $('#courseDetail').scrollIntoView({block:'start'});
     courseworkUi.refreshCourse(id,user.role,$('#courseworkDetailPanel')).catch(e=>toast(e.message));
     $('#newResource')?.addEventListener('click',()=>modal('Material qo‘shish','<label>Sarlavha<input name="title" required></label><label>Turi<select name="kind"><option value="document">Hujjat</option><option value="video">Video</option><option value="link">Havola</option></select></label><label>HTTPS havola<input name="url" type="url" required></label><label>Izoh<textarea name="description"></textarea></label>',async d=>{await api('/lms/courses/'+id+'/resources',{method:'POST',body:JSON.stringify(d)});openCourse(id)}));
     $('#uploadResource')?.addEventListener('click',()=>modal('Fayl yuklash','<label>Fayl (PDF, Word, Excel, PowerPoint, rasm, audio, video, matn, ZIP)<input name="file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.epub,.txt,.md,.csv,.srt,.vtt,.jpg,.jpeg,.png,.webp,.gif,.heic,.mp3,.m4a,.wav,.ogg,.flac,.mp4,.webm,.mov,.mkv,.avi,.zip,.rar,.7z" required></label><label>Nom<input name="title" placeholder="Fayl nomi bo‘lsa bo‘sh qoldiring"></label><label>Izoh<textarea name="description"></textarea></label><p id="uploadProgress" role="status"></p>',async d=>{await uploadCourseResource(id,d);openCourse(id)}));

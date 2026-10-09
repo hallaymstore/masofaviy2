@@ -245,3 +245,31 @@
 :is(#courses,#reports) .coursework-sub small{display:block;color:#557390;font-size:11px}
 :is(#courses,#reports) .coursework-module button,:is(#courses,#reports) .coursework-journal button{min-height:34px}
 @media(max-width:640px){:is(#courses,#reports) .coursework-journal-head label{flex:1 1 100%}:is(#courses,#reports) .coursework-table{font-size:11px}}
+
+/* 2026-10: one visible workspace at a time, default to resources and assignments. */
+#courses .coursework-workspace-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:5px;background:#e8f0fb;border:1px solid #d0deef;border-radius:9px}
+#courses .coursework-workspace-tabs button{border:1px solid transparent;border-radius:6px;padding:11px 16px;font-weight:800;font-size:13px;cursor:pointer;background:transparent;color:#244e7c;min-height:42px;flex:1 1 180px}
+#courses .coursework-workspace-tabs button.active{color:#fff;background:#185bd8;box-shadow:0 2px 5px rgba(19,74,149,.16)}
+#courses .coursework-workspace-tabs button:focus-visible{outline:3px solid #edab2b;outline-offset:1px}
+#courses .coursework-workspace-tabs button.hidden{display:none!important}
+#courses .coursework-pane[hidden],#courses .coursework-grade-row[hidden],#courses .coursework-grade-task[hidden],#courses #courseList[hidden]{display:none!important}
+#courses .coursework-pane-intro{margin:2px 0 13px;padding:11px 14px;background:#f0f6ff;border-left:3px solid #2c78e7;border-radius:5px;color:#335984;font-size:13px}
+#courses .coursework-quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px;padding:12px;background:#e9f3ff;border:1px solid #b9d3f1;border-radius:8px}
+#courses .coursework-quick-actions button{background:#115bc9;color:white;font-weight:800;border:1px solid #115bc9;border-radius:6px;padding:9px 12px;min-height:38px}
+#courses .coursework-grade-toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:15px;border:1px solid #d3dfed;border-radius:8px;background:#fff;align-items:end}
+#courses .coursework-grade-toolbar>div{flex:2 1 100%}
+#courses .coursework-grade-toolbar h3{margin:0 0 5px}
+#courses .coursework-grade-toolbar p{margin:0}
+#courses .coursework-grade-toolbar label{display:flex;flex:1 1 200px;min-width:150px;flex-direction:column;gap:6px;font-size:12px;font-weight:700}
+#courses .coursework-grade-toolbar select{padding:9px;border:1px solid #b9cde3;border-radius:6px;width:100%;color:#15365d;background:#fff}
+#courses .coursework-grade-counts{font-size:13px;color:#33577e;background:#e9f2fc;border:1px solid #d0e0f2;padding:10px 13px;margin:12px 0;border-radius:7px}
+#courses .coursework-grade-task{margin:10px 0;background:#fff;border:1px solid #c6d8ed;border-radius:8px;padding:12px}
+#courses .coursework-grade-task summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:14px;cursor:pointer}
+#courses .coursework-grade-task summary span{font-size:12px;color:#53749a}
+#courses .coursework-grade-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-top:1px solid #e0e8f2;margin-top:8px;padding:10px 4px;font-size:13px}
+#courses .coursework-grade-row>div:first-child{flex:1 1 260px;min-width:0}
+#courses .coursework-grade-row small{display:block;color:#577696;font-size:11px}
+#courses .coursework-grade-row p{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0}
+#courses .coursework-grade-side{display:flex;align-items:center;gap:12px;flex:0 1 auto;flex-wrap:wrap}
+#courses .coursework-grade-side button{border:0;background:#1564d5;color:#fff;border-radius:6px;padding:10px 14px;font-weight:700}
+@media(max-width:640px){#courses .coursework-workspace-tabs{gap:5px;padding:4px}#courses .coursework-workspace-tabs button{font-size:11px;padding:9px 7px;flex:1 1 95px}#courses .coursework-grade-toolbar{padding:10px}#courses .coursework-grade-side{width:100%;justify-content:space-between}}
