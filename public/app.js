@@ -902,13 +902,14 @@ async function openConference(payload){
         else mediaRoomClient?.focusUserForClass?.(userId);
       },
       onState:state=>{
-        if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — o‘chirish':'Mikrofon OFF — yoqish')}
+        if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — aks-sadoni kamaytirish uchun quloqchin tavsiya etiladi':'Mikrofon OFF — yoqish')}
         if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',user.role==='student'?(cameraOn?'Broadcast kamera ON — boshqalarga ko‘rinadi. Proktor kamera lokal alohida ishlaydi':'Broadcast kamera OFF — boshqalarga ko‘rinmaydi. Proktor kamera lokal ishlashda davom etadi'):(cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish'))}
         if(state.cameraBusy!==undefined){const b=$('#callCamera');if(b){b.disabled=Boolean(state.cameraBusy);b.classList.toggle('is-busy',Boolean(state.cameraBusy));b.setAttribute('aria-busy',state.cameraBusy?'true':'false')}}
         if(state.screen!==undefined){const b=$('#callScreen');b?.classList.toggle('active-control',Boolean(state.screen));b?.setAttribute('aria-pressed',state.screen?'true':'false')}
         if(state.echoGuard!==undefined)$('#echoGuard')?.classList.toggle('active-control',state.echoGuard);
         if(state.audioBlocked)toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing');
+        if(state.aecUnavailable)toast('Qurilmangizda echo cancellation faol emas. Quloqchin ishlating va karnay ovozini pasaytiring.');
         if(state.videoQuality&&$('#videoQuality'))$('#videoQuality').value=state.videoQuality;
         if(state.participants){const n=Array.isArray(state.participants)?state.participants.length:Number(state.participants||0);if($('#participantCountBadge'))$('#participantCountBadge').textContent=String(n)}
         if(state.viewMode)$('#callViewMode')?.classList.toggle('active-control',state.viewMode==='gallery');

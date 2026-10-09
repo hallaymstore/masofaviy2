@@ -179,7 +179,19 @@ async function handleRequest(ws,msg){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
       const appData={...(data.appData||{}),peerId:peer.id,role:peer.user.role};
       if(STRICT_AUDIO_FLOOR&&data.kind==='audio'&&peer.room.audioFloor&&peer.room.audioFloor.peerId!==peer.id)throw new Error('Boshqa ishtirokchi gapiryapti. Mikrofon navbati bo‘shashishini kuting.');
-      const producer=await t.produce({kind:data.kind,rtpParameters:data.rtpParameters,appData});
+      // One transmitting microphone per authenticated user and room, including duplicate tabs/devices.
+      // Reserve before async produce() so two concurrent requests cannot both pass the check.
+      const micUser=String(peer.user?.id||'');
+      const audioClaims=peer.room.audioClaims||(peer.room.audioClaims=new Set());
+      if(data.kind==='audio'){
+        const alreadyLive=[...peer.room.peers.values()].some(other=>
+          String(other.user?.id||'')===micUser&&[...other.producers.values()].some(p=>p.kind==='audio'&&!p.closed&&!p.paused));
+        if(alreadyLive||audioClaims.has(micUser))throw new Error('Bu akkaunt mikrofoni ushbu darsda boshqa qurilma yoki oynada yoqilgan. Uni o‘chiring.');
+        audioClaims.add(micUser);
+      }
+      let producer;
+      try{producer=await t.produce({kind:data.kind,rtpParameters:data.rtpParameters,appData})}
+      finally{if(data.kind==='audio')audioClaims.delete(micUser)}
       peer.producers.set(producer.id,producer);
       if(producer.kind==='audio'){claimAudioFloor(peer.room,peer,producer.id);try{await peer.room.audioObserver.addProducer({producerId:producer.id})}catch{}}
       producer.on('transportclose',()=>{if(producer.kind==='audio')clearAudioFloor(peer.room,peer.id,producer.id);peer.producers.delete(producer.id)});
@@ -209,6 +221,7 @@ async function handleRequest(ws,msg){
       }catch{}
       reply(ws,clientId,id,true,{ok:true});return;
     }
+    if(method==='closeConsumer'){const c=peer.consumers.get(data.consumerId);if(c){c.close();peer.consumers.delete(data.consumerId)}reply(ws,clientId,id,true,{ok:true});return}
     if(method==='resumeConsumer'){const c=peer.consumers.get(data.consumerId);if(c)await c.resume();reply(ws,clientId,id,true,{ok:true});return}
     if(method==='pauseConsumer'){const c=peer.consumers.get(data.consumerId);if(c)await c.pause();reply(ws,clientId,id,true,{ok:true});return}
     if(method==='pauseProducer'||method==='resumeProducer'){
@@ -217,7 +230,13 @@ async function handleRequest(ws,msg){
         await p.pause();
         if(p.kind==='audio')clearAudioFloor(peer.room,peer.id,p.id);
       }else{
-        if(p.kind==='audio')claimAudioFloor(peer.room,peer,p.id);
+        if(p.kind==='audio'){
+          const duplicate=[...peer.room.peers.values()].some(other=>
+            String(other.user?.id||'')===String(peer.user?.id||'')&&[...other.producers.values()]
+              .some(existing=>existing.id!==p.id&&existing.kind==='audio'&&!existing.closed&&!existing.paused));
+          if(duplicate)throw new Error('Bu akkauntda boshqa faol mikrofon bor. Uni avval o‘chiring.');
+          claimAudioFloor(peer.room,peer,p.id);
+        }
         await p.resume();
       }
       broadcastProducer(peer.room,'producerState',p,peer,{producerId:p.id,peerId:peer.id,kind:p.kind,mediaTag:p.appData?.mediaTag||'',paused:method==='pauseProducer'});
