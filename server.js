@@ -16,6 +16,7 @@ import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
 import { installLessonHistory } from './lesson-history.js';
+import { installGlobalSearch } from './global-search.js';
 import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from './lesson-history-timeline.js';
 import { summarizeLiveLessonGroup } from './lesson-roster.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
@@ -385,6 +386,7 @@ app.use('/api',async(req,res,next)=>{
   next();
 });
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
+installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission});
 installCompliance(app,{mongoose,User,auth,audit});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString(), faceDetectionAssets:fs.existsSync(path.resolve('public/vendor/face-detection/face_detection.js'))&&fs.existsSync(path.resolve('public/vendor/face-detection/face_detection_solution_wasm_bin.wasm')) }));

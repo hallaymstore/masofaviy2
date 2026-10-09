@@ -6,7 +6,7 @@ export function createLessonHistoryUi({api,esc,toast}){
  const escapeValue=value=>esc(value==null?'':String(value));
  const isoDate=day=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit'}).format(day);
  let pending=null;
- async function load(container){
+ async function load(container,selectedId=''){
    if(!container)return;
    const old=container.querySelector('#historyGroup')?.value||'';
    let knownGroups=[];
@@ -69,6 +69,7 @@ export function createLessonHistoryUi({api,esc,toast}){
    }
    find('#historyApply').onclick=refresh;
    await refresh();
+   if(selectedId)await showDetail(selectedId);
  }
  return {load};
 }

@@ -36,7 +36,7 @@ test('end-of-video position resets to replay and invalid/stale cache entries are
  assert.equal(rememberPlayback(s,'x','neg',-5,100,now).position,0);
 });
 test('navigation, logout, and related-video switching all stop the active player',()=>{
- assert.ok(app.includes("function go(id){if(id!=='videoWatch'&&activeVideoId){clearWatchPage()"));
+ assert.ok(app.includes("function go(id,skipLoad=false){if(id!=='videoWatch'&&activeVideoId){clearWatchPage()"));
  assert.ok(app.includes("function logout(){if(activeVideoId)clearWatchPage()"));
  assert.ok(app.includes("if(activeVideoId)clearWatchPage(); // Switch between related videos"));
  assert.ok(app.includes("if(save)saveCurrentVideoProgress(false,true)"));

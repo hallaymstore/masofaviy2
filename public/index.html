@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/exam-dashboard.css?v=20261008-1">
   <link rel="stylesheet" href="/remote-exams.css?v=20261008-1">
   <link rel="stylesheet" href="/course-mobile-fix.css?v=20261008-1">
-  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-12">
+  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-13">
   <link rel="stylesheet" href="/live-participant-rail.css?v=20261009-3">
   <title>HALLAYM EDU</title>
 </head>
@@ -47,6 +47,7 @@
     <button id="menuBtn" class="icon-btn" aria-label="Menyu">☰</button>
     <div class="brand"><span class="brand-mark">HE</span><div><b data-product-name>HALLAYM EDU</b><small><span id="roleLabel"></span><span class="brand-institution-sep"> · </span><span data-institution-short>QarDTU</span></small></div></div>
     <div class="header-actions">
+      <button id="globalSearchOpen" class="icon-btn global-search-trigger" title="Butun saytdan qidirish (Ctrl+K)" aria-label="Sayt bo‘ylab qidirish"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
       <button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot">●</span><span id="headerName"></span></button>
       <span id="onlineBadge" class="badge">● Onlayn</span>
       <button id="installPwaBtn" class="icon-btn install-pwa hidden" aria-label="Ilovani o‘rnatish" title="Ilovani o‘rnatish">↓</button>
@@ -56,6 +57,7 @@
 
   <aside id="sidebar">
     <nav>
+      <button data-page="search"><span data-ico="search" data-fallback="⌕"></span>Umumiy qidiruv</button>
       <button data-page="dashboard" class="active nav-home"><span data-ico="home" data-fallback="⌂"></span>Bosh sahifa</button>
       <details class="nav-group" open><summary><span>Ta’lim</span><i>⌄</i></summary>
         <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
@@ -208,6 +210,7 @@
       <div id="teacherGradesPage" class="coursework-journal"></div>
     </section>
     <section id="history" class="page"><div class="page-head"><div><span class="page-kicker">GURUHLAR VA DAVOMAT</span><h1>O‘tilgan darslar tarixi</h1><p>Har bir dars va ishtirokchining davomiyligi, davomat va proktor vaqtlari</p></div><button id="historyRefresh" type="button" class="secondary">Yangilash</button></div><div id="lessonHistoryBoard" class="lesson-history-board"></div></section>
+    <section id="search" class="page"><div class="page-head"><div><span class="page-kicker">BUTUN PLATFORMADA</span><h1>Umumiy qidiruv</h1><p>Fanlar, topshiriqlar, videodarslar, dars jadvali, kutubxona va ruxsat etilgan boshqa yozuvlar</p></div></div><div id="globalSearchBoard" class="global-search-board"><form id="globalSearchForm" class="global-search-form"><span class="global-search-magnifier">⌕</span><input id="globalSearchInput" type="search" placeholder="Nimani qidiramiz? Masalan, statistika, guruh nomi, mavzu…" minlength="2" maxlength="80" autocomplete="off" aria-label="Saytdan qidirish" required><button type="submit" class="primary">Qidirish</button></form><div id="globalSearchTypes" class="global-search-types" role="group" aria-label="Natija turini tanlash"></div><div id="globalSearchStatus" role="status" aria-live="polite"></div><div id="globalSearchResults" class="global-search-results"></div></div></section>
     <section id="schedule" class="page schedule-workspace">
       <div class="page-head schedule-page-head"><div><span class="page-kicker">HAFTALIK DISPETCHER</span><h1>Dars jadvali</h1><p>6 kunlik jadval bitta ishchi ekranda. Guruh yoki o‘qituvchi bo‘yicha bir bosishda almashtiring.</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV</button><button class="secondary" id="importSchedules">Import</button><button class="primary" id="addSchedule">+ Dars</button></div></div>
       <div id="studentScheduleGrades" class="schedule-personal-grades" hidden></div>
@@ -474,5 +477,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-audio14"></script><script type="module" src="/app.js?v=20261009-history16"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-audio14"></script><script type="module" src="/app.js?v=20261009-search17"></script>
 </body></html>
