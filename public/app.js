@@ -1,7 +1,8 @@
 import {classifyFaceDetections,createFaceStateFilter} from './live-proctor-logic.js';
 import {createCourseworkUi} from './coursework-ui.js';
 import {createPersonalGradesUi} from './personal-grades-ui.js';
-const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,autoRejoinAttempt=0,autoRejoinInFlight=false,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), lastRoomFeedbackAlertAt=0, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
+import {rememberPlayback,readPlayback,playbackResumeSeconds} from './video-playback-state.js';
+const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,autoRejoinAttempt=0,autoRejoinInFlight=false,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, watchSessionSerial=0, videoProgressWrites=new Map(), liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), lastRoomFeedbackAlertAt=0, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
 const ultraLiteUI=Boolean((deviceMem&&deviceMem<=2)||(deviceCores&&deviceCores<=2)||(androidMajor&&androidMajor<=8));
@@ -36,9 +37,9 @@ const urlHost=value=>{try{return new URL(value).host}catch{return String(value||
 const iconPaths={home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',chart:'<path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/>',building:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2M14 10h2M8 14h2M14 14h2M9 21v-4h6v4"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',video:'<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2z"/>',library:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',camera:'<path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9H3V9a2 2 0 0 1 2-2h3l1.5-3z"/><circle cx="12" cy="12" r="3"/>',refresh:'<path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',back:'<path d="m15 18-6-6 6-6"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',screen:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',message:'<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',phoneOff:'<path d="M3 3l18 18"/><path d="M16 16.7c-4.6 1.2-9.3-3.4-8-8L5.4 6.1 2 8c0 7.7 6.3 14 14 14l1.9-3.4z"/>',send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',play:'<path d="m9 7 8 5-8 5z"/>',heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',cap:'<path d="m2 10 10-5 10 5-10 5z"/><path d="M6 12.5V17c3.5 2 8.5 2 12 0v-4.5"/><path d="M22 10v6"/>',book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',external:'<path d="M14 3h7v7M10 14 21 3"/><path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"/>'};
 function icon(name,fallback='•'){if(lowEndUI)return '<span class="fallback-icon" aria-hidden="true">'+esc(fallback)+'</span>';return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.home)+'</svg>'}
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
-function logout(){fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
+function logout(){if(activeVideoId)clearWatchPage();fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
 function configureRoleUI(){const role=user.role;document.documentElement.dataset.userRole=role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin','rectorate','dean','department','tutor'].includes(role),grades:['student','teacher','admin','superadmin','rectorate','dean','department','tutor'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{const b=$(`nav button[data-page="${page}"]`);if(b)b.classList.toggle('hidden',!ok)});if($('#gradeNavLabel'))$('#gradeNavLabel').textContent=role==='student'?'Mening baholarim':'Elektron jurnal';$('#teacherCourseCreate')?.classList.toggle('hidden',role!=='teacher');$('#addCourse')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
-function go(id){all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,grades:loadGradePage,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
+function go(id){if(id!=='videoWatch'&&activeVideoId){clearWatchPage();if(location.hash.startsWith('#video='))history.replaceState({},'',location.pathname+location.search)}all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');({dashboard:loadDashboard,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,videos:loadVideoLessons,courses:loadCourses,grades:loadGradePage,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installPwaBtn')?.classList.remove('hidden')});
 $('#installPwaBtn')?.addEventListener('click',async()=>{if(!deferredInstallPrompt)return toast('Ilovani brauzer menyusidan o‘rnatish mumkin');deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice.catch(()=>{});deferredInstallPrompt=null;$('#installPwaBtn')?.classList.add('hidden')});
@@ -1318,10 +1319,20 @@ function loadYouTubePlayerApi(){
   return youtubeApiPromise;
 }
 function stopWatchTracking(save=true){
+  // Snapshot synchronously before destroying the playback engine.
+  if(save)saveCurrentVideoProgress(false,true).catch(e=>console.warn('Video joyini saqlab bo‘lmadi:',e));
+  watchSessionSerial++;
   if(watchProgressTimer){clearInterval(watchProgressTimer);watchProgressTimer=null}
-  if(save)saveCurrentVideoProgress(false).catch(()=>{});
-  try{if(activeWatchKind==='youtube')activeWatchPlayer?.destroy?.();else if(activeWatchKind==='mp4')activeWatchPlayer?.pause?.()}catch{}
-  activeWatchPlayer=null;activeWatchKind='';watchLastSamplePosition=0;watchLastSampleAt=0;
+  const player=$('#watchPlayer');
+  try{
+    if(activeWatchKind==='youtube'){activeWatchPlayer?.pauseVideo?.();activeWatchPlayer?.stopVideo?.();activeWatchPlayer?.destroy?.()}
+    else if(activeWatchKind==='mp4')activeWatchPlayer?.pause?.();
+  }catch{}
+  // Hidden iframes can still play audio: stop all of them, including fallback/external embeds.
+  player?.querySelectorAll('video').forEach(v=>{try{v.pause();v.removeAttribute('src');v.srcObject=null;v.load()}catch{}});
+  player?.querySelectorAll('iframe').forEach(frame=>{try{frame.src='about:blank';frame.remove()}catch{}});
+  if(player)player.replaceChildren();
+  activeWatchPlayer=null;activeWatchKind='';watchLastSamplePosition=0;watchLastSampleAt=0;watchLastSavedAt=0;
 }
 function updateVideoProgressUi(v,progress){
   if(!v)return;v.progress={...(v.progress||{}),...(progress||{})};
@@ -1331,60 +1342,95 @@ function updateVideoProgressUi(v,progress){
 }
 async function persistVideoProgress(videoId,position,duration,completed=false,watchDeltaSeconds=0){
   if(!videoId)return null;
-  const x=await api('/videos/'+videoId+'/view',{method:'POST',body:JSON.stringify({positionSeconds:Math.max(0,Number(position)||0),durationSeconds:Math.max(0,Number(duration)||0),watchDeltaSeconds:Math.max(0,Number(watchDeltaSeconds)||0),completed:Boolean(completed)})});
-  const v=videoLessonsCache.find(a=>String(a._id)===String(videoId));if(v&&x.progress)updateVideoProgressUi(v,x.progress);
-  watchLastSavedAt=Date.now();return x.progress;
+  const payload={positionSeconds:Math.max(0,Number(position)||0),durationSeconds:Math.max(0,Number(duration)||0),watchDeltaSeconds:Math.max(0,Number(watchDeltaSeconds)||0),completed:Boolean(completed)};
+  // Keep writes ordered per video: a slow 5-second update must never overwrite the final exit position.
+  const previous=videoProgressWrites.get(String(videoId))||Promise.resolve();
+  const task=previous.catch(()=>{}).then(()=>api('/videos/'+videoId+'/view',{method:'POST',body:JSON.stringify(payload)}));
+  videoProgressWrites.set(String(videoId),task);
+  try{
+    const x=await task;
+    const v=videoLessonsCache.find(a=>String(a._id)===String(videoId));
+    if(v&&x.progress){v.progress={...(v.progress||{}),...x.progress};if(activeVideoId===String(videoId))updateVideoProgressUi(v,x.progress)}
+    if(activeVideoId===String(videoId))watchLastSavedAt=Date.now();
+    return x.progress;
+  }finally{if(videoProgressWrites.get(String(videoId))===task)videoProgressWrites.delete(String(videoId))}
 }
-async function saveCurrentVideoProgress(forceCompleted=false){
+async function saveCurrentVideoProgress(forceCompleted=false,forceSave=false){
   if(!activeVideoId||!activeWatchPlayer)return;
   let position=0,duration=0,playing=false;
+  const id=activeVideoId;
   try{
     if(activeWatchKind==='youtube'){
       position=Number(activeWatchPlayer.getCurrentTime?.()||0);duration=Number(activeWatchPlayer.getDuration?.()||0);
-      playing=window.YT&&activeWatchPlayer.getPlayerState?.()===window.YT.PlayerState.PLAYING;
+      playing=Boolean(window.YT&&activeWatchPlayer.getPlayerState?.()===window.YT.PlayerState.PLAYING);
     }else if(activeWatchKind==='mp4'){
       position=Number(activeWatchPlayer.currentTime||0);duration=Number(activeWatchPlayer.duration||0);playing=!activeWatchPlayer.paused&&!activeWatchPlayer.ended;
-    }
+    }else return;
   }catch{return}
+  if(!Number.isFinite(position)||position<0)return;
   const now=Date.now(),wallDelta=watchLastSampleAt?Math.max(0,Math.min(15,(now-watchLastSampleAt)/1000)):0,posDelta=watchLastSampleAt?position-watchLastSamplePosition:0;
   let watchDelta=0;
   if(playing&&posDelta>=0&&posDelta<=wallDelta+2.5)watchDelta=Math.min(posDelta,wallDelta,15);
   else if(forceCompleted&&posDelta>0&&posDelta<=wallDelta+2.5)watchDelta=Math.min(posDelta,wallDelta,15);
   watchLastSamplePosition=position;watchLastSampleAt=now;
-  if(!forceCompleted&&Date.now()-watchLastSavedAt<3500)return;
-  if(duration>0)await persistVideoProgress(activeVideoId,position,duration,forceCompleted,watchDelta);
+  rememberPlayback(localStorage,user?._id||user?.id||user?.login,id,position,duration,now);
+  if(!forceCompleted&&!forceSave&&now-watchLastSavedAt<3500)return;
+  if(duration>0){watchLastSavedAt=now;await persistVideoProgress(id,position,duration,forceCompleted,watchDelta)}
 }
 async function renderWatchPlayer(v){
   stopWatchTracking(false);
-  const player=$('#watchPlayer'),yt=youtubeId(v.sourceUrl),resume=Math.max(0,Number(v.progress?.lastPositionSeconds||v.progress?.watchedSeconds||0));
+  const player=$('#watchPlayer'),yt=youtubeId(v.sourceUrl),id=String(v._id);
+  const resume=playbackResumeSeconds(v.progress,readPlayback(localStorage,user?._id||user?.id||user?.login,id));
+  const session=watchSessionSerial;
+  const current=()=>session===watchSessionSerial&&activeVideoId===id&&Boolean($('#videoWatch')?.classList.contains('active'));
+  const fallback=(reason='')=>{
+    if(!current())return;
+    const url='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&enablejsapi=1&start='+Math.floor(resume);
+    if(watchProgressTimer){clearInterval(watchProgressTimer);watchProgressTimer=null}
+    activeWatchKind='external';activeWatchPlayer=null;
+    player.innerHTML='<iframe src="'+esc(url)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">⚠ '+esc(reason||'YouTube pleer zaxira rejimga o‘tdi.')+' Bu rejim ko‘rish soniyasini avtomatik qayd etmaydi.</div>';
+  };
   player.innerHTML='<div class="watch-loading">Video yuklanmoqda…</div>';
   if(yt){
     try{
-      const YT=await loadYouTubePlayerApi();player.innerHTML='<div id="watchYoutubePlayer"></div>';
+      const YT=await loadYouTubePlayerApi();
+      if(!current())return; // Leaving the page while the YouTube API loads must not start playback.
+      player.innerHTML='<div id="watchYoutubePlayer"></div>';
       activeWatchKind='youtube';
       activeWatchPlayer=new YT.Player('watchYoutubePlayer',{videoId:yt,playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1,start:Math.floor(resume)},events:{
-        onReady:e=>{try{if(resume>3)e.target.seekTo(resume,true);e.target.playVideo()}catch{};watchLastSamplePosition=Number(e.target.getCurrentTime?.()||0);watchLastSampleAt=Date.now();watchLastSavedAt=0;watchProgressTimer=setInterval(()=>saveCurrentVideoProgress(false).catch(err=>console.warn('Video progress save failed',err)),5000);saveCurrentVideoProgress(false).catch(err=>console.warn('Initial progress save failed',err))},
-        onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false).catch(()=>{})},
-        onError:()=>{stopWatchTracking(false);const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">⚠ Ushbu pleerda ko‘rish progressi hisoblanmaydi. Kuzatuvni tiklash uchun sahifani yangilang.</div>'}
+        onReady:e=>{
+          if(!current()){try{e.target.destroy()}catch{};return}
+          try{if(resume>2)e.target.seekTo(resume,true);e.target.playVideo()}catch{}
+          watchLastSamplePosition=Number(e.target.getCurrentTime?.()||0);watchLastSampleAt=Date.now();watchLastSavedAt=0;
+          watchProgressTimer=setInterval(()=>{if(current())saveCurrentVideoProgress(false).catch(()=>{})},5000);
+          // Do not overwrite the resume checkpoint before YouTube finishes its initial seek.
+        },
+        onStateChange:e=>{if(!current())return;if(e.data===YT.PlayerState.ENDED)saveCurrentVideoProgress(true,true).catch(()=>{});else if(e.data===YT.PlayerState.PAUSED)saveCurrentVideoProgress(false,true).catch(()=>{})},
+        onError:()=>fallback('YouTube API xatosi.')
       }});
-    }catch(e){
-      const fallback='https://www.youtube.com/embed/'+encodeURIComponent(yt)+'?autoplay=1&rel=0&playsinline=1&start='+Math.max(0,Math.floor(resume));
-      player.innerHTML='<iframe src="'+esc(fallback)+'" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-progress-note">⚠ YouTube API yuklanmadi: bu rejim ko‘rishni hisoblamaydi. Chrome orqali qayta oching.</div>';
-    }
+    }catch(e){fallback('YouTube API yuklanmadi.')}
   }else if(v.sourceType==='mp4'){
+    if(!current())return;
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
     const video=player.querySelector('video');activeWatchKind='mp4';activeWatchPlayer=video;
-    video.addEventListener('loadedmetadata',()=>{if(resume>3&&resume<video.duration-2)video.currentTime=resume;watchLastSamplePosition=video.currentTime;watchLastSampleAt=Date.now();video.play().catch(()=>{})},{once:true});
-    video.addEventListener('timeupdate',()=>{if(Date.now()-watchLastSavedAt>4500)saveCurrentVideoProgress(false).catch(()=>{})});
-    video.addEventListener('pause',()=>saveCurrentVideoProgress(false).catch(()=>{}));
-    video.addEventListener('ended',()=>saveCurrentVideoProgress(true).catch(()=>{}));
-  }else{
-    player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture" allowfullscreen></iframe><div class="video-progress-note">Bu tashqi player progressni avtomatik bera olmaydi.</div>';
+    video.addEventListener('loadedmetadata',()=>{
+      if(!current())return;
+      if(resume>2&&resume<video.duration-2)video.currentTime=resume;
+      watchLastSamplePosition=video.currentTime;watchLastSampleAt=Date.now();
+      video.play().catch(()=>{});
+    },{once:true});
+    video.addEventListener('timeupdate',()=>{if(current()&&Date.now()-watchLastSavedAt>4500)saveCurrentVideoProgress(false).catch(()=>{})});
+    video.addEventListener('pause',()=>{if(current())saveCurrentVideoProgress(false,true).catch(()=>{})});
+    video.addEventListener('ended',()=>{if(current())saveCurrentVideoProgress(true,true).catch(()=>{})});
+  }else if(current()){
+    activeWatchKind='external';
+    player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture" allowfullscreen></iframe><div class="video-progress-note">Bu tashqi player ko‘rilgan soniyani avtomatik bera olmaydi; sahifadan chiqishda esa to‘xtatiladi.</div>';
   }
 }
 async function openVideoLesson(id,pushHistory=true){
   if(!videoLessonsCache.length)videoLessonsCache=await api('/videos');
   const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)return toast('Videodars topilmadi');
+  if(activeVideoId)clearWatchPage(); // Switch between related videos: stop and save the previous player first.
   activeVideoId=String(v._id);commentReplyTo=null;go('videoWatch');
   if(pushHistory&&location.hash!=='#video='+encodeURIComponent(activeVideoId))history.pushState({videoId:activeVideoId},'',location.pathname+location.search+'#video='+encodeURIComponent(activeVideoId));
   $('#watchTitle').textContent=v.title;$('#watchVideoTitle').textContent=v.title;
@@ -1407,7 +1453,20 @@ function clearWatchPage(){
   stopWatchTracking(true);activeVideoId='';commentReplyTo=null;$('#watchPlayer').innerHTML='';$('#commentsList').innerHTML='';$('#commentReplyState').classList.add('hidden');
 }
 $('#backToVideos').onclick=()=>{clearWatchPage();history.pushState({},'',location.pathname+location.search);go('videos');loadVideoLessons()};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&activeVideoId)saveCurrentVideoProgress(false).catch(()=>{})});window.addEventListener('pagehide',()=>{if(activeVideoId)saveCurrentVideoProgress(false).catch(()=>{})});
+function pauseWatchOnBackground(){
+  if(!activeVideoId)return;
+  saveCurrentVideoProgress(false,true).catch(()=>{});
+  try{
+    if(activeWatchKind==='youtube')activeWatchPlayer?.pauseVideo?.();
+    else if(activeWatchKind==='mp4')activeWatchPlayer?.pause?.();
+    else $('#watchPlayer')?.querySelectorAll('iframe').forEach(f=>{
+      // Fallback iframe APIs cannot reliably expose time; stop sound when backgrounded.
+      try{f.contentWindow?.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}), '*')}catch{}
+    });
+  }catch{}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseWatchOnBackground()});
+window.addEventListener('pagehide',pauseWatchOnBackground);
 $('#watchLikeBtn').onclick=()=>activeVideoId&&likeVideoLesson(activeVideoId,true);
 async function likeVideoLesson(id,stayOnWatch=false){
   try{
