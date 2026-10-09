@@ -79,3 +79,11 @@
  #lesson #videoMount{min-height:0!important}
 }
 @media(max-width:640px) and (orientation:landscape){#lesson .conference-shell{height:100dvh!important;min-height:0!important}}
+
+/* Restore the user's own live camera to the full classroom stage, not an invisible PiP tile. */
+#lesson #videoMount .ms-grid:not(.screen-layout):not(.class-spotlight)>.ms-tile.local.has-video.focused{
+ display:block!important;visibility:visible!important;opacity:1!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:3!important
+}
+#lesson #videoMount .ms-grid:not(.screen-layout)>.ms-tile.local.has-video.focused .ms-video{
+ display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:contain!important
+}

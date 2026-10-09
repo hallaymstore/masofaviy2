@@ -80,3 +80,20 @@ test('teacher webcam and microphone start by default but respect manual OFF on r
  assert.ok(app.includes("if(localStorage.getItem('m2-teacher-camera-wanted')!=='0')await mediaRoomClient.toggleCamera()"));
  assert.ok(app.includes("if(localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic()"));
 });
+
+test('camera start restores native video element and focuses own live stage when remote video is absent',()=>{
+ assert.ok(media.includes('this.restoreInlineCamera(true)'));
+ assert.ok(media.includes('video.onloadedmetadata='));
+ assert.ok(media.includes('selectedTrack?.readyState'));
+ assert.ok(media.includes("this.selectStagePeer(String(this.room?.peerId||'local'),false)"));
+ assert.ok(file('public/live-classroom-2026.css').includes('>.ms-tile.local.has-video.focused'));
+});
+test('automatic background PiP exits on classroom return and does not hijack manual PiP',()=>{
+ assert.ok(media.includes('this.automaticPiP=true'));
+ assert.ok(media.includes('if(!pause)this.restoreInlineCamera(true)'));
+ assert.ok(media.includes('if((this.automaticPiP||focus)&&document.pictureInPictureElement===video)document.exitPictureInPicture()'));
+});
+test('administrator operating a lesson remains available as an educator PiP on student spotlight',()=>{
+ assert.ok(media.includes("this.user?.role!=='student'&&this.tiles.get('local')!==selected"));
+ assert.ok(media.includes("if(teacher)teacher.classList.add('teacher-pip')"));
+});
