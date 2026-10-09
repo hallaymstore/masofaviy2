@@ -77,8 +77,8 @@ test('teacher webcam and microphone start by default but respect manual OFF on r
  assert.ok(app.includes("user.role==='teacher'"));
  assert.ok(app.includes("m2-teacher-camera-wanted"));
  assert.ok(app.includes("m2-teacher-mic-wanted"));
- assert.ok(app.includes("if(localStorage.getItem('m2-teacher-camera-wanted')!=='0')await mediaRoomClient.toggleCamera()"));
- assert.ok(app.includes("if(localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic()"));
+ assert.ok(app.includes("if(localStorage.getItem(cameraKey)!=='0')await mediaRoomClient.toggleCamera()"));
+ assert.ok(app.includes("if(isTeachingRole&&localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic()"));
 });
 
 test('camera start restores native video element and focuses own live stage when remote video is absent',()=>{

@@ -151,8 +151,16 @@ export class MediaRoomClient{
     const selfLabel=el('div',{className:'ms-inline-self-label'});
     selfLabel.textContent=this.user.fullName||this.user.login||'Siz';
     selfStage.append(selfVideo,selfLabel);
-    this.mount.append(grid,selfStage,stageBadge,fullscreen,strip,audioBin);
+    const emptyStage=el('div',{className:'ms-empty-stage is-visible',role:'status'});
+    const emptyTitle=el('strong');emptyTitle.textContent='Hozir video ko‘rsatilmayapti';
+    const emptyHint=el('span');emptyHint.textContent='Kamera o‘chiq yoki hali uzatilmagan';
+    const enableCamera=el('button',{type:'button',className:'ms-empty-camera-action'});
+    enableCamera.textContent='Kamerani yoqish';
+    enableCamera.addEventListener('click',()=>document.querySelector('#callCamera')?.click());
+    emptyStage.append(emptyTitle,emptyHint,enableCamera);
+    this.mount.append(grid,emptyStage,selfStage,stageBadge,fullscreen,strip,audioBin);
     this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;this.selfStage=selfStage;this.selfStageVideo=selfVideo;
+    this.emptyStage=emptyStage;this.emptyTitle=emptyTitle;this.emptyHint=emptyHint;this.emptyCameraAction=enableCamera;
     const local=this.ensureTile('local',{_id:this.user._id||this.user.id,fullName:this.user.fullName||this.user.login,login:this.user.login,role:this.user.role,avatarUrl:this.user.avatarUrl||''},true);local.classList.add('local');
   }
   ensureTile(peerId,user={},local=false){
@@ -463,12 +471,36 @@ export class MediaRoomClient{
     const playing=video.play();
     if(playing?.catch)playing.catch(()=>this.onState({cameraPreviewBlocked:true}));
   }
+  refreshEmptyStage(){
+    if(!this.emptyStage)return;
+    const selected=this.participantTile(this.selectedStagePeerId)||this.tiles.get('local');
+    const video=selected?qs('video',selected):null;
+    const track=video?.srcObject?.getVideoTracks?.()[0];
+    const screen=[...(this.tiles?.values()||[])].find(tile=>tile.classList?.contains('screen-share')&&tile.classList?.contains('has-video'));
+    const screenTrack=screen?qs('video',screen)?.srcObject?.getVideoTracks?.()[0]:null;
+    const hasMainVideo=Boolean(
+      this.selfStage?.classList.contains('is-visible')||
+      (selected?.classList?.contains('has-video')&&track?.readyState==='live'&&track.enabled)||
+      (screenTrack?.readyState==='live'&&screenTrack.enabled)
+    );
+    this.emptyStage.classList.toggle('is-visible',!hasMainVideo);
+    const isStudent=this.user?.role==='student';
+    const isPresenter=['teacher','admin','superadmin'].includes(this.user?.role);
+    const producer=this.producers?.get('camera');
+    const cameraWorking=Boolean(producer&&!producer.paused&&producer.track?.readyState==='live');
+    this.emptyTitle.textContent=this.cameraLastError?'Kamera ochilmadi':this.classSpotlightUserId?'Tanlangan ishtirokchining videosi yo‘q':cameraWorking?'Video ulanmoqda…':'Kamera hozir o‘chiq';
+    this.emptyHint.textContent=this.cameraLastError?this.cameraLastError:isStudent?'O‘qituvchi yoki guruh videosi paydo bo‘lganda shu yerda ko‘rsatiladi':
+      cameraWorking?'Kamera faol. Asosiy videoni tiklash kutilmoqda.':'Dars videosini chiqarish uchun kamerani yoqing';
+    this.emptyCameraAction.hidden=!isPresenter||cameraWorking;
+    this.emptyCameraAction.disabled=Boolean(this.mediaBusy?.camera);
+  }
   ensureInlineVideoStage(){
     const grid=this.grid,local=this.tiles.get('local');
     if(!grid||this.closed)return false;
     if(grid.classList.contains('screen-layout')||this.viewMode==='gallery'){
       grid.classList.remove('local-camera-stage');
       this.syncStandaloneCameraStage(false);
+      this.refreshEmptyStage();
       return false;
     }
     const video=local?qs('video',local):null,track=video?.srcObject?.getVideoTracks?.()[0];
@@ -477,10 +509,11 @@ export class MediaRoomClient{
     const selected=this.participantTile(this.selectedStagePeerId);
     const selectedVideo=selected?qs('video',selected):null,selectedTrack=selectedVideo?.srcObject?.getVideoTracks?.()[0];
     const selectedLive=Boolean(selected?.classList.contains('has-video')&&selectedTrack?.readyState==='live');
-    const preferLocal=localLive&&(!selectedLive||selected===local);
+    const preferLocal=localLive&&!this.classSpotlightUserId&&(!selectedLive||selected===local);
     if(preferLocal&&selected!==local&&!this.classSpotlightUserId)this.selectStagePeer(String(this.room?.peerId||'local'),false);
     grid.classList.toggle('local-camera-stage',preferLocal);
     this.syncStandaloneCameraStage(preferLocal,track);
+    this.refreshEmptyStage();
     return preferLocal;
   }
   async getNetworkHealth(){
@@ -690,10 +723,10 @@ export class MediaRoomClient{
         :(lite?[{maxBitrate:180000,scaleResolutionDownBy:4,maxFramerate:12},{maxBitrate:650000,scaleResolutionDownBy:2,maxFramerate:20},{maxBitrate:1600000,scaleResolutionDownBy:1,maxFramerate:30}]:[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]);
       try{track.contentHint='motion'}catch{}
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:teacher?1200:(this.ultraLite?300:(lite?650:1000))},appData:{mediaTag:'camera',role:this.user.role,quality:teacher?'1080p':'adaptive'}});
-      this.producers.set('camera',producer);this.proctorCameraBroadcast=false;this.attachLocalVideo(track);clearTimeout(this.cameraRecoveryTimer);this.cameraRecoveryAttempts=0;producer.on('trackended',()=>this.handleUnexpectedCameraEnd(producer));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
+      this.producers.set('camera',producer);this.cameraLastError='';this.proctorCameraBroadcast=false;this.attachLocalVideo(track);clearTimeout(this.cameraRecoveryTimer);this.cameraRecoveryAttempts=0;producer.on('trackended',()=>this.handleUnexpectedCameraEnd(producer));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
       const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
-      this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});return false;
+      this.cameraLastError=msg;this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});this.ensureInlineVideoStage();return false;
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
   async handleUnexpectedCameraEnd(producer){

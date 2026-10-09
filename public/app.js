@@ -897,10 +897,14 @@ async function openConference(payload){
       if(!proctorOk)throw new Error('Jonli darsga kirish uchun kamera ruxsati va proktor kamera majburiy');
     }
     await mediaRoomClient.connect();
-    if(user.role==='teacher'){
-      // Default teacher camera/microphone ON; honor explicit OFF choices on reconnect.
-      if(localStorage.getItem('m2-teacher-camera-wanted')!=='0')await mediaRoomClient.toggleCamera();
-      if(localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic();
+    const isTeachingRole=user.role==='teacher';
+    const isAdminPresenter=user.role==='superadmin'||(user.role==='admin'&&can('live.manage'));
+    if(isTeachingRole||isAdminPresenter){
+      // Administrators conducting test lessons need the same camera-on entry experience.
+      // Store manual OFF per role; only teachers auto-enable microphone.
+      const cameraKey=isTeachingRole?'m2-teacher-camera-wanted':'m2-admin-camera-wanted';
+      if(localStorage.getItem(cameraKey)!=='0')await mediaRoomClient.toggleCamera();
+      if(isTeachingRole&&localStorage.getItem('m2-teacher-mic-wanted')!=='0')await mediaRoomClient.toggleMic();
     }
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||'auto';
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
@@ -1161,7 +1165,14 @@ $('#callCamera').onclick=async()=>{
   if(user?.role==='student'&&!studentCameraGranted){
     return toast(liveProctorTrack?.readyState==='live'?'Proktor kamerangiz mahalliy faol. Video o‘qituvchi tanlab, siz rozilik berganingizdan keyin uzatiladi.':'Proktor kamera hozir faol emas. Darsga qayta ulaning.');
   }
-  try{const wanted=!cameraOn;const result=await mediaRoomClient.toggleCamera();if(user?.role==='teacher'&&result===wanted)localStorage.setItem('m2-teacher-camera-wanted',wanted?'1':'0')}catch(e){toast(e.message)}
+  try{
+    const wanted=!cameraOn;
+    const result=await mediaRoomClient.toggleCamera();
+    if(result===wanted){
+      const key=user?.role==='teacher'?'m2-teacher-camera-wanted':(user?.role==='superadmin'||(user?.role==='admin'&&can('live.manage'))?'m2-admin-camera-wanted':'');
+      if(key)localStorage.setItem(key,wanted?'1':'0');
+    }
+  }catch(e){toast(e.message)}
 };
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
