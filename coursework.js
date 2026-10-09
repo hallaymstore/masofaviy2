@@ -3,6 +3,7 @@ import Busboy from 'busboy';
 import {pipeline} from 'node:stream/promises';
 import {checkResourceHeader,validateOfficePackage} from './resource-upload.js';
 import {journalPeriod,buildJournal,journalCsv} from './coursework-rules.js';
+import {personalGradePeriod,buildPersonalGradebook} from './personal-grades.js';
 export function installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId}){
  const oid=mongoose.Schema.Types.ObjectId;
  const fileSchema=new mongoose.Schema({assignmentId:{type:oid,required:true,index:true},courseId:{type:oid,required:true},submissionId:{type:oid,default:null},uploadedBy:{type:oid,required:true},fileId:{type:oid,unique:true,required:true},name:{type:String,required:true},mimeType:String,size:Number,kind:String},{timestamps:true});
@@ -112,6 +113,25 @@ export function installCoursework(app,{mongoose,User,Structure,Schedule,Course,A
   res.set('Content-Length',String(row.size));
   const stream=bucket().openDownloadStream(row.fileId);
   stream.on('error',()=>{if(!res.headersSent)res.status(404).end();else res.destroy()});stream.pipe(res);
+ }));
+ app.get('/api/coursework/my-grades',auth,wrap(async(req,res)=>{
+  if(req.user.role!=='student')throw fail('Faqat talabaning shaxsiy baholari',403);
+  // No student ID is accepted from query/body: always use the authenticated session.
+  const groupId=await resolveUserGroupId(req.user);
+  if(!groupId)return res.json(buildPersonalGradebook({period:personalGradePeriod(req.query.period||'all',req.query.from||'')}));
+  const period=personalGradePeriod(req.query.period||'all',req.query.from||'');
+  const courses=await Course.find({active:true,groupId}).select('_id title active teacherId').populate('teacherId','fullName').limit(400).lean();
+  const courseIds=courses.map(c=>c._id);
+  const assignments=courseIds.length?
+    await Assignment.find({courseId:{$in:courseIds},published:true}).select('_id courseId title gradeScale maxScore category published').limit(3000).lean():[];
+  const ids=assignments.map(a=>a._id);
+  const submissions=ids.length?
+    await Submission.find({studentId:req.user._id,assignmentId:{$in:ids}})
+      .select('assignmentId studentId submittedAt gradedAt score feedback')
+      .sort({gradedAt:-1,submittedAt:-1}).limit(801).lean():[];
+  res.set('Cache-Control','private,no-store');
+  const result=buildPersonalGradebook({courses,assignments,submissions:submissions.slice(0,800),period});
+  res.json({...result,truncated:submissions.length>800});
  }));
  app.get('/api/coursework/journals',auth,wrap(async(req,res)=>{
   if(req.user.role==='student')throw fail('Faqat o‘qituvchi va boshqaruv',403);

@@ -222,29 +222,29 @@
 @media(max-width:600px){#lesson .live-proctor-status video{width:42px;height:34px}#lesson .live-proctor-status{gap:6px}}
 
 /* Group coursework / grade register: compact, low-memory, accessible. */
-:is(#courses,#reports) .coursework-module,:is(#courses,#reports) .coursework-journal{margin:12px 0}
-:is(#courses,#reports) .coursework-journal-head{display:flex;gap:9px;align-items:end;flex-wrap:wrap;padding:12px;border:1px solid var(--border,#d8e2ee);border-radius:9px;background:var(--card,#fff)}
-:is(#courses,#reports) .coursework-journal-head h3{width:100%;margin:0 0 4px}
-:is(#courses,#reports) .coursework-journal-head label{font-size:12px;display:flex;flex-direction:column;gap:4px;min-width:130px;flex:1 1 140px}
-:is(#courses,#reports) .coursework-journal-head select,:is(#courses,#reports) .coursework-journal-head input{padding:8px;min-height:36px;max-width:100%;border:1px solid #98b6d7;border-radius:6px;background:var(--input-bg,#fff);color:var(--text,#123)}
-:is(#courses,#reports) .coursework-table-scroll{width:100%;overflow-x:auto;border:1px solid #c7d8e9;border-radius:8px;margin-top:8px}
-:is(#courses,#reports) .coursework-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
-:is(#courses,#reports) .coursework-table th,:is(#courses,#reports) .coursework-table td{padding:9px 11px;border-bottom:1px solid #dbe6f0;text-align:left}
-:is(#courses,#reports) .coursework-table thead th{position:sticky;top:0;background:#eaf2fc;color:#153c64}
-:is(#courses,#reports) .coursework-table th:first-child,:is(#courses,#reports) .coursework-table td:first-child{position:sticky;left:0;z-index:1;background:var(--card,#fff)}
-:is(#courses,#reports) .coursework-table th small,:is(#courses,#reports) .coursework-table td small{display:block;color:#6c84a2;font-size:10px}
-:is(#courses,#reports) .coursework-task{margin:9px 0;padding:10px;border:1px solid #bdd0e5;border-radius:8px;background:var(--card,#fff)}
-:is(#courses,#reports) .coursework-task summary{display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font-size:13px;flex-wrap:wrap}
-:is(#courses,#reports) .coursework-task summary span{font-size:11px;color:#507196}
-:is(#courses,#reports) .coursework-task p{margin:8px 0}
-:is(#courses,#reports) .coursework-files{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
-:is(#courses,#reports) .coursework-files a,:is(#courses,#reports) .coursework-sub a{font-size:12px;word-break:break-word}
-:is(#courses,#reports) .coursework-upload{display:inline-flex;flex-direction:column;max-width:100%;font-size:12px;gap:5px;margin:8px}
-:is(#courses,#reports) .coursework-upload input{font-size:12px;max-width:220px}
-:is(#courses,#reports) .coursework-sub{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;padding:8px;margin:6px 0;background:rgba(133,169,207,.11);border-radius:6px;border:1px solid #d1e0ef}
-:is(#courses,#reports) .coursework-sub small{display:block;color:#557390;font-size:11px}
-:is(#courses,#reports) .coursework-module button,:is(#courses,#reports) .coursework-journal button{min-height:34px}
-@media(max-width:640px){:is(#courses,#reports) .coursework-journal-head label{flex:1 1 100%}:is(#courses,#reports) .coursework-table{font-size:11px}}
+:is(#courses,#reports,#grades) .coursework-module,:is(#courses,#reports,#grades) .coursework-journal{margin:12px 0}
+:is(#courses,#reports,#grades) .coursework-journal-head{display:flex;gap:9px;align-items:end;flex-wrap:wrap;padding:12px;border:1px solid var(--border,#d8e2ee);border-radius:9px;background:var(--card,#fff)}
+:is(#courses,#reports,#grades) .coursework-journal-head h3{width:100%;margin:0 0 4px}
+:is(#courses,#reports,#grades) .coursework-journal-head label{font-size:12px;display:flex;flex-direction:column;gap:4px;min-width:130px;flex:1 1 140px}
+:is(#courses,#reports,#grades) .coursework-journal-head select,:is(#courses,#reports,#grades) .coursework-journal-head input{padding:8px;min-height:36px;max-width:100%;border:1px solid #98b6d7;border-radius:6px;background:var(--input-bg,#fff);color:var(--text,#123)}
+:is(#courses,#reports,#grades) .coursework-table-scroll{width:100%;overflow-x:auto;border:1px solid #c7d8e9;border-radius:8px;margin-top:8px}
+:is(#courses,#reports,#grades) .coursework-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+:is(#courses,#reports,#grades) .coursework-table th,:is(#courses,#reports,#grades) .coursework-table td{padding:9px 11px;border-bottom:1px solid #dbe6f0;text-align:left}
+:is(#courses,#reports,#grades) .coursework-table thead th{position:sticky;top:0;background:#eaf2fc;color:#153c64}
+:is(#courses,#reports,#grades) .coursework-table th:first-child,:is(#courses,#reports,#grades) .coursework-table td:first-child{position:sticky;left:0;z-index:1;background:var(--card,#fff)}
+:is(#courses,#reports,#grades) .coursework-table th small,:is(#courses,#reports,#grades) .coursework-table td small{display:block;color:#6c84a2;font-size:10px}
+:is(#courses,#reports,#grades) .coursework-task{margin:9px 0;padding:10px;border:1px solid #bdd0e5;border-radius:8px;background:var(--card,#fff)}
+:is(#courses,#reports,#grades) .coursework-task summary{display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font-size:13px;flex-wrap:wrap}
+:is(#courses,#reports,#grades) .coursework-task summary span{font-size:11px;color:#507196}
+:is(#courses,#reports,#grades) .coursework-task p{margin:8px 0}
+:is(#courses,#reports,#grades) .coursework-files{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+:is(#courses,#reports,#grades) .coursework-files a,:is(#courses,#reports,#grades) .coursework-sub a{font-size:12px;word-break:break-word}
+:is(#courses,#reports,#grades) .coursework-upload{display:inline-flex;flex-direction:column;max-width:100%;font-size:12px;gap:5px;margin:8px}
+:is(#courses,#reports,#grades) .coursework-upload input{font-size:12px;max-width:220px}
+:is(#courses,#reports,#grades) .coursework-sub{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;padding:8px;margin:6px 0;background:rgba(133,169,207,.11);border-radius:6px;border:1px solid #d1e0ef}
+:is(#courses,#reports,#grades) .coursework-sub small{display:block;color:#557390;font-size:11px}
+:is(#courses,#reports,#grades) .coursework-module button,:is(#courses,#reports,#grades) .coursework-journal button{min-height:34px}
+@media(max-width:640px){:is(#courses,#reports,#grades) .coursework-journal-head label{flex:1 1 100%}:is(#courses,#reports,#grades) .coursework-table{font-size:11px}}
 
 /* 2026-10: one visible workspace at a time, default to resources and assignments. */
 #courses .coursework-workspace-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:5px;background:#e8f0fb;border:1px solid #d0deef;border-radius:9px}
@@ -273,3 +273,45 @@
 #courses .coursework-grade-side{display:flex;align-items:center;gap:12px;flex:0 1 auto;flex-wrap:wrap}
 #courses .coursework-grade-side button{border:0;background:#1564d5;color:#fff;border-radius:6px;padding:10px 14px;font-weight:700}
 @media(max-width:640px){#courses .coursework-workspace-tabs{gap:5px;padding:4px}#courses .coursework-workspace-tabs button{font-size:11px;padding:9px 7px;flex:1 1 95px}#courses .coursework-grade-toolbar{padding:10px}#courses .coursework-grade-side{width:100%;justify-content:space-between}}
+
+/* Read-only personal gradebook and daily marks alongside the timetable */
+#grades [hidden],#schedule #studentScheduleGrades[hidden]{display:none!important}
+#grades .personal-grade-toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap;background:var(--card,#fff);border:1px solid #cfdeee;border-radius:9px;padding:13px;margin:0 0 12px}
+#grades .personal-grade-toolbar label{flex:1 1 160px;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--text,#1c3b60)}
+#grades .personal-grade-toolbar select,#grades .personal-grade-toolbar input{min-height:37px;min-width:0;width:100%;border:1px solid #abc5e0;background:var(--card,#fff);border-radius:6px;padding:8px;color:var(--text,#173a61)}
+#grades .personal-grade-toolbar button{min-height:38px;background:#125bd1;color:white;border:0;border-radius:6px;padding:8px 18px;font-weight:700}
+#grades .personal-grade-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+#grades .personal-grade-stats>div{display:flex;flex-direction:column;gap:3px;padding:13px;background:var(--card,#fff);border:1px solid #cde0f3;border-radius:8px}
+#grades .personal-grade-stats b{font-size:24px;color:#1258bc}
+#grades .personal-grade-stats span{font-size:11px;color:#52728f}
+#grades .personal-grades-note,#schedule .personal-grades-note{font-size:12px;color:var(--muted,#586f8a);line-height:1.55;margin:9px 0 12px}
+#grades .personal-grade-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin:12px 0}
+#grades .personal-grade-item{background:var(--card,#fff);border:1px solid #d4e0ef;border-radius:8px;padding:13px;min-width:0;box-shadow:0 2px 5px rgba(19,56,102,.04)}
+#grades .personal-grade-item.graded{border-left:3px solid #12a779}
+#grades .personal-grade-item.pending{border-left:3px solid #dfa53c}
+#grades .personal-grade-item-head{display:flex;align-items:start;justify-content:space-between;gap:8px}
+#grades .personal-grade-item-head>div{min-width:0}
+#grades .personal-grade-item-head b{display:block;font-size:14px;overflow-wrap:anywhere}
+#grades .personal-grade-item-head small{display:block;font-size:12px;color:var(--muted,#5d7391);margin-top:4px}
+#grades .personal-grade-score{flex-shrink:0;font-size:12px;font-weight:800;padding:6px 9px;background:#e1f5ed;color:#086548;border-radius:6px}
+#grades .personal-grade-item.pending .personal-grade-score{background:#fff3d9;color:#906300}
+#grades .personal-grade-meta{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap;font-size:11px;color:var(--muted,#5c7290);margin-top:12px}
+#grades .personal-grade-feedback{padding:9px;margin:10px 0 0;background:#edf4fc;border-radius:6px;color:#2a4a68;overflow-wrap:anywhere;font-size:12px}
+#grades .personal-grade-empty,#schedule .personal-grade-empty{padding:18px;background:var(--card,#fff);border:1px dashed #b7cee7;border-radius:8px;color:var(--muted,#567)}
+#grades .personal-grade-empty button{margin-top:8px;background:#155dd0;color:white;border:0;border-radius:6px;padding:10px 12px}
+#schedule .schedule-personal-grades{background:var(--card,#fff);padding:11px 13px;border:1px solid #c4d9ef;border-radius:9px;margin-bottom:12px}
+#schedule .personal-grades-schedule-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#schedule .personal-grades-schedule-head>b{font-size:14px}
+#schedule .personal-grades-schedule-head button{border:1px solid #c8d8e9;color:#1859b2;background:#f0f7ff;border-radius:6px;padding:8px 10px;font-size:12px;font-weight:700}
+#schedule .personal-weekly-grades{display:flex;gap:9px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:thin}
+#schedule .personal-weekly-day{display:flex;gap:7px;align-items:start;flex:1 0 210px;min-width:180px;border:1px solid #d4e3f0;border-radius:8px;padding:8px;background:#f5f9fd}
+#schedule .personal-weekly-day.today{border-color:#3b8de5;background:#ecf6ff}
+#schedule .personal-weekly-date{display:flex;flex-direction:column;align-items:center;min-width:44px;background:#dcecff;border-radius:6px;padding:7px 5px;color:#1b518b;font-size:12px}
+#schedule .personal-weekly-date small{font-size:10px;margin-top:3px}
+#schedule .personal-weekly-marks{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0}
+#schedule .personal-weekly-marks>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 6px;border-bottom:1px solid #d8e4ef;padding:3px 0}
+#schedule .personal-weekly-marks>div:last-child{border-bottom:0}
+#schedule .personal-weekly-marks b{font-size:11px;overflow:hidden;text-overflow:ellipsis}
+#schedule .personal-weekly-marks span{font-size:11px;font-weight:800;color:#09745a}
+#schedule .personal-weekly-marks small{grid-column:1/-1;color:#55708d;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:600px){#grades .personal-grade-toolbar label{flex:1 1 43%}#grades .personal-grade-toolbar{padding:10px;gap:8px}#grades .personal-grade-stats b{font-size:19px}#grades .personal-grade-stats>div{padding:9px}#grades .personal-grade-stats span{font-size:10px}#grades .personal-grade-list{grid-template-columns:1fr}#schedule .personal-weekly-day{flex-basis:200px}}

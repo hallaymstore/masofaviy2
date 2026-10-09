@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/exam-dashboard.css?v=20261008-1">
   <link rel="stylesheet" href="/remote-exams.css?v=20261008-1">
   <link rel="stylesheet" href="/course-mobile-fix.css?v=20261008-1">
-  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-10">
+  <link rel="stylesheet" href="/live-classroom-2026.css?v=20261009-11">
   <link rel="stylesheet" href="/live-participant-rail.css?v=20261009-3">
   <title>HALLAYM EDU</title>
 </head>
@@ -62,6 +62,7 @@
         <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
         <button data-page="videos"><span data-ico="library" data-fallback="▶"></span>Videodarslar</button>
         <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
+        <button data-page="grades" class="hidden"><span data-ico="chart" data-fallback="★"></span><span id="gradeNavLabel">Mening baholarim</span></button>
         <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
 
       </details>
@@ -200,8 +201,14 @@
       <div id="structureList" class="cards"></div>
     </section>
 
+    <section id="grades" class="page">
+      <div class="page-head"><div><span class="page-kicker">ELEKTRON BAHOLASH</span><h1 id="gradePageTitle">Mening baholarim</h1><p id="gradePageSubtitle">Fanlar bo‘yicha o‘qituvchi qo‘ygan baholar va izohlar</p></div><button type="button" id="gradePageRefresh" class="secondary">Yangilash</button></div>
+      <div id="studentGradesPage" class="personal-grades-page"></div>
+      <div id="teacherGradesPage" class="coursework-journal"></div>
+    </section>
     <section id="schedule" class="page schedule-workspace">
       <div class="page-head schedule-page-head"><div><span class="page-kicker">HAFTALIK DISPETCHER</span><h1>Dars jadvali</h1><p>6 kunlik jadval bitta ishchi ekranda. Guruh yoki o‘qituvchi bo‘yicha bir bosishda almashtiring.</p></div><div id="scheduleAdminActions" class="head-actions"><button class="secondary" id="scheduleTemplate">CSV</button><button class="secondary" id="importSchedules">Import</button><button class="primary" id="addSchedule">+ Dars</button></div></div>
+      <div id="studentScheduleGrades" class="schedule-personal-grades" hidden></div>
       <div id="scheduleWorkspaceBar" class="schedule-workspace-bar">
         <div class="schedule-view-switch"><button type="button" class="active" data-schedule-view="week">6 kun</button><button type="button" data-schedule-view="today">Bugun</button></div>
         <div id="scheduleScopeTabs" class="schedule-scope-area"></div>
@@ -465,5 +472,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-stage9"></script><script type="module" src="/app.js?v=20261009-tabs12"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261009-stage9"></script><script type="module" src="/app.js?v=20261009-grades13"></script>
 </body></html>
