@@ -1,3 +1,4 @@
+import {classifyFaceDetections,createFaceStateFilter} from './live-proctor-logic.js';
 const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)]; let user=null, structureType='faculty', cache={structure:[],analyticsStructures:[]}, effectivePermissions=[], socket=null, activeLessonId='', reportAttendanceCache=[], mediaRoomClient=null, activeLiveSession=null, cameraOn=false, micOn=false, studentCameraGranted=false, studentMicGranted=false, lessonTimer=null,networkTimer=null,chatUnread=0,handRaised=false,raisedHands=new Set(),raisedHandUsers=new Map(),lastLessonPayload=null,autoRejoinTimer=null,autoRejoinAttempt=0,autoRejoinInFlight=false,lastAutoQuality='', captionRecognition=null, captionsEnabled=false, captionMathEnabled=true, captionFinalWords=[], captionClearTimer=null, captionSizeLevel=Number(localStorage.getItem('m2-caption-size')||0), accessibilityEnabled=localStorage.getItem('m2-accessibility')==='1', videoLessonsCache=[], activeVideoId='', commentReplyTo=null, activeWatchPlayer=null, activeWatchKind='', watchProgressTimer=null, watchLastSavedAt=0, watchLastSamplePosition=0, watchLastSampleAt=0, youtubeApiPromise=null, liveProctorStop=()=>{}, liveProctorStream=null, liveProctorTrack=null, liveProctorStates=new Map(), lastRoomFeedbackAlertAt=0, branding={productName:'HALLAYM EDU',institutionName:'Qarshi davlat texnika universiteti',shortName:'QarDTU',website:'',logoUrl:'',address:'',phone:'',founded:'',legalBasis:'',description:'',lmsUrl:'',repositoryUrl:'',portfolioUrl:'',admissionsUrl:''};
 localStorage.removeItem('token');
 const deviceMem=Number(navigator.deviceMemory||0),deviceCores=Number(navigator.hardwareConcurrency||0),androidMajor=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
@@ -776,17 +777,18 @@ async function loadMediaPipeFaceDetection(){
     catch{
       const x=await loadFrom(FACE_DETECTION_CDN);faceDetectionBase=x.base;return x;
     }
-  })();
+  })().catch(e=>{faceDetectionLoader=null;throw e});
   return faceDetectionLoader;
 }
-function proctorStateLabel(state){
-  return state==='present'?'Yuz bor':state==='away'?'E’tibor yo‘q':state==='missing'?'Yuz yo‘q':'Aniqlanmoqda';
+function proctorStateLabel(state,status='ready'){
+  if(status==='error')return 'Detektor ishlamayapti';
+  return state==='present'?'Yuz ko‘rinmoqda':state==='away'?'Yuz chetga burilgan':state==='missing'?'Yuz ko‘rinmayapti':status==='loading'?'Tekshiruv yuklanmoqda':'Tahlil mavjud emas';
 }
 function updateParticipantProctorIndicator(x){
   if(!x?.userId)return;liveProctorStates.set(String(x.userId),x);
   const row=document.querySelector('[data-attendance-student="'+CSS.escape(String(x.userId))+'"]');if(!row)return;
   const badge=row.querySelector('[data-proctor-badge]'),meta=row.querySelector('[data-proctor-meta]');
-  if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=x.cameraReady?('● '+proctorStateLabel(x.faceState)):'○ Kamera yo‘q'}
+  if(badge){badge.className='proctor-chip '+(x.cameraReady?'camera-on ':'camera-off ')+(x.faceState||'unknown');badge.textContent=x.cameraReady?('● '+proctorStateLabel(x.faceState,x.detectorStatus)):'○ Kamera yo‘q'}
   if(meta)meta.textContent='Yuz '+formatFocusTime(x.presentSeconds)+' / '+formatFocusTime(x.observedSeconds)+' · '+Math.round(Number(x.attentionPercent)||0)+'%';
   refreshLiveProctorSummary();
 }
@@ -799,14 +801,39 @@ function refreshLiveProctorSummary(){
   const a=document.querySelector('[data-live-face-count]'),b=document.querySelector('[data-live-attention-low]');
   if(a)a.textContent=String(face);if(b)b.textContent=String(low);
 }
+function renderLocalProctorStatus(faceState='unknown',detectorStatus='loading',cameraReady=false){
+  const node=$('#liveStudentProctorStatus');
+  if(!node)return;
+  node.classList.toggle('hidden',user?.role!=='student'||!activeLessonId);
+  const state=!cameraReady?'missing':faceState;
+  node.dataset.state=state;
+  node.dataset.detector=detectorStatus;
+  const statusText=$('#liveProctorStatusText');if(!statusText)return;
+  statusText.textContent=!cameraReady?'● Proktor kamerasi ishlamayapti':
+    detectorStatus==='error'?'● Yuz detektori ishga tushmadi':
+    detectorStatus==='loading'?'◌ Yuz nazorati yuklanmoqda…':
+    state==='present'?'● Yuz ko‘rinmoqda · lokal nazorat':
+    state==='away'?'● Yuz chetga burilgan (taxminiy)':
+    state==='missing'?'● Kadrda yuz topilmadi':
+    '◌ Yuz holatini aniqlab bo‘lmadi';
+  node.title='Lokal yuzni aniqlash; ko‘zning aniq ekranga qarayotganini tasdiqlamaydi. Video faqat alohida rozilik bilan darsga uzatiladi.';
+}
 async function startLiveLessonProctoring(){
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStream=null;liveProctorTrack=null;
   if(user?.role!=='student'||!activeLessonId)return false;
-  let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,faceState='unknown',pageActive=!document.hidden&&document.hasFocus();
-  const effectiveState=()=>pageActive?faceState:'away';
-  const emit=()=>{if(!stopped&&activeLessonId&&socket?.connected)socket.emit('lesson:proctor-state',{lessonId:activeLessonId,cameraReady:Boolean(liveProctorTrack?.readyState==='live'),faceState:effectiveState(),pageActive})};
-  const onVisibility=()=>{pageActive=!document.hidden&&document.hasFocus();emit()};
-  const onBlur=()=>{pageActive=false;emit()};
+  let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,faceState='unknown',detectorStatus='loading',pageActive=!document.hidden,inFlight=false,modelErrors=0;
+  const stable=createFaceStateFilter(2);
+  const observe=(raw)=>{faceState=stable.observe(raw);detectorStatus='ready';modelErrors=0;renderLocalProctorStatus(faceState,detectorStatus,liveProctorTrack?.readyState==='live')};
+  const effectiveState=()=>document.hidden?'away':stable.get();
+  const emit=()=>{if(!stopped){
+    const cameraReady=Boolean(liveProctorTrack?.readyState==='live');
+    if(detectorStatus==='loading'&&Date.now()-startedAt>18000){detectorStatus='error';faceState='unknown'}
+    renderLocalProctorStatus(effectiveState(),detectorStatus,cameraReady);
+    if(activeLessonId&&socket?.connected)socket.emit('lesson:proctor-state',{lessonId:activeLessonId,cameraReady,faceState:effectiveState(),detectorStatus,pageActive});
+  }};
+  const startedAt=Date.now();
+  const onVisibility=()=>{pageActive=!document.hidden;emit()};
+  const onBlur=()=>{pageActive=!document.hidden;emit()};
   const onFocus=()=>{pageActive=!document.hidden;emit()};
   document.addEventListener('visibilitychange',onVisibility);window.addEventListener('blur',onBlur);window.addEventListener('focus',onFocus);
   try{
@@ -815,8 +842,8 @@ async function startLiveLessonProctoring(){
     stream=await navigator.mediaDevices.getUserMedia({video:constraints,audio:false});
     liveProctorStream=stream;liveProctorTrack=stream.getVideoTracks()[0]||null;if(!liveProctorTrack)throw new Error('Kamera trek topilmadi');
     mediaRoomClient?.setExternalCameraTrack?.(liveProctorTrack);
-    liveProctorTrack.addEventListener('ended',()=>{faceState='missing';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
-    video=document.createElement('video');video.srcObject=stream;video.muted=true;video.playsInline=true;video.width=320;video.height=180;await video.play();
+    liveProctorTrack.addEventListener('ended',()=>{faceState='missing';detectorStatus='error';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
+    video=$('#liveProctorLocalPreview')||document.createElement('video');video.srcObject=stream;video.muted=true;video.autoplay=true;video.playsInline=true;await video.play().catch(e=>console.warn('Local proctor playback retry:',e?.message||e));
     try{
       if('FaceDetector' in window){
         detector={kind:'native',instance:new FaceDetector({fastMode:true,maxDetectedFaces:2})};
@@ -824,34 +851,27 @@ async function startLiveLessonProctoring(){
         const loaded=await loadMediaPipeFaceDetection(),FaceDetection=loaded.FaceDetection;
         const instance=new FaceDetection({locateFile:file=>loaded.base+file});instance.setOptions({model:'short',minDetectionConfidence:.62});
         instance.onResults(result=>{
-        if(stopped)return;const faces=result.detections||[];
-        if(!faces.length){faceState='missing';return}
-        if(faces.length>1){faceState='away';return}
-        const d=faces[0],b=d.boundingBox;let away=false;
-        if(b&&Number.isFinite(b.xCenter)&&Number.isFinite(b.yCenter))away=Math.abs(b.xCenter-.5)>.24||Math.abs(b.yCenter-.5)>.24;
-        const pts=d.landmarks||d.keypoints||d.locationData?.relativeKeypoints||[];
-        if(Array.isArray(pts)&&pts.length>=3){
-          const px=v=>({x:Number(v?.x??v?.xCenter),y:Number(v?.y??v?.yCenter)}),a=px(pts[0]),bb=px(pts[1]),n=px(pts[2]);
-          if([a.x,bb.x,n.x].every(Number.isFinite)){const eye=Math.abs(a.x-bb.x),mid=(a.x+bb.x)/2;if(eye>.02&&Math.abs(n.x-mid)/eye>.46)away=true}
-        }
-        faceState=away?'away':'present';
+          if(stopped)return;
+          observe(classifyFaceDetections(result?.detections||[],'mediapipe',video?.videoWidth,video?.videoHeight));
         });detector={kind:'mediapipe',instance};
       }
-    }catch{detector=null}
-    if(!detector){faceState='missing';toast('Yuz nazorati moduli yuklanmadi · kamera holati qizil belgida qayd etiladi')}
+    }catch(e){detector=null;detectorStatus='error';console.warn('Live face detector unavailable:',e?.message||e)}
+    if(!detector){faceState='unknown';detectorStatus='error';toast('Yuz detektori ishga tushmadi. Kamera ochiq, lekin yuz holati tekshirilmayapti.')}
     timer=detector?setInterval(async()=>{
-      if(stopped||!video||video.readyState<2)return;
+      if(stopped||inFlight||!video||liveProctorTrack?.readyState!=='live')return;
+      if(video.readyState<2){if(Date.now()-startedAt>18000){detectorStatus='error';faceState='unknown';renderLocalProctorStatus(faceState,detectorStatus,true)}return}
+      inFlight=true;
       try{
-        if(detector?.kind==='mediapipe')await detector.instance.send({image:video});
-        else if(detector?.kind==='native'){
-          const faces=await detector.instance.detect(video);
-          if(!faces.length)faceState='missing';else if(faces.length>1)faceState='away';else{const b=faces[0].boundingBox,cx=(b.x+b.width/2)/video.videoWidth,cy=(b.y+b.height/2)/video.videoHeight;faceState=(Math.abs(cx-.5)>.24||Math.abs(cy-.5)>.24)?'away':'present'}
-        }else faceState='unknown';
-      }catch{faceState='unknown'}
+        if(detector.kind==='mediapipe')await detector.instance.send({image:video});
+        else if(detector.kind==='native')observe(classifyFaceDetections(await detector.instance.detect(video),'native',video.videoWidth,video.videoHeight));
+      }catch(e){
+        modelErrors++;
+        if(modelErrors>=3){detectorStatus='error';faceState='unknown';console.warn('Face detection failed:',e?.message||e)}
+      }finally{inFlight=false}
     },1200):null;
-    heartbeat=setInterval(emit,5000);emit();toast(detector?'Dars proktoringi faol · video lokal tahlil qilinadi':'Proktor kamera faol · yuz detektori qayta yuklanishi kerak');
+    heartbeat=setInterval(emit,4000);emit();toast(detector?'Yuz nazorati ishga tushirilmoqda · kamera lokal ishlaydi':'Kamera ochildi · yuz detektori ishlamayapti');
     liveProctorStop=async()=>{
-      if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null;
+      if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());if(video)video.srcObject=null;liveProctorStream=null;liveProctorTrack=null;$('#liveStudentProctorStatus')?.classList.add('hidden');
     };
     return true;
   }catch(e){
@@ -919,7 +939,7 @@ async function openConference(payload){
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||'auto';
     $('#echoGuard')?.classList.toggle('active-control',localStorage.getItem('m2-echo-guard')!=='0');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
-    studentCameraGranted=user.role!=='student';studentMicGranted=true;
+    studentCameraGranted=user.role!=='student';studentMicGranted=true; // Student broadcast is opt-in on every camera ON action.
     showLessonSide('participants',false);setLessonDrawer(false);await loadLessonParticipants();
     toast('Mediasoup jonli darsga ulandingiz');
   }catch(e){
@@ -966,7 +986,7 @@ function updateLessonRailStatus(userId,proctor){
   const el=[...document.querySelectorAll('#lessonStudentRailItems [data-student-id]')].find(x=>x.dataset.studentId===String(userId));
   if(!el)return;
   el.classList.toggle('face-ready',Boolean(proctor?.cameraReady&&proctor?.faceState==='present'));
-  const tag=el.querySelector('.rail-proctor-status');if(tag)tag.textContent=proctor?.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Uzoqlashgan':'⚠ Yuz topilmadi'):'○ Kamera yo‘q';
+  const tag=el.querySelector('.rail-proctor-status');if(tag)tag.textContent=proctor?.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Bosh burilgan':proctor.faceState==='missing'?'⚠ Yuz yo‘q':'◌ Tahlil yo‘q'):'○ Kamera yo‘q';
 }
 function renderLessonStudentRail(rows,groupAudit=null){
   lessonRailRows=rows||[];
@@ -978,7 +998,7 @@ function renderLessonStudentRail(rows,groupAudit=null){
     const name=String(r.fullName||r.login||'Talaba');
     const initials=name.trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
     const proctor=liveProctorStates.get(String(r._id))||r.proctor||{};
-    const status=proctor.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Uzoqlashgan':'⚠ Yuz topilmadi'):'○ Kamera yo‘q';
+    const status=proctor.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Bosh burilgan':proctor.faceState==='missing'?'⚠ Yuz yo‘q':'◌ Tahlil yo‘q'):'○ Kamera yo‘q';
     return '<button class="student-rail-card '+(r.online?'online':'offline')+(proctor.cameraReady&&proctor.faceState==='present'?' face-ready':'')+'" data-student-id="'+esc(r._id)+'" data-online="'+(r.online?'1':'0')+'" type="button" role="listitem" title="'+esc(name)+' · '+(r.online?'Onlayn':'Oflayn')+'"><span class="rail-avatar">'+esc(initials)+'</span><b>'+esc(name)+'</b><small class="rail-proctor-status">'+esc(status)+'</small><i class="rail-presence-dot"></i></button>'
   }).join('')||'<span class="rail-loading">Guruhda talaba topilmadi</span>';
   host.querySelectorAll('[data-student-id]').forEach(button=>button.addEventListener('click',()=>{
@@ -1176,8 +1196,10 @@ $('#callMic').onclick=async()=>{
 };
 $('#callCamera').onclick=async()=>{
   if(!mediaRoomClient)return toast('Avval video xonaga kiring');
-  if(user?.role==='student'&&!studentCameraGranted){
-    return toast(liveProctorTrack?.readyState==='live'?'Proktor kamerangiz mahalliy faol. Video o‘qituvchi tanlab, siz rozilik berganingizdan keyin uzatiladi.':'Proktor kamera hozir faol emas. Darsga qayta ulaning.');
+  if(user?.role==='student'&&!cameraOn){
+    // Proctor face processing remains local; broadcasting is a separate, explicit choice.
+    if(!confirm('Kamerangizni dars ishtirokchilariga ko‘rsatmoqchimisiz? Proktor nazorati bundan alohida lokal ishlaydi.'))return;
+    studentCameraGranted=true;
   }
   try{
     const wanted=!cameraOn;
@@ -1587,7 +1609,7 @@ function connectSocket(){
     const accepted=confirm((x.teacherName||'O‘qituvchi')+' kamerani yoqishni so‘radi. Kamerani yoqasizmi?');
     if(accepted){
       studentCameraGranted=true;
-      try{await mediaRoomClient?.toggleCamera()}catch(e){toast(e.message)}
+      try{if(!cameraOn)await mediaRoomClient?.toggleCamera()}catch(e){toast(e.message)}
     }
     socket.emit('camera:enable-result',{lessonId:activeLessonId,accepted});
   });

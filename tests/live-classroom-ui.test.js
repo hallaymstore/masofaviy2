@@ -51,7 +51,7 @@ test('class spotlight must be available to students, private proctor stream rema
 
 test('student video remains local until teacher grants or spotlight consent',()=>{
  assert.ok(app.includes("studentCameraGranted=user.role!=='student'"));
- assert.ok(app.includes("user?.role==='student'&&!studentCameraGranted"));
+ assert.ok(app.includes("if(user?.role==='student'&&!cameraOn)"));
  assert.ok(app.includes('if(permitted)'));
 });
 

@@ -1471,11 +1471,12 @@ socket.on('camera:enable-result',async({lessonId,accepted})=>{
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)===String(lesson.teacherId)||hasPermission(s.user,'live.manage'))s.emit('camera:student-result',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,accepted:Boolean(accepted)});
   }catch{}
 });
-socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState})=>{
+socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState,detectorStatus})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const state=['present','away','missing'].includes(faceState)?faceState:'unknown',now=new Date(),key=String(lessonId)+':'+String(socket.user._id),prev=liveProctorStates.get(key),delta=prev?.at?Math.max(0,Math.min(10,Math.round((now-new Date(prev.at))/1000))):0,previousState=prev?.faceState||'unknown';
-    const next={cameraReady:Boolean(cameraReady),faceState:state,at:now};liveProctorStates.set(key,next);
+    const detector=['ready','loading','error'].includes(detectorStatus)?detectorStatus:'unknown';
+    const next={cameraReady:Boolean(cameraReady),faceState:state,detectorStatus:detector,at:now};liveProctorStates.set(key,next);
     let attendanceRow=null;
     if(socket.data.attendanceId){
       const inc={};
@@ -1489,7 +1490,7 @@ socket.on('lesson:proctor-state',async({lessonId,cameraReady,faceState})=>{
       const update={$set:{proctorCameraReady:Boolean(cameraReady),proctorFaceState:state,proctorLastAt:now}};if(Object.keys(inc).length)update.$inc=inc;attendanceRow=await Attendance.findByIdAndUpdate(socket.data.attendanceId,update,{new:true}).lean();
     }
     const observed=Number(attendanceRow?.proctorObservedSeconds||0),present=Number(attendanceRow?.proctorFacePresentSeconds||0);
-    const payload={lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:Boolean(cameraReady),faceState:state,at:now.toISOString(),observedSeconds:observed,presentSeconds:present,awaySeconds:Number(attendanceRow?.proctorFaceAwaySeconds||0),missingSeconds:Number(attendanceRow?.proctorFaceMissingSeconds||0),attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,violations:Number(attendanceRow?.proctorViolations||0)};
+    const payload={lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:Boolean(cameraReady),faceState:state,detectorStatus:detector,at:now.toISOString(),observedSeconds:observed,presentSeconds:present,awaySeconds:Number(attendanceRow?.proctorFaceAwaySeconds||0),missingSeconds:Number(attendanceRow?.proctorFaceMissingSeconds||0),attentionPercent:observed?Math.max(0,Math.min(100,Math.round(present/observed*100))):0,violations:Number(attendanceRow?.proctorViolations||0)};
     for(const s of lessonRoomSockets(lessonId))if(String(s.user?._id)!==String(socket.user._id)&&(s.user?.role==='teacher'||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor')))s.emit('lesson:proctor-state',payload);
   }catch{}
 });
