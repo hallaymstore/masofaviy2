@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.consuming=new Map();this.audioPeerPending=new Map();this.canceledProducers=new Set();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.ultraLite?0:(this.lowEnd?1:6);this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.micSafetyMonitor=null;this.localMicRawTrack=null;this.autoHalfDuplexUntil=0;this.autoFeedbackResumeTimer=null;this.feedbackToneTracker=null;this.feedbackMonitorStatus='off';this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker');this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.user?.role==='student'?0:(this.ultraLite?0:(this.lowEnd?1:6));this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.micSafetyMonitor=null;this.localMicRawTrack=null;this.autoHalfDuplexUntil=0;this.autoFeedbackResumeTimer=null;this.feedbackToneTracker=null;this.feedbackMonitorStatus='off';this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.user?.role==='student'?'speaker':(this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker'));this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.explicitStagePeerId='';this.stageRefreshTimer=null;this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
@@ -169,6 +169,7 @@ export class MediaRoomClient{
     enableCamera.textContent='Kamerani yoqish';
     enableCamera.addEventListener('click',()=>document.querySelector('#callCamera')?.click());
     emptyStage.append(emptyTitle,emptyHint,enableCamera);
+    if(this.user?.role==='student')strip.hidden=true;
     this.mount.append(grid,emptyStage,selfStage,teacherPiP,stageBadge,fullscreen,strip,audioBin);
     this.grid=grid;this.participantStrip=strip;this.audioBin=audioBin;this.selfStage=selfStage;this.selfStageVideo=selfVideo;this.selfStageLabel=selfLabel;
     this.teacherPiP=teacherPiP;this.teacherPiPVideo=teacherPiPVideo;this.teacherPiPLabel=teacherPiPLabel;
@@ -228,7 +229,7 @@ export class MediaRoomClient{
     this.refreshParticipantCardSelection();return card;
   }
   syncParticipantTiles(participants=[]){
-    const rows=Array.isArray(participants)?participants:[],alive=new Set();
+    const rows=(Array.isArray(participants)?participants:[]).filter(p=>this.user?.role!=='student'||p?.user?.role!=='student'||String(p?.user?.id||'')===String(this.user?.id||this.user?._id||'')),alive=new Set();
     this.multiMicCount=rows.filter(x=>Boolean(x?.media?.micOn)).length;
     for(const row of rows){
       const peerId=String(row?.peerId||'');if(!peerId)continue;alive.add(peerId);
@@ -277,6 +278,7 @@ export class MediaRoomClient{
   }
   selectStagePeer(peerId,emitState=true){
     const id=String(peerId||''),target=this.participantTile(id);if(!target)return false;
+    if(this.user?.role==='student'&&target.dataset.role==='student')return false;
     for(const t of this.tiles.values())t.classList.remove('focused');target.classList.add('focused');this.grid?.classList.add('has-focus');this.selectedStagePeerId=id;this.resetZoom(target);this.refreshParticipantCardSelection();
     this.grid?.classList.remove('local-camera-stage');
     if(emitState)this.explicitStagePeerId=id;
@@ -284,6 +286,7 @@ export class MediaRoomClient{
     if(emitState)this.onState({focusedUserId:target.dataset.userId||id});return true;
   }
   setViewMode(mode){
+    if(this.user?.role==='student')mode='speaker';
     this.viewMode=mode==='gallery'?'gallery':'speaker';localStorage.setItem('m2-view-mode',this.viewMode);
     this.grid?.classList.toggle('gallery-view',this.viewMode==='gallery');
     this.grid?.classList.toggle('speaker-view',this.viewMode==='speaker');this.grid?.classList.toggle('teacher-stage-layout',this.viewMode==='speaker');
@@ -293,6 +296,7 @@ export class MediaRoomClient{
     this.onState({viewMode:this.viewMode});return this.viewMode;
   }
   focusUserForClass(userId=''){
+    if(this.user?.role==='student'){this.classSpotlightUserId='';this.ensureInlineVideoStage();return false;}
     this.classSpotlightUserId=String(userId||'');
     // Spotlight is authoritative and idempotent; local double-click Pin retains separate toggle semantics.
     const selected=[...this.tiles.values()].find(t=>this.classSpotlightUserId&&String(t.dataset.userId||'')===this.classSpotlightUserId);
@@ -325,6 +329,7 @@ export class MediaRoomClient{
     return true;
   }
   pinUser(userId='',peerId=''){
+    if(this.user?.role==='student')return false;
     const target=[...this.tiles.values()].find(t=>(userId&&t.dataset.userId===String(userId))||(peerId&&t.dataset.peerId===String(peerId)));
     for(const t of this.tiles.values())t.classList.remove('pinned','focused');
     if(!target){this.pinnedUserId='';this.grid?.classList.remove('has-focus');this.ensureInlineVideoStage();this.onState({pinnedUserId:''});return false}
@@ -532,7 +537,7 @@ export class MediaRoomClient{
     const producer=this.producers?.get('camera');
     const cameraWorking=Boolean(producer&&!producer.paused&&producer.track?.readyState==='live');
     this.emptyTitle.textContent=this.cameraLastError?'Kamera ochilmadi':this.classSpotlightUserId?'Tanlangan ishtirokchining videosi yo‘q':cameraWorking?'Video ulanmoqda…':'Kamera hozir o‘chiq';
-    this.emptyHint.textContent=this.cameraLastError?this.cameraLastError:isStudent?'O‘qituvchi yoki guruh videosi paydo bo‘lganda shu yerda ko‘rsatiladi':
+    this.emptyHint.textContent=this.cameraLastError?this.cameraLastError:isStudent?'O‘qituvchi video yoki ekran ulashganda shu yerda ko‘rsatiladi':
       cameraWorking?'Kamera faol. Asosiy videoni tiklash kutilmoqda.':'Dars videosini chiqarish uchun kamerani yoqing';
     this.emptyCameraAction.hidden=!isPresenter||cameraWorking;
     this.emptyCameraAction.disabled=Boolean(this.mediaBusy?.camera);
@@ -540,14 +545,14 @@ export class MediaRoomClient{
   ensureInlineVideoStage(){
     if(!this.grid||this.closed)return false;
     const tiles=[...this.tiles.values()],local=this.tiles.get('local');
-    const usable=tile=>Boolean(this.primaryTileTrack(tile));
+    const usable=tile=>Boolean(this.primaryTileTrack(tile))&&(this.user?.role!=='student'||tile?.classList?.contains('role-teacher')||tile?.classList?.contains('screen-share')&&tile?.dataset?.role!=='student');
     const byUserId=id=>tiles.find(tile=>String(tile.dataset?.userId||'')===String(id));
     const pinned=tiles.find(tile=>tile.classList.contains('pinned'));
     const screen=tiles.find(tile=>tile.classList.contains('screen-share')&&usable(tile));
     const selected=this.participantTile(this.selectedStagePeerId);
     const teacher=tiles.find(tile=>tile.classList.contains('role-teacher')&&usable(tile));
     let primary=null;
-    if(this.classSpotlightUserId){
+    if(this.classSpotlightUserId&&this.user?.role!=='student'){
       // Do not silently replace a selected student's missing stream with the teacher.
       const spotlight=byUserId(this.classSpotlightUserId);
       primary=usable(spotlight)?spotlight:null;
@@ -555,10 +560,10 @@ export class MediaRoomClient{
       primary=screen;
     }else if(this.pinnedUserId&&pinned){
       primary=usable(pinned)?pinned:null;
-    }else if(this.explicitStagePeerId&&selected&&String(selected.dataset.peerId||'')===String(this.explicitStagePeerId)){
+    }else if(this.user?.role!=='student'&&this.explicitStagePeerId&&selected&&String(selected.dataset.peerId||'')===String(this.explicitStagePeerId)){
       primary=usable(selected)?selected:null;
     }else{
-      primary=[teacher,selected,local,screen,...tiles].find(usable)||null;
+      primary=(this.user?.role==='student'?[screen,teacher]:[teacher,selected,local,screen,...tiles]).find(usable)||null;
     }
     const track=this.primaryTileTrack(primary);
     const label=primary?(qs('.ms-label b',primary)?.textContent||this.user?.fullName||'Video'):'';
@@ -851,13 +856,15 @@ export class MediaRoomClient{
     if(tag==='screen'){const tile=this.tiles.get('local:screen');if(tile){tile.remove();this.tiles.delete('local:screen')}this.grid?.classList.remove('screen-layout');this.tiles.get('local')?.classList.remove('screen-camera-pip');this.ensureInlineVideoStage()}
   }
   shouldConsume(meta){
+    if(this.user?.role==='student'&&meta.kind==='video'&&meta.user?.role==='student'&&String(meta.user?.id||'')!==String(this.user?.id||this.user?._id||''))return false;
+    if(this.user?.role==='student'&&meta.kind==='video'&&meta.appData?.role==='student')return false;
     if(meta.kind==='audio')return true;
     const tag=meta.appData?.mediaTag,role=meta.appData?.role;
     if(meta.appData?.proctorBroadcast)return this.user.role!=='student';
-    if(meta.appData?.classroomSpotlight)return true; // Class-wide spotlight after student consent; one controlled stream even on lite devices
+    if(meta.appData?.classroomSpotlight)return this.user?.role!=='student'; // Class-wide spotlight after student consent; one controlled stream even on lite devices
     if(tag==='screen'||role==='teacher')return true;
     if(role==='student'){
-      if(this.user.role==='student'&&this.ultraLite)return false;
+      if(this.user.role==='student')return false;
       return this.user.role==='teacher'||this.studentVideoConsumers<this.maxStudentVideos;
     }
     return !this.ultraLite;

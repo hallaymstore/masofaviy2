@@ -38,15 +38,15 @@ test('speaking indicator is wired to media audio levels',()=>{
   assert.ok(css.includes('.student-rail-card.speaking'));
 });
 
-test('class spotlight must be available to students, private proctor stream remains teacher-only',()=>{
+test('students cannot view class spotlight, private proctor stream remains teacher-only',()=>{
  const src=file('frontend/media-client.js');
  const sfu=file('media-server/server.js');
  assert.ok(src.includes("if(meta.appData?.proctorBroadcast)return this.user.role!=='student'"));
- assert.ok(src.includes("if(meta.appData?.classroomSpotlight)return true"));
+ assert.ok(src.includes("if(meta.appData?.classroomSpotlight)return this.user?.role"));
  assert.ok(src.includes("proctorBroadcast:!broadcastToClass"));
  assert.ok(src.includes("classroomSpotlight:Boolean(broadcastToClass)"));
  assert.ok(app.includes("startCameraFromExternalTrack?.(liveProctorTrack,x.viewerUserId||'',true)"));
- assert.ok(sfu.includes("if(!producer?.appData?.proctorBroadcast)return true"));
+ assert.ok(sfu.includes("canAccessClassroomProducer"));
 });
 
 test('student video remains local until teacher grants or spotlight consent',()=>{

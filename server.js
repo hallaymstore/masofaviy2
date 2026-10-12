@@ -1117,6 +1117,7 @@ app.get('/api/live/rooms/:scheduleId/participants',auth,async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.scheduleId))return res.status(400).json({message:'Dars ID noto‘g‘ri'});
   const lesson=await Schedule.findById(req.params.scheduleId).lean();if(!lesson)return res.status(404).json({message:'Dars topilmadi'});
   if(!(await scheduleAccess(req.user,lesson)))return res.status(403).json({message:'Ruxsat yo‘q'});
+  if(req.user.role==='student')return res.status(403).json({message:'Ishtirokchilar ro‘yxati faqat o‘qituvchi va vakolatli xodimlar uchun'});
   res.json(await participantSnapshot(lesson._id));
 });
 app.post('/api/live/rooms/:scheduleId/attendance',auth,async(req,res)=>{

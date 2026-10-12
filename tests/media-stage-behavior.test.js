@@ -177,10 +177,10 @@ test('teacher camera is default main stage without pressing spotlight, even if s
  assert.equal(teacherPiPPrimary,teacher);
  client.explicitStagePeerId='student-peer';
  assert.equal(client.ensureInlineVideoStage(),true);
- assert.equal(selectedTrack,student.querySelector('video').srcObject.getVideoTracks()[0]);
+ assert.equal(selectedTrack,teacher.querySelector('video').srcObject.getVideoTracks()[0]);
  client.classSpotlightUserId='student-001';
  assert.equal(client.ensureInlineVideoStage(),true);
- assert.equal(selectedTrack,student.querySelector('video').srcObject.getVideoTracks()[0]);
+ assert.equal(selectedTrack,teacher.querySelector('video').srcObject.getVideoTracks()[0]);
 });
 test('spotlight student keeps educator video visible in independent PiP without another camera capture',()=>{
  const client=Object.create(MediaRoomClient.prototype);

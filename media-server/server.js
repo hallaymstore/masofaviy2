@@ -1,3 +1,4 @@
+import {canAccessClassroomProducer,visibleClassroomParticipants} from './classroom-privacy.js';
 import 'dotenv/config';
 import os from 'node:os';
 import http from 'node:http';
@@ -43,14 +44,24 @@ const peers=new Map();
 function send(ws,msg){if(ws?.readyState===1)ws.send(JSON.stringify(msg))}
 function reply(ws,clientId,id,ok,data,error){send(ws,{clientId,id,ok,data,error})}
 function event(peer,name,data){send(peer.bridge,{clientId:peer.id,event:name,data})}
-function broadcast(room,name,data,exceptPeerId=null){for(const p of room.peers.values())if(p.id!==exceptPeerId)event(p,name,data)}
-function canAccessProducer(viewer,producer,owner){
-  if(!producer?.appData?.proctorBroadcast)return true;
-  const viewerUserId=String(viewer?.user?.id||''),allowedUserId=String(producer.appData?.proctorViewerUserId||'');
-  return Boolean(viewerUserId&&allowedUserId&&viewerUserId===allowedUserId)||viewer?.id===owner?.id;
+function broadcast(room,name,data,exceptPeerId=null){
+  for(const p of room.peers.values()){
+    if(p.id===exceptPeerId)continue;
+    if(name==='roomState'){event(p,name,roomState(room,p));continue}
+    if(p.user?.role==='student'&&(name==='peerJoined'||name==='peerLeft'))continue; // only aggregate count is shared
+    if(p.user?.role==='student'&&name==='audioLevels'){
+      const levels=(data?.levels||[]).filter(x=>{const owner=room.peers.get(x.peerId);return Boolean(owner&&owner.user?.role!=='student')});
+      event(p,name,{levels});continue;
+    }
+    if(p.user?.role==='student'&&name==='audioFloor'&&data?.user?.role==='student'){
+      event(p,name,{active:Boolean(data?.active)});continue;
+    }
+    event(p,name,data)
+  }
 }
+function canAccessProducer(viewer,producer,owner){return canAccessClassroomProducer(viewer,producer,owner)}
 function broadcastProducer(room,name,producer,owner,data){
-  if(!producer?.appData?.proctorBroadcast)return broadcast(room,name,data,owner?.id||null);
+  if(!producer?.appData?.proctorBroadcast){for(const p of room.peers.values())if(p.id!==owner?.id&&canAccessProducer(p,producer,owner))event(p,name,data);return}
   for(const p of room.peers.values())if(p.id!==owner?.id&&canAccessProducer(p,producer,owner))event(p,name,data);
 }
 function normalizeProfile(value){const p=String(value||'standard');return LECTURE_LITE_ENABLED&&p==='lecture-lite'?'lecture-lite':p==='seminar'?'seminar':'standard'}
@@ -66,7 +77,7 @@ function claimAudioFloor(room,peer,producerId){
   room.audioFloor={peerId:peer.id,producerId,user:peer.user,at:Date.now()};
   broadcast(room,'audioFloor',{active:true,peerId:peer.id,user:peer.user,at:room.audioFloor.at});
 }
-function roomState(room){return {roomId:room.id,profile:room.profile,participants:[...room.peers.values()].map(p=>{let cameraOn=false,micOn=false;for(const producer of p.producers.values()){if(producer.closed||producer.paused)continue;const tag=producer.appData?.mediaTag||'';if(producer.kind==='video'&&tag==='camera')cameraOn=true;if(producer.kind==='audio'&&tag==='mic')micOn=true}return {peerId:p.id,user:p.user,media:{cameraOn,micOn}}}),count:room.peers.size,audioFloor:STRICT_AUDIO_FLOOR?(room.audioFloor||null):null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:STRICT_AUDIO_FLOOR?1:(room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null),studentAudioActive:studentAudioCount(room)}}}
+function roomState(room,viewer=null){return {roomId:room.id,profile:room.profile,participants:visibleClassroomParticipants(viewer,[...room.peers.values()].map(p=>{let cameraOn=false,micOn=false;for(const producer of p.producers.values()){if(producer.closed||producer.paused)continue;const tag=producer.appData?.mediaTag||'';if(producer.kind==='video'&&tag==='camera')cameraOn=true;if(producer.kind==='audio'&&tag==='mic')micOn=true}return {peerId:p.id,user:p.user,media:{cameraOn,micOn}}})),count:room.peers.size,audioFloor:STRICT_AUDIO_FLOOR?(viewer?.user?.role==='student'&&room.audioFloor?.user?.role==='student'?{active:true}:room.audioFloor||null):null,limits:{maxParticipants:room.maxParticipants,studentAudioSlots:STRICT_AUDIO_FLOOR?1:(room.profile==='lecture-lite'?LECTURE_MAX_STUDENT_AUDIO:null),studentAudioActive:studentAudioCount(room)}}}
 
 async function verifyTicket(ticket){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
@@ -164,7 +175,7 @@ async function handleRequest(ws,msg){
       const peer={id:clientId,bridge:ws,room,user:{id:payload.sub,fullName:payload.fullName,login:payload.login,role:payload.role,avatarUrl:payload.avatarUrl||''},transports:new Map(),producers:new Map(),consumers:new Map(),joinedAt:new Date()};
       peers.set(clientId,peer);room.peers.set(clientId,peer);
       const existing=[];for(const other of room.peers.values())if(other.id!==clientId)for(const producer of other.producers.values())if(canAccessProducer(peer,producer,other))existing.push(serializeProducer(producer,other));
-      reply(ws,clientId,id,true,{room:{roomId:room.id,peerId:clientId},mediaProfile:room.profile,limits:roomState(room).limits,routerRtpCapabilities:room.router.rtpCapabilities,producers:existing,participants:roomState(room).participants});
+      reply(ws,clientId,id,true,{room:{roomId:room.id,peerId:clientId},mediaProfile:room.profile,limits:roomState(room).limits,routerRtpCapabilities:room.router.rtpCapabilities,producers:existing,participants:roomState(room,peer).participants});
       broadcast(room,'peerJoined',{peerId:clientId,user:peer.user},clientId);broadcast(room,'roomState',roomState(room));
       return;
     }

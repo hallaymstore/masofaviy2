@@ -29,7 +29,7 @@ test('student controls broadcast independently of local proctor and confirms cla
  assert.ok(app.includes("if(user?.role==='student'&&!cameraOn)"));
  assert.ok(app.includes('studentCameraGranted=true;'));
  assert.ok(app.includes("if(!cameraOn)await mediaRoomClient?.toggleCamera()"));
- assert.ok(app.includes('Kamerangizni dars ishtirokchilariga ko‘rsatmoqchimisiz?'));
+ assert.ok(app.includes('Kamerangizni o‘qituvchiga uzatmoqchimisiz?'));
  assert.ok(app.includes("setExternalCameraTrack?.(liveProctorTrack)"));
  assert.ok(app.includes('classifyFaceDetections('));
 });
