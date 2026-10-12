@@ -23,7 +23,7 @@ export class MediaRoomClient{
     this.ultraLite=Boolean((mem&&mem<=2)||(cores&&cores<=2)||(androidMajor&&androidMajor<=8));
     this.lowEnd=Boolean(lowEnd||this.ultraLite||weakNet||(mem&&mem<=4)||(cores&&cores<=4));
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.consuming=new Map();this.audioPeerPending=new Map();this.canceledProducers=new Set();this.tiles=new Map();this.pending=new Map();this.closed=false;
-    this.maxStudentVideos=this.user?.role==='student'?0:(this.ultraLite?0:(this.lowEnd?1:6));this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1';this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.micSafetyMonitor=null;this.localMicRawTrack=null;this.autoHalfDuplexUntil=0;this.autoFeedbackResumeTimer=null;this.feedbackToneTracker=null;this.feedbackMonitorStatus='off';this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.user?.role==='student'?'speaker':(this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker'));this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
+    this.maxStudentVideos=this.user?.role==='student'?0:(this.ultraLite?1:(this.lowEnd?3:8));this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1'||(this.user?.role==='student'&&localStorage.getItem('m2-proximity-guard')!=='0');this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.micSafetyMonitor=null;this.localMicRawTrack=null;this.autoHalfDuplexUntil=0;this.autoFeedbackResumeTimer=null;this.feedbackToneTracker=null;this.feedbackMonitorStatus='off';this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.viewMode=this.user?.role==='student'?'speaker':(this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker'));this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.explicitStagePeerId='';this.stageRefreshTimer=null;this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
@@ -327,6 +327,20 @@ export class MediaRoomClient{
     this.refreshParticipantCardSelection();
     this.onState({focusedUserId:this.classSpotlightUserId});
     return true;
+  }
+  studentCameraState(userId=''){
+    if(!userId)return 'off';
+    const id=String(userId);
+    const tile=[...this.tiles.values()].find(t=>String(t.dataset?.userId||'')===id&&t.dataset?.role==='student');
+    if(!tile)return 'off';
+    const video=qs('video',tile),track=video?.srcObject?.getVideoTracks?.()[0];
+    if(track?.readyState==='live'&&track.enabled!==false&&tile.classList.contains('has-video'))return 'live';
+    const media=this.participantMediaState.get(String(tile.dataset.peerId||''))||{};
+    return media.cameraOn?'connecting':'off';
+  }
+  focusAvailableStudentVideo(userId=''){
+    if(this.studentCameraState(userId)!=='live')return false;
+    return this.focusUserForClass(String(userId));
   }
   pinUser(userId='',peerId=''){
     if(this.user?.role==='student')return false;
@@ -937,7 +951,7 @@ export class MediaRoomClient{
       else audio.play().catch(()=>{this.audioNeedsUnlock=true;this.onState({audioBlocked:true})});
       this.updateParticipantCardMic(meta.peerId,true);return;
     }
-    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=true;tile.classList.add('has-video');this.updateParticipantCardCamera(meta.peerId,true);this.syncParticipantCardVideo(meta.peerId);
+    const video=qs('video',tile);video.srcObject=new MediaStream([consumer.track]);video.muted=true;tile.classList.add('has-video');this.updateParticipantCardCamera(meta.peerId,true);this.syncParticipantCardVideo(meta.peerId);this.onState({studentVideoChanged:String(user.id||user._id||'')});
     if(isScreen){
       tile.classList.add('screen-share');
       this.grid?.classList.add('screen-layout');
@@ -970,7 +984,7 @@ export class MediaRoomClient{
     if(!this.closed&&this.socket&&c.id)this.request('closeConsumer',{consumerId:c.id}).catch(()=>{});
     this.audioBin?.querySelectorAll('audio').forEach(a=>{if(a.dataset.producerId===producerId)this.disposeRemoteAudio(a)});
     if(c.kind==='audio')this.updateParticipantCardMic(meta?.peerId,false);
-    if(c.kind==='video'&&meta?.appData?.mediaTag!=='screen'&&meta?.mediaTag!=='screen')this.updateParticipantCardCamera(meta?.peerId,false);
+    if(c.kind==='video'&&meta?.appData?.mediaTag!=='screen'&&meta?.mediaTag!=='screen')this.updateParticipantCardCamera(meta?.peerId,false);if(c.kind==='video')this.onState({studentVideoChanged:String(meta?.user?.id||meta?.user?._id||'')});
     if(meta?.appData?.mediaTag==='screen'||meta?.mediaTag==='screen'){
       const key=String(meta.peerId||'')+':screen',tile=this.tiles.get(key);if(tile){tile.remove();this.tiles.delete(key)}
       this.tiles.get(meta.peerId)?.classList.remove('screen-camera-pip');

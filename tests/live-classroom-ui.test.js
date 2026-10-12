@@ -52,7 +52,7 @@ test('students cannot view class spotlight, private proctor stream remains teach
 test('student video remains local until teacher grants or spotlight consent',()=>{
  assert.ok(app.includes("studentCameraGranted=user.role!=='student'"));
  assert.ok(app.includes("if(user?.role==='student'&&!cameraOn)"));
- assert.ok(app.includes('if(permitted)'));
+ assert.ok(app.includes('if(permitted&&!alreadyLive)'));
 });
 
 test('only enrolled group students can enter a live room and pass media verification',()=>{

@@ -58,3 +58,17 @@
 #lesson #videoMount .ms-teacher-pip-stage{cursor:pointer!important;pointer-events:auto!important;padding:0!important;appearance:none}
 #lesson #videoMount .ms-teacher-pip-stage:focus-visible{outline:3px solid #facc15!important;outline-offset:2px!important}
 #lesson #videoMount .ms-teacher-pip-stage:hover{border-color:#a4f6ff!important}
+
+/* Educator live preview in the student roster; face analysis remains local to the student. */
+#lesson .student-rail-card .rail-avatar{position:relative;overflow:hidden;border-radius:3px!important}
+#lesson .student-rail-card .rail-live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;background:#112b47;border-radius:3px}
+#lesson .student-rail-card.live-video .rail-live-video{display:block}
+#lesson .student-rail-card.live-video .rail-initials{visibility:hidden}
+#lesson .student-rail-card.live-video{border-color:#4ba3f3!important}
+#lesson .student-rail-card .rail-video-state{display:none}
+#lesson .student-rail-card.live-video .rail-video-state,
+#lesson .student-rail-card.video-connecting .rail-video-state{display:block;color:#86e3ff!important;font-size:9px!important}
+#lesson .student-rail-card.live-video .rail-proctor-status,
+#lesson .student-rail-card.video-connecting .rail-proctor-status{display:none}
+#lesson .student-rail-card.live-video .rail-avatar{background:#0a253f!important}
+@media(max-width:600px){#lesson .student-rail-card.live-video .rail-avatar{border-radius:3px!important}}
