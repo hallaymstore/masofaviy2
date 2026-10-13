@@ -15,6 +15,7 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
+import { annotateVideoLocks, videoAllowedForGroup, verifiedVideoCompletion } from './video-learning-rules.js';
 import { installLessonHistory } from './lesson-history.js';
 import { installGlobalSearch } from './global-search.js';
 import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from './lesson-history-timeline.js';
@@ -1251,11 +1252,14 @@ app.get('/api/videos', auth, async(req,res)=>{
   if(req.query.courseId&&mongoose.isValidObjectId(req.query.courseId))filter.courseId=req.query.courseId;
   const rows=await VideoLesson.find(filter).populate('teacherId','fullName login').populate('groupIds','name externalId code').populate('courseId','code title language credits teacherId groupId').populate('checkpointQuizId','title durationMinutes proctorRequired published').sort({featured:-1,courseId:1,moduleTitle:1,sequence:1,createdAt:-1}).limit(500).lean();
   let gid=null;if(req.user.role==='student')gid=await resolveUserGroupId(req.user);
-  const scored=rows.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
+  const eligible=req.user.role==='student'?rows.filter(v=>videoAllowedForGroup(v,gid)):rows;
+  const scored=eligible.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
   scored.sort((a,b)=>b.recommendationScore-a.recommendationScore||new Date(b.createdAt)-new Date(a.createdAt));
   const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),x]));
   const counts=scored.length?await VideoComment.aggregate([{$match:{videoId:{$in:scored.map(x=>x._id)}}},{$group:{_id:'$videoId',count:{$sum:1}}}]):[],cm=Object.fromEntries(counts.map(x=>[String(x._id),x.count]));
-  res.json(scored.map(x=>({...x,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
+  const gated=annotateVideoLocks(scored,pm,req.user.role==='student');
+  res.set('Cache-Control','private,no-store');
+  res.json(gated.map(x=>({...x,sourceUrl:x.locked?'':x.sourceUrl,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
 });
 app.post('/api/videos', auth, async(req,res)=>{
   if(!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(403).json({message:'Videodars joylash huquqi yo‘q'});
@@ -1297,14 +1301,34 @@ app.delete('/api/videos/:id', auth, async(req,res)=>{
 });
 app.post('/api/videos/:id/view', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
+  if(req.user.role==='student'&&!item.published)return res.status(404).json({message:'Videodars topilmadi'});
   const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0)),reportedDelta=Math.max(0,Math.min(30,Number(req.body.watchDeltaSeconds)||0));
   let progress=null;
   if(mongoose.isValidObjectId(req.user._id)){
     const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean(),now=new Date();
+    if(req.user.role==='student'){
+      const gid=await resolveUserGroupId(req.user);
+      const Course=mongoose.models.Course;
+      const course=item.courseId&&Course?await Course.findById(item.courseId).select('groupId active').lean():null;
+      if(item.courseId&&!course?.active)return res.status(403).json({message:'Bu fan faol emas'});
+      if(!videoAllowedForGroup({groupIds:item.groupIds,courseId:course?{groupId:course.groupId}:null},gid))
+        return res.status(403).json({message:'Bu video sizning guruhingizga tegishli emas'});
+      // Validate the first view server-side. Subsequent 5-second saves reuse its
+      // existing watch record, avoiding repeated course scans for each learner.
+      if(item.courseId&&!existing?.watchedSeconds&&!existing?.completed){
+        const lessons=await VideoLesson.find({courseId:item.courseId,published:true})
+          .select('_id courseId moduleTitle sequence createdAt').lean();
+        const prior=await VideoProgress.find({userId:req.user._id,videoId:{$in:lessons.map(v=>v._id)}})
+          .select('videoId completed').lean();
+        const byId=Object.fromEntries(prior.map(p=>[String(p.videoId),p]));
+        const target=annotateVideoLocks(lessons,byId,true).find(v=>String(v._id)===String(item._id));
+        if(target?.locked)return res.status(423).json({message:'Oldingi videomavzuni tugating. Hozirgi darsingizning progressi saqlangan.'});
+      }
+    }
     const elapsed=existing?.lastViewedAt?Math.max(0,Math.min(30,(now-new Date(existing.lastViewedAt))/1000)):Math.min(5,reportedDelta);
     const credit=Math.max(0,Math.min(reportedDelta,elapsed+1.5,15));
     const previousWatched=Math.max(0,Number(existing?.watchedSeconds)||0),nextWatched=Math.min(duration||24*3600,previousWatched+credit);
-    const completed=Boolean(existing?.completed)||(duration>0&&nextWatched>=Math.max(5,duration*.9));
+    const completed=verifiedVideoCompletion(existing,position,duration,nextWatched);
     const update={$set:{watchedSeconds:nextWatched,lastPositionSeconds:position,lastViewedAt:now},$max:{durationSeconds:duration}};
     if(completed){update.$set.completed=true;if(!existing?.completedAt)update.$set.completedAt=now}
     progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},update,{new:true,upsert:true,setDefaultsOnInsert:true});
