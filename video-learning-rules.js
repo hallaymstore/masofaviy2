@@ -30,6 +30,7 @@ export function orderedCourseVideos(rows){
 }
 export function isVideoCompleted(progress){
   if(progress?.completed!==true)return false;
+  if(progress?.verifiedCompleted===true)return true;
   const duration=Number(progress.durationSeconds),position=Number(progress.lastPositionSeconds),watched=Number(progress.watchedSeconds);
   // Earlier deployments could set completed=true at 90% before the video ended.
   // Existing data must pass the same verified-end condition as fresh progress.

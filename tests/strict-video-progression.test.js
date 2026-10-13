@@ -69,3 +69,9 @@ test('legacy completed flag at 90 percent does NOT unlock next topic',async()=>{
  const answer=await check(student,v('two',2));
  assert.equal(answer.status,423);
 });
+
+test('replaying a genuinely completed video never locks later topics again',async()=>{
+ const replayed={videoId:'one',completed:true,verifiedCompleted:true,durationSeconds:100,lastPositionSeconds:10,watchedSeconds:95};
+ const check=fixture([v('one',1),v('two',2)],[replayed]);
+ assert.equal((await check(student,v('two',2))).allowed,true);
+});
