@@ -1362,11 +1362,11 @@ function youtubeId(url){const m=String(url||'').match(/(?:youtu\.be\/|youtube\.c
 function videoThumb(v){const id=youtubeId(v.sourceUrl);return v.thumbnailUrl||(id?'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg':'')}
 function videoCard(v,recommended=false){
   const thumb=videoThumb(v),course=(v.courseYears||[]).map(x=>x+'-kurs').join(', '),groups=(v.groupIds||[]).map(g=>g.externalId||g.code||g.name).join(', '),mine=String(v.teacherId?._id||'')===String(user?._id||''),canDelete=can('videos.manage')||mine;
-  return '<article class="video-card" data-video-id="'+esc(v._id)+'"><button class="video-cover" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="video-no-thumb">'+icon('play','▶')+'</div>')+'<span class="play-badge">'+icon('play','▶')+'</span>'+(recommended?'<span class="recommend-badge">Tavsiya</span>':'')+'</button><div class="video-card-body"><div class="video-card-top"><span>'+esc(v.subject||'Videodars')+'</span><small>'+esc(v.durationMinutes?Math.round(v.durationMinutes)+' daq':'')+'</small></div><h2>'+esc(v.title)+'</h2><p>'+esc(v.description||'Mustaqil o‘rganish uchun videodars.')+'</p><div class="video-tags">'+(v.courseId?.title?'<span>'+esc(v.courseId.title)+'</span>':'')+(v.moduleTitle?'<span>'+esc(v.moduleTitle)+'</span>':'')+(course?'<span>'+esc(course)+'</span>':'')+(v.direction?'<span>'+esc(v.direction)+'</span>':'')+(groups?'<span>'+esc(groups)+'</span>':'')+'</div><div class="video-footer"><small>'+icon('user','◎')+' '+esc(v.teacherId?.fullName||'Ta’lim platformasi')+' · '+esc(v.views||0)+' ko‘rish · '+esc(v.commentCount||0)+' izoh</small><div>'+(canDelete?'<button class="ghost" data-video-structure="'+esc(v._id)+'" title="Fan/modul/mavzu bo‘yicha tartiblash">Tartiblash</button><button class="ghost danger-text" data-video-delete="'+esc(v._id)+'" title="Arxivlash">'+icon('trash','×')+'</button>':'')+'</div></div></div></article>';
+  return '<article class="video-card" data-video-id="'+esc(v._id)+'"><button class="video-cover" data-video-play="'+esc(v._id)+'" '+(v.locked?'disabled aria-label="Oldingi video tugagach ochiladi" title="Oldingi video tugagach ochiladi"':'')+'>'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="video-no-thumb">'+icon('play','▶')+'</div>')+'<span class="play-badge">'+(v.locked?'🔒':icon('play','▶'))+'</span>'+(recommended?'<span class="recommend-badge">Tavsiya</span>':'')+'</button><div class="video-card-body"><div class="video-card-top"><span>'+esc(v.subject||'Videodars')+'</span><small>'+esc(v.durationMinutes?Math.round(v.durationMinutes)+' daq':'')+'</small></div><h2>'+esc(v.title)+'</h2><p>'+esc(v.description||'Mustaqil o‘rganish uchun videodars.')+'</p><div class="video-tags">'+(v.courseId?.title?'<span>'+esc(v.courseId.title)+'</span>':'')+(v.moduleTitle?'<span>'+esc(v.moduleTitle)+'</span>':'')+(course?'<span>'+esc(course)+'</span>':'')+(v.direction?'<span>'+esc(v.direction)+'</span>':'')+(groups?'<span>'+esc(groups)+'</span>':'')+'</div><div class="video-footer"><small>'+icon('user','◎')+' '+esc(v.teacherId?.fullName||'Ta’lim platformasi')+' · '+esc(v.views||0)+' ko‘rish · '+esc(v.commentCount||0)+' izoh</small><div>'+(canDelete?'<button class="ghost" data-video-preview="'+esc(v._id)+'" title="O‘qituvchi uchun materialni tekshirish">▶ Tekshirish</button><button class="ghost" data-video-structure="'+esc(v._id)+'" title="Fan/modul/mavzu bo‘yicha tartiblash">Tartiblash</button><button class="ghost danger-text" data-video-delete="'+esc(v._id)+'" title="Arxivlash">'+icon('trash','×')+'</button>':'')+'</div></div></div></article>';
 }
 function compactRelatedCard(v){
   const thumb=videoThumb(v);
-  return '<button class="related-card" data-video-play="'+esc(v._id)+'">'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="related-no-thumb">'+icon('play','▶')+'</div>')+'<span><b>'+esc(v.title)+'</b><small>'+esc(v.teacherId?.fullName||'Ta’lim platformasi')+'</small><small>'+esc(v.views||0)+' ko‘rish · '+esc(v.likes||0)+' yoqdi</small></span></button>';
+  return '<button class="related-card" data-video-play="'+esc(v._id)+'" '+(v.locked?'disabled title="Oldingi video tugagach ochiladi"':'')+'>'+(thumb?'<img src="'+esc(thumb)+'" loading="lazy" alt="">':'<div class="related-no-thumb">'+icon('play','▶')+'</div>')+'<span><b>'+esc(v.title)+'</b><small>'+esc(v.teacherId?.fullName||'Ta’lim platformasi')+'</small><small>'+esc(v.views||0)+' ko‘rish · '+esc(v.likes||0)+' yoqdi</small>'+(v.locked?'<small>🔒 Oldingi video tugagach ochiladi</small>':'')+'</span></button>';
 }
 function renderVideoLearningPaths(rows){
   const groups=new Map();
@@ -1382,8 +1382,8 @@ function renderVideoLearningPaths(rows){
     const modules=[...course.modules.entries()].map(([name,items])=>{
       items.sort((a,b)=>(Number(a.sequence)||0)-(Number(b.sequence)||0)||new Date(a.createdAt)-new Date(b.createdAt));
       return '<div class="learning-module"><div class="learning-module-head"><b>'+esc(name)+'</b><small>'+esc(items.length)+' mavzu</small></div><div class="learning-topic-list">'+items.map((v,i)=>{
-        const quiz=v.checkpointQuizId,progress=v.progress||{},unlocked=Boolean(progress.completed),locked=user?.role==='student'&&Boolean(v.locked),pct=progress.completed?100:(progress.durationSeconds?Math.min(99,Math.round((Number(progress.watchedSeconds||0)/Math.max(1,Number(progress.durationSeconds)))*100)):0);
-        return '<article class="learning-topic"><div class="learning-topic-order">'+esc(v.sequence||i+1)+'</div><div class="learning-topic-main"><small>'+esc(v.topicTitle||v.title)+'</small><h3>'+esc(v.title)+'</h3><p>'+esc(v.description||'')+'</p><div class="video-tags">'+(v.durationMinutes?'<span>'+esc(Math.round(v.durationMinutes))+' daq</span>':'')+(quiz?'<span class="topic-quiz-badge">Test: '+esc(quiz.title)+'</span>':'')+'<span>'+esc(pct)+'% ko‘rildi</span></div><div class="topic-progress"><i style="width:'+esc(pct)+'%"></i></div></div><div class="learning-topic-actions"><button class="primary" data-video-play="'+esc(v._id)+'" '+(locked?'disabled title="Avvalgi videomavzuni tugating"':'')+'>'+(locked?'🔒 Oldingi mavzuni tugating':'▶ '+(progress.lastPositionSeconds>5&&!progress.completed?'Davom ettirish':'Ko‘rish'))+'</button>'+(quiz?'<button data-video-checkpoint="'+esc(quiz._id)+'" data-video-id="'+esc(v._id)+'" data-proctor="'+(quiz.proctorRequired?'1':'0')+'" '+(unlocked?'':'disabled title="Video 90% tugagach ochiladi"')+'>'+(unlocked?'Test':'🔒 Video tugagach')+'</button>':'')+'</div></article>'
+        const quiz=v.checkpointQuizId,progress=v.progress||{},unlocked=Boolean(progress.completed),locked=Boolean(v.locked),pct=progress.completed?100:(progress.durationSeconds?Math.min(99,Math.round((Number(progress.watchedSeconds||0)/Math.max(1,Number(progress.durationSeconds)))*100)):0);
+        return '<article class="learning-topic'+(locked?' is-locked':'')+'"><div class="learning-topic-order">'+esc(v.sequence||i+1)+'</div><div class="learning-topic-main"><small>'+esc(v.topicTitle||v.title)+'</small><h3>'+esc(v.title)+'</h3><p>'+esc(v.description||'')+'</p><div class="video-tags">'+(v.durationMinutes?'<span>'+esc(Math.round(v.durationMinutes))+' daq</span>':'')+(quiz?'<span class="topic-quiz-badge">Test: '+esc(quiz.title)+'</span>':'')+'<span>'+esc(pct)+'% ko‘rildi</span></div><div class="topic-progress"><i style="width:'+esc(pct)+'%"></i></div></div><div class="learning-topic-actions"><button class="'+(locked?'video-topic-lock':'primary')+'" data-video-play="'+esc(v._id)+'" '+(locked?'disabled aria-disabled="true" title="Oldingi video tugagach ochiladi"':'')+'>'+(locked?'🔒 Oldingi video tugagach ochiladi':'▶ '+(progress.lastPositionSeconds>5&&!progress.completed?'Davom ettirish':'Ko‘rish'))+'</button>'+(quiz?'<button data-video-checkpoint="'+esc(quiz._id)+'" data-video-id="'+esc(v._id)+'" data-proctor="'+(quiz.proctorRequired?'1':'0')+'" '+(unlocked?'':'disabled title="Video to‘liq tugagach ochiladi"')+'>'+(unlocked?'Test':'🔒 Video tugagach')+'</button>':'')+'</div></article>'
       }).join('')+'</div></div>';
     }).join('');
     return '<section class="video-course-path"><div class="video-course-path-head"><div><small>'+esc(course.code||'Kurs')+'</small><h2>'+esc(course.title)+'</h2></div><span>'+esc([...course.modules.values()].reduce((n,x)=>n+x.length,0))+' videomavzu</span></div>'+modules+'</section>';
@@ -1401,7 +1401,19 @@ async function loadVideoLessons(){
   }catch(e){$('#videoLessons').innerHTML='<div class="empty"><b>Videodarslarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
 function bindVideoActions(root=document){
-  root.querySelectorAll?.('[data-video-play]').forEach(b=>{const v=videoLessonsCache.find(x=>String(x._id)===String(b.dataset.videoPlay));if(user?.role==='student'&&v?.locked){b.disabled=true;b.title='Avvalgi videomavzuni tugating';b.setAttribute('aria-disabled','true')}else b.onclick=()=>openVideoLesson(b.dataset.videoPlay)});
+  root.querySelectorAll?.('[data-video-play]').forEach(b=>{
+    const v=videoLessonsCache.find(x=>String(x._id)===String(b.dataset.videoPlay));
+    if(!v||v.locked){
+      b.disabled=true;
+      b.title='🔒 Oldingi video tugagach ochiladi';
+      b.setAttribute('aria-disabled','true');
+      b.onclick=null;
+    }else b.onclick=()=>openVideoLesson(b.dataset.videoPlay);
+  });
+  root.querySelectorAll?.('[data-video-preview]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    openVideoLesson(b.dataset.videoPreview,true,true);
+  });
   root.querySelectorAll?.('[data-video-structure]').forEach(b=>b.onclick=e=>{e.stopPropagation();editVideoLessonStructure(b.dataset.videoStructure)});
   root.querySelectorAll?.('[data-video-delete]').forEach(b=>b.onclick=e=>{e.stopPropagation();deleteVideoLesson(b.dataset.videoDelete)});
 }
@@ -1452,7 +1464,7 @@ async function persistVideoProgress(videoId,position,duration,completed=false,wa
     const v=videoLessonsCache.find(a=>String(a._id)===String(videoId)),wasComplete=Boolean(v?.progress?.completed);
     if(v&&x.progress){v.progress={...(v.progress||{}),...x.progress};if(activeVideoId===String(videoId))updateVideoProgressUi(v,x.progress)}
     if(activeVideoId===String(videoId))watchLastSavedAt=Date.now();
-    if(user?.role==='student'&&x.progress?.completed&&!wasComplete){
+    if(x.progress?.completed&&!wasComplete){
       videoLessonsCache=await api('/videos');
       if(activeVideoId===String(videoId)){
         const related=videoLessonsCache.filter(a=>String(a._id)!==activeVideoId).slice(0,30);
@@ -1536,23 +1548,26 @@ async function renderWatchPlayer(v){
   }
 }
 let videoOpenRequestSerial=0;
-async function openVideoLesson(id,pushHistory=true){
+async function openVideoLesson(id,pushHistory=true,preview=false){
   const requestSerial=++videoOpenRequestSerial;
   if(!videoLessonsCache.length)videoLessonsCache=await api('/videos');
   const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)return toast('Videodars topilmadi');
-  if(user?.role==='student'){
-    if(v.locked)return toast('🔒 Oldingi videomavzuni tugatgandan keyin bu mavzu ochiladi');
-    // Always obtain a fresh server decision BEFORE starting an iframe or video tag.
-    // Cached playlists and search links cannot grant playback access.
-    try{
-      const permission=await api('/videos/'+encodeURIComponent(id)+'/playback');
-      if(requestSerial!==videoOpenRequestSerial)return;
-      if(!permission.allowed||!permission.sourceUrl)return toast('Videodars hozircha yopiq');
-      v.sourceUrl=permission.sourceUrl;
-      v.sourceType=permission.sourceType||v.sourceType;
-      v.progress=permission.progress||v.progress||null;
-    }catch(e){if(requestSerial===videoOpenRequestSerial)toast(e.message||'Avvalgi videomavzuni tugating');return}
-  }
+  // Learning paths are sequential for every role. Staff may preview only
+  // through the separate management control; students cannot enable preview.
+  const staffPreview=Boolean(preview&&user?.role!=='student'&&(
+    can('videos.manage')||can('videos.upload')||
+    String(v.teacherId?._id||v.teacherId||'')===String(user?._id||'')));
+  if(v.locked&&!staffPreview)return toast('🔒 Oldingi video tugagach ochiladi');
+  // Always fetch fresh server permission before starting any player or iframe.
+  // Cached playlists, related videos and search links cannot bypass this.
+  try{
+    const permission=await api('/videos/'+encodeURIComponent(id)+'/playback');
+    if(requestSerial!==videoOpenRequestSerial)return;
+    if(!permission.allowed||!permission.sourceUrl)return toast('Videodars hozircha yopiq');
+    v.sourceUrl=permission.sourceUrl;
+    v.sourceType=permission.sourceType||v.sourceType;
+    v.progress=permission.progress||v.progress||null;
+  }catch(e){if(requestSerial===videoOpenRequestSerial)toast(e.message||'Videodarsni ochish taqiqlangan');return}
   if(requestSerial!==videoOpenRequestSerial)return;
   if(activeVideoId)clearWatchPage(); // Switch between related videos: stop and save the previous player first.
   activeVideoId=String(v._id);commentReplyTo=null;go('videoWatch');
