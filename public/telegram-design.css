@@ -603,3 +603,43 @@ dialog::backdrop{background:rgba(10,22,36,.5)!important;backdrop-filter:none!imp
 @media(max-width:900px){
  #shell>main #courseList.tg-course-list>.tg-course-row{grid-template-columns:30px minmax(0,1fr) auto!important}
 }
+
+/* University digital catalogue: embedded only on deliberate user action. */
+#library .tg-external-library{margin:8px 0 12px;padding:12px;border:1px solid var(--tg-line-light,#dbe3ea);border-radius:6px;background:var(--tg-surface,#fff)}
+#library .tg-external-library-head{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.3}
+#library .tg-external-library-head>span{font-size:25px}
+#library .tg-external-library-head>div{display:grid;gap:3px;min-width:0}
+#library .tg-external-library-head small{font-size:11px;opacity:.72}
+#library .tg-external-library-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+#library .tg-external-library-actions>*{display:inline-flex;align-items:center;justify-content:center;border-radius:4px;padding:7px 11px;border:1px solid var(--tg-line-light,#dbe3ea);font-size:12px;font-weight:600;text-decoration:none;min-height:34px}
+#library .tg-external-library-actions button{background:var(--tg-blue,#3390ec);color:#fff;border-color:transparent}
+#library #carlibEmbedWrap{margin-top:12px}
+#library #carlibEmbedWrap[hidden]{display:none}
+#library #carlibEmbed{width:100%;height:min(73dvh,850px);min-height:470px;border:1px solid var(--tg-line-light,#dbe3ea);border-radius:4px;background:#fff}
+#library #carlibEmbedWrap p{font-size:11px;margin:7px 0 0;opacity:.78}
+@media(max-width:700px){#library .tg-external-library{padding:9px}#library #carlibEmbed{height:70dvh;min-height:400px}}
+
+/* One-page teacher resource center — compact on 1 GB Android devices. */
+#editor .rc-center{display:grid;gap:11px;font-size:12px;max-width:100%;min-width:0}
+#editor .rc-center .rc-intro{margin:0;color:var(--tg-text-subtle,#677789);line-height:1.55}
+#editor .rc-tabs{display:flex;gap:5px;overflow-x:auto;max-width:100%;padding:2px 0 6px;scrollbar-width:thin}
+#editor .rc-tabs button{flex:0 0 auto;padding:7px 10px;border-radius:4px;border:1px solid var(--tg-line-light,#e2e6ec);font-size:11px;white-space:nowrap}
+#editor .rc-tabs button.active{color:#fff;background:var(--tg-blue,#3390ec);border-color:var(--tg-blue,#3390ec)}
+#editor .rc-mode:not([hidden]){display:grid;gap:9px}
+#editor .rc-mode[hidden]{display:none!important}
+#editor .rc-mode>label{display:grid;gap:4px;min-width:0}
+#editor .rc-mode :is(input,select,textarea){max-width:100%;width:100%;border-radius:4px;padding:8px 9px}
+#editor .rc-mode small{color:var(--tg-text-subtle,#637489);line-height:1.5}
+#editor .rc-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#editor .rc-target{display:grid;gap:7px}
+#editor .rc-target>strong{font-size:12px}
+#editor .rc-courses,#editor .rc-assets{border:1px solid var(--tg-line-light,#dde2e9);border-radius:5px;max-height:185px;overflow:auto;padding:5px;display:grid;gap:2px;overscroll-behavior:contain}
+#editor .rc-check{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:4px;min-width:0;border-bottom:1px solid var(--tg-line-light,#dde2e9);font-size:12px}
+#editor .rc-check>input{flex:0 0 auto;width:16px;height:16px;margin:0}
+#editor .rc-check span{flex:1;min-width:0;overflow-wrap:anywhere}
+#editor .rc-check small{max-width:110px;text-align:right;color:var(--tg-text-subtle,#677789);font-size:10px}
+#editor .rc-upload-status{color:var(--tg-blue,#3390ec);font-size:11px;min-height:15px}
+@media(max-width:530px){#editor .rc-fields{grid-template-columns:1fr}#editor .rc-check small{max-width:82px}#editor .rc-courses,#editor .rc-assets{max-height:150px}#editor .rc-tabs button{font-size:10px;padding:6px 8px}}
+
+#editor .rc-mode>label.rc-private-option{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
+#editor .rc-private-option input{width:16px;height:16px;flex:0 0 auto}

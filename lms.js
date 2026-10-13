@@ -1,6 +1,7 @@
 // Academic records are server-side. Every write checks the course membership.
 import { installScorm } from './scorm.js';
 import { installResourceUploads } from './resource-upload.js';
+import { installResourceVault } from './resource-vault.js';
 import { installAcademicRecords } from './academic-records.js';
 import { installLibrary } from './library.js';
 import { installCommunications } from './communications.js';
@@ -19,7 +20,8 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   const SubjectCatalog=mongoose.models.SubjectCatalog||mongoose.model('SubjectCatalog',subjectCatalogSchema);
   const courseSchema=new mongoose.Schema({subjectId:{type:id,ref:'SubjectCatalog'},code:{type:String,required:true,trim:true},title:{type:String,required:true,trim:true},language:{type:String,required:true},syllabusUrl:String,credits:{type:Number,min:0},teacherId:{type:id,ref:'User',required:true},groupId:{type:id,ref:'Structure',required:true},active:{type:Boolean,default:true}}, {timestamps:true});
   courseSchema.index({code:1,groupId:1},{unique:true});
-  const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},accessCount:{type:Number,default:0,min:0},lastAccessedAt:Date,createdBy:{type:id,ref:'User'}},{timestamps:true});
+  const resourceSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},kind:{type:String,enum:['document','presentation','image','audio','video','archive','link'],required:true},url:String,fileId:{type:id},vaultAssetId:{type:id,ref:'TeacherAsset',index:true},originalName:String,mimeType:String,size:Number,description:String,published:{type:Boolean,default:true},accessCount:{type:Number,default:0,min:0},lastAccessedAt:Date,createdBy:{type:id,ref:'User'}},{timestamps:true});
+  resourceSchema.index({courseId:1,vaultAssetId:1},{unique:true,partialFilterExpression:{vaultAssetId:{$exists:true}}});
   const assignmentSchema=new mongoose.Schema({courseId:{type:id,ref:'Course',required:true,index:true},title:{type:String,required:true},category:{type:String,enum:['assignment','independent_work','practice'],default:'assignment',index:true},instructions:{type:String,required:true},dueAt:Date,maxScore:{type:Number,default:100,enum:[2,5,10,100]},gradeScale:{type:Number,default:100,enum:[2,5,10,100]},published:{type:Boolean,default:true}},{timestamps:true});
   const submissionSchema=new mongoose.Schema({assignmentId:{type:id,ref:'Assignment',required:true},studentId:{type:id,ref:'User',required:true},text:String,url:String,submittedAt:Date,score:{type:Number,min:0},feedback:String,gradedBy:{type:id,ref:'User'},gradedAt:Date},{timestamps:true});
   submissionSchema.index({assignmentId:1,studentId:1},{unique:true});
@@ -55,6 +57,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   installScorm(app,{mongoose,auth,audit,courseAccess});
   installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId});
   installResourceUploads(app,{mongoose,auth,audit,Resource,courseAccess});
+  installResourceVault(app,{mongoose,auth,audit,Resource,Course,courseAccess});
   const academic=installAcademicRecords(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});
   const library=installLibrary(app,{mongoose,User,Course,Resource,auth,audit,courseAccess,resolveUserGroupId});
   installCommunications(app,{mongoose,User,Course,auth,audit,courseAccess,resolveUserGroupId});

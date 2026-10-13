@@ -103,6 +103,6 @@ export function installResourceUploads(app,{mongoose,auth,audit,Resource,courseA
     }catch(e){res.status(e.status||400).json({message:e.message})}
   });
   app.delete('/api/lms/resources/:id',auth,async(req,res)=>{
-    try{if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id);if(!row)return res.status(404).end();await courseAccess(req,row.courseId,true);await row.deleteOne();if(row.fileId)await bucket().delete(row.fileId).catch(()=>{});audit(req,'RESOURCE_DELETE','Resource',row.id);res.json({ok:true})}catch(e){res.status(e.status||400).json({message:e.message})}
+    try{if(!mongoose.isValidObjectId(req.params.id))return res.status(400).end();const row=await Resource.findById(req.params.id);if(!row)return res.status(404).end();await courseAccess(req,row.courseId,true);await row.deleteOne();if(row.fileId&&!row.vaultAssetId)await bucket().delete(row.fileId).catch(()=>{});audit(req,'RESOURCE_DELETE','Resource',row.id);res.json({ok:true})}catch(e){res.status(e.status||400).json({message:e.message})}
   });
 }
