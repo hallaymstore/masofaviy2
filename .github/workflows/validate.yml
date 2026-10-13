@@ -18,7 +18,14 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Dependency security audit
+        run: |
+          npm audit --omit=dev
+          npm --prefix media-server audit --omit=dev
+      - name: Validate production security policy
+        run: |
+          NODE_ENV=production JWT_SECRET=ci-secret-key-64-characters-long-12345678901234567890123456789012 ADMIN_PASSWORD='UniqueAdminPassword#12345' MONGODB_URI='mongodb://127.0.0.1:27017/ci' npm run security:preflight
       - name: Syntax check
         run: npm run check
       - name: Unit tests
