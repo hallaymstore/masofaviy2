@@ -1274,9 +1274,9 @@ app.get('/api/videos', auth, async(req,res)=>{
   const eligible=req.user.role==='student'?rows.filter(v=>videoAllowedForGroup(v,gid)):rows;
   const scored=eligible.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
   scored.sort((a,b)=>b.recommendationScore-a.recommendationScore||new Date(b.createdAt)-new Date(a.createdAt));
-  const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),req.user.role==='student'&&x.completed&&!isVideoCompleted(x)?{...x,completed:false}:x]));
+  const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),x.completed&&!isVideoCompleted(x)?{...x,completed:false}:x]));
   const counts=scored.length?await VideoComment.aggregate([{$match:{videoId:{$in:scored.map(x=>x._id)}}},{$group:{_id:'$videoId',count:{$sum:1}}}]):[],cm=Object.fromEntries(counts.map(x=>[String(x._id),x.count]));
-  const gated=annotateVideoLocks(scored,pm,req.user.role==='student');
+  const gated=annotateVideoLocks(scored,pm,true);
   res.set('Cache-Control','private,no-store');
   res.json(gated.map(x=>({...x,thumbnailUrl:x.coverAssetId?'/api/videos/'+String(x._id)+'/cover':x.thumbnailUrl,sourceUrl:x.locked?'':x.sourceUrl,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
 });
