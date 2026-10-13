@@ -23,7 +23,7 @@ export function createVideoAccess({VideoLesson,VideoProgress,Course,resolveUserG
    const lessons=candidates.filter(v=>videoSeriesKey(v)===series&&videoAllowedForGroup({...v,courseId:course?{groupId:course.groupId}:null},gid));
    if(!lessons.some(v=>id(v._id)===id(video._id)))lessons.push(video);
    const progress=await VideoProgress.find({userId:req.user._id,videoId:{$in:lessons.map(v=>v._id)}})
-     .select('videoId completed durationSeconds lastPositionSeconds watchedSeconds').lean();
+     .select('videoId completed verifiedCompleted durationSeconds lastPositionSeconds watchedSeconds').lean();
    const map=Object.fromEntries(progress.map(p=>[id(p.videoId),p]));
    const result=annotateVideoLocks(lessons,map,true).find(v=>id(v._id)===id(video._id));
    if(result?.locked)return {allowed:false,locked:true,status:423,prerequisiteVideoId:result.prerequisiteVideoId,message:'Avvalgi videomavzuni oxirigacha ko‘ring. Boshqa mavzu hozircha yopiq.'};
