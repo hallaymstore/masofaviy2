@@ -45,7 +45,7 @@ test('student UI is simpler and only consumes instructor video; teacher moderati
  assert.ok(js.includes("if(this.user?.role==='student')return false;"));
  assert.ok(ui.includes("if(user?.role==='student')which='chat'"));
  assert.ok(ui.includes("if(user.role!=='student')await loadLessonParticipants()"));
- assert.ok(ui.includes("Kamerangizni o‘qituvchiga uzatmoqchimisiz?"));
+ assert.ok(ui.includes("// Pressing the camera control is an explicit user gesture."));
  for(const id of ['lessonStudentRail','callParticipants','callAttendance','callViewMode','callScreen','ms-participant-strip'])assert.ok(css.includes('#'+id)||css.includes('.'+id));
  assert.ok(css.includes('border-radius:3px'));
 });

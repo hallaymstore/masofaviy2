@@ -33,7 +33,7 @@ test('viewport layout applies to teacher and student without covering media or a
  assert.ok(css.includes('border-radius:4px'));
 });
 test('PWA caches correct query-free pathname, while app loads versioned stylesheet',()=>{
- assert.ok(sw.includes("m2-v104-telegram-unified"));
+ assert.ok(sw.includes("m2-v105-resource-center"));
  assert.ok(sw.includes("'/mobile-ui-compact.css?v=20261012-compact1'"));
  assert.ok(sw.includes("'/mobile-ui-compact.css'"));
  assert.ok(!sw.includes("'/mobile-ui-compact.css?v=20261012-compact1','/timetable.html'"));

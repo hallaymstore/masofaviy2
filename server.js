@@ -16,6 +16,8 @@ import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
 import { annotateVideoLocks, videoAllowedForGroup, verifiedVideoCompletion } from './video-learning-rules.js';
+import { installVideoMedia } from './video-media.js';
+import { installBrandingUploads } from './branding-media.js';
 import { installLessonHistory } from './lesson-history.js';
 import { installGlobalSearch } from './global-search.js';
 import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from './lesson-history-timeline.js';
@@ -126,7 +128,7 @@ attendanceSchema.index({lessonId:1,dateKey:1,userId:1});
 const liveSessionSchema = new mongoose.Schema({ scheduleId:{type:mongoose.Schema.Types.ObjectId,ref:'Schedule',required:true,index:true},dateKey:{type:String,required:true,index:true},groupId:{type:mongoose.Schema.Types.ObjectId,ref:'Structure',required:true},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},roomName:{type:String,required:true,unique:true},providerHost:{type:String,required:true},status:{type:String,enum:['scheduled','active','ended'],default:'scheduled',index:true},startedAt:Date,endedAt:Date,startedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},participantPeak:{type:Number,default:0},currentParticipants:{type:Number,default:0},lastAttendanceCheckpointMinute:{type:Number,default:0},lastAttendanceCheckpointAt:Date,rosterSnapshot:{type:[{userId:mongoose.Schema.Types.ObjectId,fullName:String,login:String}],default:undefined},teacherSnapshot:{type:mongoose.Schema.Types.Mixed},rosterCapturedAt:Date}, {timestamps:true});
 liveSessionSchema.index({groupId:1,dateKey:-1});
 liveSessionSchema.index({scheduleId:1,dateKey:1},{unique:true});
-const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},courseId:{type:mongoose.Schema.Types.ObjectId,ref:'Course',index:true},moduleTitle:{type:String,trim:true,maxlength:180,default:'Asosiy modul'},topicTitle:{type:String,trim:true,maxlength:220},sequence:{type:Number,min:0,max:10000,default:0,index:true},checkpointQuizId:{type:mongoose.Schema.Types.ObjectId,ref:'Quiz',default:null},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
+const videoLessonSchema = new mongoose.Schema({ title:{type:String,required:true,trim:true},description:{type:String,trim:true,maxlength:4000},subject:{type:String,trim:true},courseId:{type:mongoose.Schema.Types.ObjectId,ref:'Course',index:true},moduleTitle:{type:String,trim:true,maxlength:180,default:'Asosiy modul'},topicTitle:{type:String,trim:true,maxlength:220},sequence:{type:Number,min:0,max:10000,default:0,index:true},checkpointQuizId:{type:mongoose.Schema.Types.ObjectId,ref:'Quiz',default:null},teacherId:{type:mongoose.Schema.Types.ObjectId,ref:'User'},groupIds:[{type:mongoose.Schema.Types.ObjectId,ref:'Structure'}],direction:{type:String,trim:true},courseYears:[Number],tags:[String],sourceType:{type:String,enum:['youtube','mp4','url','asset'],default:'youtube'},sourceUrl:{type:String,required:true,trim:true},sourceAssetId:{type:mongoose.Schema.Types.ObjectId,ref:'TeacherAsset'},coverAssetId:{type:mongoose.Schema.Types.ObjectId,ref:'TeacherAsset'},thumbnailUrl:{type:String,trim:true},durationMinutes:{type:Number,min:0,max:2000},published:{type:Boolean,default:true,index:true},featured:{type:Boolean,default:false},views:{type:Number,default:0},likes:{type:Number,default:0},createdBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'}},{timestamps:true});
 const videoProgressSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},watchedSeconds:{type:Number,default:0},lastPositionSeconds:{type:Number,default:0,min:0},durationSeconds:{type:Number,default:0,min:0},completed:{type:Boolean,default:false},completedAt:Date,liked:{type:Boolean,default:false},lastViewedAt:Date},{timestamps:true});
 videoProgressSchema.index({videoId:1,userId:1},{unique:true});
 const videoCommentSchema = new mongoose.Schema({videoId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoLesson',required:true,index:true},userId:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},parentId:{type:mongoose.Schema.Types.ObjectId,ref:'VideoComment',default:null,index:true},text:{type:String,required:true,trim:true,maxlength:1500},editedAt:Date},{timestamps:true});
@@ -206,6 +208,7 @@ const DEFAULT_BRANDING=Object.freeze({
 const brandingPublic=row=>Object.fromEntries(Object.keys(DEFAULT_BRANDING).map(k=>[k,k==='productName'?DEFAULT_BRANDING.productName:(row?.[k]??DEFAULT_BRANDING[k])]));
 const getBranding=async()=>mongoose.connection.readyState===1?brandingPublic(await InstitutionSettings.findOne({key:'primary'}).lean()):{...DEFAULT_BRANDING};
 const brandingText=(value,max,required=false)=>{const s=String(value??'').trim().slice(0,max);if(required&&!s)throw new Error('Universitet nomini kiriting');return s};
+const brandingMediaUrl=(value,kind)=>String(value||'').trim()==='/api/branding-media/'+kind?'/api/branding-media/'+kind:brandingUrl(value);
 const brandingUrl=value=>{const s=String(value??'').trim();if(!s)return '';if(s.length>1000||!/^https:\/\//i.test(s))throw new Error('Havola https:// bilan boshlanishi kerak');return s};
 const brandingColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;
 const boolValue=(v,fallback=false)=>v===undefined?fallback:(v===true||v==='true'||v===1||v==='1'||v==='on');
@@ -389,6 +392,7 @@ app.use('/api',async(req,res,next)=>{
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
 installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission});
 installCompliance(app,{mongoose,User,auth,audit});
+installBrandingUploads(app,{mongoose,auth,InstitutionSettings,audit});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString(), faceDetectionAssets:fs.existsSync(path.resolve('public/vendor/face-detection/face_detection.js'))&&fs.existsSync(path.resolve('public/vendor/face-detection/face_detection_solution_wasm_bin.wasm')) }));
 app.get('/api/branding', async(_req,res)=>{
@@ -422,8 +426,8 @@ app.patch('/api/admin/institution-settings', auth, async(req,res)=>{
       institutionName:brandingText(req.body.institutionName,240,true),
       shortName:brandingText(req.body.shortName,60),
       website:brandingUrl(req.body.website),
-      logoUrl:brandingUrl(req.body.logoUrl),
-      appIconUrl:brandingUrl(req.body.appIconUrl),
+      logoUrl:brandingMediaUrl(req.body.logoUrl,'logo'),
+      appIconUrl:brandingMediaUrl(req.body.appIconUrl,'icon'),
       primaryColor:brandingColor(req.body.primaryColor,'#0b4fd8'),
       accentColor:brandingColor(req.body.accentColor,'#19b5fe'),
       landingTitle:brandingText(req.body.landingTitle,240),
@@ -1245,6 +1249,7 @@ setTimeout(autoEndLiveLessons,3000).unref?.();
 
 
 
+installVideoMedia(app,{mongoose,auth,VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
 app.get('/api/videos', auth, async(req,res)=>{
   const filter={published:true};if((hasPermission(req.user,'videos.manage')||hasPermission(req.user,'videos.upload'))&&req.query.all==='1')delete filter.published;
   if(req.query.subject)filter.subject={$regex:escapeRegex(String(req.query.subject).slice(0,80)),$options:'i'};
@@ -1259,11 +1264,11 @@ app.get('/api/videos', auth, async(req,res)=>{
   const counts=scored.length?await VideoComment.aggregate([{$match:{videoId:{$in:scored.map(x=>x._id)}}},{$group:{_id:'$videoId',count:{$sum:1}}}]):[],cm=Object.fromEntries(counts.map(x=>[String(x._id),x.count]));
   const gated=annotateVideoLocks(scored,pm,req.user.role==='student');
   res.set('Cache-Control','private,no-store');
-  res.json(gated.map(x=>({...x,sourceUrl:x.locked?'':x.sourceUrl,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
+  res.json(gated.map(x=>({...x,thumbnailUrl:x.coverAssetId?'/api/videos/'+String(x._id)+'/cover':x.thumbnailUrl,sourceUrl:x.locked?'':x.sourceUrl,progress:pm[String(x._id)]||null,commentCount:cm[String(x._id)]||0})));
 });
 app.post('/api/videos', auth, async(req,res)=>{
   if(!hasPermission(req.user,'videos.manage')&&!hasPermission(req.user,'videos.upload'))return res.status(403).json({message:'Videodars joylash huquqi yo‘q'});
-  const title=String(req.body.title||'').trim(),sourceUrl=String(req.body.sourceUrl||'').trim();let parsedVideoUrl;try{parsedVideoUrl=new URL(sourceUrl)}catch{}const allowedVideoProtocol=parsedVideoUrl&&(parsedVideoUrl.protocol==='https:'||(process.env.NODE_ENV!=='production'&&parsedVideoUrl.protocol==='http:'));if(!title||!allowedVideoProtocol)return res.status(400).json({message:'Nomi va HTTPS video havolasi majburiy'});
+  const title=String(req.body.title||'').trim(),sourceUrl=String(req.body.sourceUrl||'').trim(),assetId=String(req.body.assetId||''),coverAssetId=String(req.body.coverAssetId||'');let parsedVideoUrl;try{parsedVideoUrl=new URL(sourceUrl)}catch{}const allowedVideoProtocol=parsedVideoUrl&&(parsedVideoUrl.protocol==='https:'||(process.env.NODE_ENV!=='production'&&parsedVideoUrl.protocol==='http:'));const Asset=mongoose.models.TeacherAsset;const sourceAsset=assetId&&mongoose.isValidObjectId(assetId)?await Asset?.findOne({_id:assetId,ownerId:req.user._id,archived:false,kind:'video'}).lean():null;const coverAsset=coverAssetId&&mongoose.isValidObjectId(coverAssetId)?await Asset?.findOne({_id:coverAssetId,ownerId:req.user._id,archived:false,kind:'image'}).lean():null;if(!title||(!allowedVideoProtocol&&!sourceAsset))return res.status(400).json({message:'Nomi va HTTPS video havolasi yoki o‘z video faylingiz kerak'});if(coverAssetId&&!coverAsset)return res.status(403).json({message:'Muqova uchun o‘z rasmingizni tanlang'});
   const rawGroups=Array.isArray(req.body.groupIds)?req.body.groupIds:String(req.body.groupIds||'').split(',').map(x=>x.trim()).filter(Boolean),groupIds=[];
   for(const id of rawGroups){const g=await resolveStructure(id,'group');if(g)groupIds.push(g._id)}
   let teacherId=req.user.role==='teacher'?req.user._id:req.body.teacherId;if(teacherId&&!mongoose.isValidObjectId(teacherId)){const t=await User.findOne({login:String(teacherId).toLowerCase(),role:'teacher',active:true}).lean();teacherId=t?._id}
@@ -1272,8 +1277,9 @@ app.post('/api/videos', auth, async(req,res)=>{
   let courseId=null,checkpointQuizId=null;
   if(req.body.courseId){if(!mongoose.isValidObjectId(req.body.courseId))return res.status(400).json({message:'Fan ID noto‘g‘ri'});const Course=mongoose.models.Course,course=Course?await Course.findById(req.body.courseId).lean():null;if(!course?.active)return res.status(404).json({message:'Fan topilmadi'});if(req.user.role==='teacher'&&String(course.teacherId)!==String(req.user._id))return res.status(403).json({message:'Faqat o‘zingizga biriktirilgan fanga videodars qo‘sha olasiz'});courseId=course._id;if(!teacherId)teacherId=course.teacherId}
   if(req.body.checkpointQuizId){if(!mongoose.isValidObjectId(req.body.checkpointQuizId))return res.status(400).json({message:'Test ID noto‘g‘ri'});const Quiz=mongoose.models.Quiz,quiz=Quiz?await Quiz.findById(req.body.checkpointQuizId).lean():null;if(!quiz)return res.status(404).json({message:'Mavzu testi topilmadi'});if(courseId&&String(quiz.courseId)!==String(courseId))return res.status(400).json({message:'Mavzu testi tanlangan fanga tegishli emas'});checkpointQuizId=quiz._id}
-  const sourceType=/youtu(?:be\.com|\.be)/i.test(sourceUrl)?'youtube':/\.mp4(?:\?|$)/i.test(sourceUrl)?'mp4':'url';
-  const item=await VideoLesson.create({title,description:String(req.body.description||'').trim(),subject:String(req.body.subject||'').trim(),courseId,moduleTitle:String(req.body.moduleTitle||'Asosiy modul').trim().slice(0,180)||'Asosiy modul',topicTitle:String(req.body.topicTitle||title).trim().slice(0,220),sequence:Math.max(0,Number(req.body.sequence)||0),checkpointQuizId,teacherId,groupIds,direction:String(req.body.direction||'').trim(),courseYears,tags,sourceType,sourceUrl,thumbnailUrl:String(req.body.thumbnailUrl||'').trim(),durationMinutes:Number(req.body.durationMinutes)||0,published:req.body.published!==false,featured:Boolean(req.body.featured)&&hasPermission(req.user,'videos.manage'),createdBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined});
+  const sourceType=sourceAsset?'asset':/youtu(?:be\.com|\.be)/i.test(sourceUrl)?'youtube':/\.(?:mp4|webm)(?:\?|$)/i.test(sourceUrl)?'mp4':'url';
+  const newVideoId=new mongoose.Types.ObjectId();
+  const item=await VideoLesson.create({_id:newVideoId,title,description:String(req.body.description||'').trim(),subject:String(req.body.subject||'').trim(),courseId,moduleTitle:String(req.body.moduleTitle||'Asosiy modul').trim().slice(0,180)||'Asosiy modul',topicTitle:String(req.body.topicTitle||title).trim().slice(0,220),sequence:Math.max(0,Number(req.body.sequence)||0),checkpointQuizId,teacherId,groupIds,direction:String(req.body.direction||'').trim(),courseYears,tags,sourceType,sourceUrl:sourceAsset?'/api/videos/'+String(newVideoId)+'/media':sourceUrl,sourceAssetId:sourceAsset?._id,coverAssetId:coverAsset?._id,thumbnailUrl:String(req.body.thumbnailUrl||'').trim(),durationMinutes:Number(req.body.durationMinutes)||0,published:req.body.published!==false,featured:Boolean(req.body.featured)&&hasPermission(req.user,'videos.manage'),createdBy:mongoose.isValidObjectId(req.user._id)?req.user._id:undefined});
   audit(req,'VIDEO_CREATE','VideoLesson',item.id,{title:item.title,groups:groupIds.length});res.status(201).json(item);
 });
 app.patch('/api/videos/:id',auth,async(req,res)=>{
@@ -1313,9 +1319,9 @@ app.post('/api/videos/:id/view', auth, async(req,res)=>{
       if(item.courseId&&!course?.active)return res.status(403).json({message:'Bu fan faol emas'});
       if(!videoAllowedForGroup({groupIds:item.groupIds,courseId:course?{groupId:course.groupId}:null},gid))
         return res.status(403).json({message:'Bu video sizning guruhingizga tegishli emas'});
-      // Validate the first view server-side. Subsequent 5-second saves reuse its
-      // existing watch record, avoiding repeated course scans for each learner.
-      if(item.courseId&&!existing?.watchedSeconds&&!existing?.completed){
+      // Always verify preceding topics: an old partial watch record must not bypass
+      // an unfinished prerequisite after deployment or course reordering.
+      if(item.courseId){
         const lessons=await VideoLesson.find({courseId:item.courseId,published:true})
           .select('_id courseId moduleTitle sequence createdAt').lean();
         const prior=await VideoProgress.find({userId:req.user._id,videoId:{$in:lessons.map(v=>v._id)}})

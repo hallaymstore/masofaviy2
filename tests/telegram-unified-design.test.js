@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const css=read('public/telegram-design.css'),html=read('public/index.html'),app=read('public/app.js'),sw=read('public/sw.js');
 test('Telegram-inspired visual layer loads last, after responsive geometry and core CSS',()=>{
- const tg=html.indexOf('/telegram-design.css?v=20261013-tg1');
+ const tg=html.indexOf('/telegram-design.css?v=20261013-rc5');
  for(const x of ['/mobile-ui-compact.css','/premium-ui.css','/live-classroom-2026.css','/styles.css'])assert.ok(tg>html.indexOf(x),x);
  assert.ok(tg>0);
  assert.ok(css.includes('--tg-blue:#3390ec'));
@@ -42,8 +42,8 @@ test('light/dark themes, small phones and PWA cache are supported',()=>{
  assert.ok(css.includes('html[data-theme="dark"]'));
  assert.ok(css.includes('@media(max-width:900px)'));
  assert.ok(css.includes('@media(max-width:430px)'));
- assert.ok(sw.includes('m2-v104-telegram-unified'));
- assert.ok(sw.includes("'/telegram-design.css?v=20261013-tg1'"));
+ assert.ok(sw.includes('m2-v105-resource-center'));
+ assert.ok(sw.includes("'/telegram-design.css?v=20261013-rc5'"));
  assert.ok(sw.includes("'/telegram-design.css'"));
- assert.ok(sw.includes('/app.js?v=20261013-tg24'));
+ assert.ok(sw.includes('/app.js?v=20261013-rc5'));
 });

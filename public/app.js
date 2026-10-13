@@ -4,6 +4,7 @@ import {createPersonalGradesUi} from './personal-grades-ui.js';
 import {createLessonHistoryUi} from './lesson-history-ui.js';
 import {createGlobalSearchUi} from './global-search-ui.js';
 import {coursePlanHtml} from './course-plan-ui.js';
+import {openResourceCenter} from './resource-center-ui.js';
 import {openQuizComposer} from './quiz-composer.js';
 import {createAcademicEntryWizard} from './academic-entry-wizard.js';
 import {rememberPlayback,readPlayback,playbackResumeSeconds} from './video-playback-state.js';
@@ -127,6 +128,24 @@ async function loadInstitutionSettings(){
     instance.querySelectorAll('[data-module]').forEach(x=>x.checked=branding.modules?.[x.dataset.module]!==false);
   }
   await loadInstanceOverview().catch(()=>{});
+}
+for(const [inputId,kind,field] of [['brandingLogoFile','logo','logoUrl'],['brandingIconFile','icon','appIconUrl']]){
+  document.getElementById(inputId)?.addEventListener('change',async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    if(file.size>6*1024*1024)return toast('Rasm hajmi 6 MB dan oshmasin');
+    const body=new FormData();body.append('file',file);
+    try{
+      const result=await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();xhr.open('POST','/api/admin/branding-media/'+kind);
+        xhr.withCredentials=true;xhr.setRequestHeader('X-CSRF-Token',csrf());
+        xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText)}catch{};xhr.status>=200&&xhr.status<300?resolve(data):reject(Error(data.message||'Rasm yuklanmadi'))};
+        xhr.onerror=()=>reject(Error('Serverga ulanishda xato'));xhr.send(body);
+      });
+      $('#institutionSettingsForm').elements[field].value=result.url;
+      branding[field]=result.url;applyBranding();
+      toast(kind==='logo'?'Universitet logotipi saqlandi':'PWA ikonasi saqlandi');
+    }catch(error){toast(error.message)}
+  });
 }
 $('#institutionSettingsForm')?.addEventListener('submit',async e=>{
   e.preventDefault();
@@ -858,7 +877,23 @@ async function startLiveLessonProctoring(){
   try{
     const camId=localStorage.getItem('m2-preferred-camera')||'',constraints={width:{ideal:960,max:1280},height:{ideal:540,max:720},frameRate:{ideal:12,max:15},facingMode:'user'};
     if(camId)constraints.deviceId={ideal:camId};
-    stream=await navigator.mediaDevices.getUserMedia({video:constraints,audio:false});
+    // Some Android/Samsung camera HALs reject the ideal 720p constraints while
+     // accepting a lower resolution, or need a short camera-busy retry.
+     const attempts=[
+       {video:constraints,audio:false},
+       {video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:10,max:15},facingMode:'user'},audio:false},
+       {video:true,audio:false}
+     ];
+     let cameraError;
+     for(const options of attempts){
+       try{stream=await navigator.mediaDevices.getUserMedia(options);break}
+       catch(e){
+         cameraError=e;
+         if(['NotAllowedError','SecurityError','PermissionDeniedError'].includes(e?.name))break;
+         if(['NotReadableError','AbortError'].includes(e?.name))await new Promise(resolve=>setTimeout(resolve,500));
+       }
+     }
+     if(!stream)throw cameraError||new Error('Kamera ochilmadi');
     liveProctorStream=stream;liveProctorTrack=stream.getVideoTracks()[0]||null;if(!liveProctorTrack)throw new Error('Kamera trek topilmadi');
     mediaRoomClient?.setExternalCameraTrack?.(liveProctorTrack);
     liveProctorTrack.addEventListener('ended',()=>{faceState='missing';detectorStatus='error';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
@@ -885,7 +920,23 @@ async function startLiveLessonProctoring(){
         else if(detector.kind==='native')observe(classifyFaceDetections(await detector.instance.detect(video),'native',video.videoWidth,video.videoHeight));
       }catch(e){
         modelErrors++;
-        if(modelErrors>=3){detectorStatus='error';faceState='unknown';console.warn('Face detection failed:',e?.message||e)}
+        if(modelErrors>=3){
+           detectorStatus='error';faceState='unknown';
+           console.warn('Face detection failed:',e?.message||e);
+           // Samsung/Chromium may expose the native detector but fail at runtime.
+           // Switch to bundled MediaPipe without stopping the camera or broadcasting frames.
+           if(detector?.kind==='native'){
+             try{
+               const loaded=await loadMediaPipeFaceDetection();
+               const instance=new loaded.FaceDetection({locateFile:file=>loaded.base+file});
+               instance.setOptions({model:'short',minDetectionConfidence:.60});
+               instance.onResults(result=>{
+                 if(!stopped)observe(classifyFaceDetections(result?.detections||[],'mediapipe',video?.videoWidth,video?.videoHeight));
+               });
+               detector={kind:'mediapipe',instance};detectorStatus='loading';modelErrors=0;
+             }catch(fallbackError){console.warn('MediaPipe fallback failed:',fallbackError?.message||fallbackError)}
+           }
+         }
       }finally{inFlight=false}
     },1200):null;
     heartbeat=setInterval(emit,4000);emit();toast(detector?'Yuz nazorati ishga tushirilmoqda · kamera lokal ishlaydi':'Kamera ochildi · yuz detektori ishlamayapti');
@@ -1252,7 +1303,8 @@ $('#callCamera').onclick=async()=>{
   if(!mediaRoomClient)return toast('Avval video xonaga kiring');
   if(user?.role==='student'&&!cameraOn){
     // Proctor face processing remains local; broadcasting is a separate, explicit choice.
-    if(!confirm('Kamerangizni o‘qituvchiga uzatmoqchimisiz? Boshqa talabalar videongizni ko‘ra olmaydi. Proktor nazorati lokal va alohida ishlaydi.'))return;
+    // Pressing the camera control is an explicit user gesture. Do not block every
+    // ON/OFF with a browser confirm; the local proctor track remains separate.
     studentCameraGranted=true;
   }
   try{
@@ -1465,7 +1517,7 @@ async function renderWatchPlayer(v){
         onError:()=>fallback('YouTube API xatosi.')
       }});
     }catch(e){fallback('YouTube API yuklanmadi.')}
-  }else if(v.sourceType==='mp4'){
+  }else if(v.sourceType==='mp4'||v.sourceType==='asset'){
     if(!current())return;
     player.innerHTML='<video controls autoplay playsinline preload="metadata" src="'+esc(v.sourceUrl)+'"></video>';
     const video=player.querySelector('video');activeWatchKind='mp4';activeWatchPlayer=video;
@@ -2110,7 +2162,7 @@ async function openCourse(id,pushHistory=true){
       $('#courseList').scrollIntoView({block:'start'});
     });
     let chosenTopicId='';
-    const activeTopic=()=>$('#courseTopicTarget')?$('#courseTopicTarget').value:chosenTopicId;
+    const activeTopic=()=>chosenTopicId||($('#courseTopicTarget')?$('#courseTopicTarget').value:'');
     const returnToCourse=()=>{const focus=activeTopic();if(focus)courseTopicFocus.set(String(id),focus);setTimeout(()=>openCourse(id,false),40)};
     const attachTopic=async(type,itemId,topicId)=>{
       if(!topicId)return;
@@ -2124,6 +2176,11 @@ async function openCourse(id,pushHistory=true){
     all('[data-course-create]').forEach(b=>b.onclick=()=>{
       chosenTopicId=$('#courseTopicTarget')?.value||'';$('#courseAddMenu').hidden=true;
       if(b.dataset.courseCreate==='topic')newTopic();
+      else if(['upload','resource','assignment','video','mine'].includes(b.dataset.courseCreate)){
+        const mode={upload:'file',resource:'link',assignment:'assignment',video:'video',mine:'mine'}[b.dataset.courseCreate];
+        if(chosenTopicId)courseTopicFocus.set(String(id),chosenTopicId);
+        openResourceCenter({api,modal,esc,csrf,toast,courseId:id,topicId:chosenTopicId,defaultMode:mode,uploadCourseResource,attachTopic}).catch(e=>toast(e.message));
+      }
       else if(actions[b.dataset.courseCreate])$(actions[b.dataset.courseCreate])?.click();
     });
     all('[data-topic-add]').forEach(b=>b.onclick=()=>{

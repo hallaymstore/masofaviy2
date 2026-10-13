@@ -71,7 +71,7 @@ export class MediaRoomClient{
     const first=kind==='audio'?{audio:this.getPreferredConstraints('audio'),video:false}:{audio:false,video:this.getPreferredConstraints('video')};
     try{return await navigator.mediaDevices.getUserMedia(first)}
     catch(e){
-      if(kind==='video'&&['OverconstrainedError','NotFoundError','DevicesNotFoundError','NotReadableError','AbortError'].includes(e?.name)){
+      if(kind==='video'&&['OverconstrainedError','NotFoundError','DevicesNotFoundError','NotReadableError','AbortError','TypeError'].includes(e?.name)){
         localStorage.removeItem(key);
         if(['NotReadableError','AbortError'].includes(e.name))await new Promise(resolve=>setTimeout(resolve,450));
         return navigator.mediaDevices.getUserMedia({audio:false,video:{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15,max:24}}});
