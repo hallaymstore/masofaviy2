@@ -3142,3 +3142,36 @@ html[data-user-role="teacher"] .schedule-advanced{display:none!important}
 [data-theme="dark"] .health-ok{color:#9be6b1!important;background:#103422!important;border-color:#24573a!important}
 [data-theme="dark"] .health-bad{color:#ffb0a8!important;background:#3b1816!important;border-color:#65302b!important}
 
+
+/* Strict sequential videodars path: lock occupies the play-button position,
+   with checkpoint action directly underneath on desktop and mobile. */
+.learning-topic-actions{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  flex-wrap:nowrap;
+  justify-content:center;
+  width:min(100%,214px);
+  min-width:174px;
+  gap:5px;
+}
+.learning-topic-actions button{min-height:32px;width:100%;font-size:11px;line-height:1.3;text-align:center}
+.learning-topic-actions button.video-topic-lock:disabled{
+  opacity:1!important;
+  filter:none!important;
+  color:var(--muted);
+  background:color-mix(in srgb,var(--muted) 7%,var(--surface));
+  border:1px solid var(--line);
+  cursor:not-allowed;
+  box-shadow:none;
+}
+.learning-topic.is-locked .learning-topic-order{
+  color:var(--muted);
+  background:color-mix(in srgb,var(--muted) 8%,var(--surface));
+}
+.video-cover:disabled,.related-card:disabled{cursor:not-allowed;filter:grayscale(.25);opacity:.7}
+.video-cover:disabled .play-badge{background:var(--surface);color:var(--muted)}
+.related-card:disabled small:last-child{font-weight:600}
+@media(max-width:700px){
+  .learning-topic-actions{grid-column:2;align-items:stretch;width:min(100%,214px);min-width:0}
+}
