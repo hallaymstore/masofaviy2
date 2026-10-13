@@ -37,8 +37,9 @@ test('source files are private; shared resource references are not physically de
 });
 test('video streaming checks student group and prerequisite, and supports byte ranges',()=>{
  const code=read('video-media.js'),server=read('server.js');
- assert.ok(code.includes('videoAllowedForGroup('));
- assert.ok(code.includes('annotateVideoLocks('));
+ assert.ok(code.includes('await checkVideoAccess(req,video)'));
+ assert.ok(read('video-access.js').includes('videoAllowedForGroup('));
+ assert.ok(read('video-access.js').includes('annotateVideoLocks('));
  assert.ok(code.includes('Content-Range'));
  assert.ok(server.includes('sourceAssetId:sourceAsset?._id'));
  assert.ok(server.includes('coverAssetId:coverAsset?._id'));

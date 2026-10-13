@@ -1,20 +1,7 @@
 // Protected local video streaming and cover images, sharing private vault files without duplication.
-import {annotateVideoLocks,videoAllowedForGroup} from './video-learning-rules.js';
-export function installVideoMedia(app,{mongoose,auth,VideoLesson,VideoProgress,Course,resolveUserGroupId,hasPermission}){
+export function installVideoMedia(app,{mongoose,auth,VideoLesson,VideoProgress,Course,resolveUserGroupId,hasPermission,checkVideoAccess}){
  const bucket=()=>new mongoose.mongo.GridFSBucket(mongoose.connection.db,{bucketName:'edu_resources'});
- const canView=async(req,video)=>{
-   if(!video?.published&&!(hasPermission(req.user,'videos.manage')||String(video?.teacherId)===String(req.user._id)))return false;
-   if(req.user.role!=='student')return true;
-   const gid=await resolveUserGroupId(req.user);
-   const course=video.courseId?await Course.findOne({_id:video.courseId,active:true}).select('groupId').lean():null;
-   if(video.courseId&&!course)return false;
-   if(!videoAllowedForGroup({groupIds:video.groupIds,courseId:course?{groupId:course.groupId}:null},gid))return false;
-   if(!video.courseId)return true;
-   const lessons=await VideoLesson.find({courseId:video.courseId,published:true}).select('_id courseId moduleTitle sequence createdAt').lean();
-   const progress=await VideoProgress.find({userId:req.user._id,videoId:{$in:lessons.map(x=>x._id)}}).select('videoId completed').lean();
-   const pm=Object.fromEntries(progress.map(p=>[String(p.videoId),p]));
-   return !annotateVideoLocks(lessons,pm,true).find(x=>String(x._id)===String(video._id))?.locked;
- };
+ const canView=async(req,video)=>(await checkVideoAccess(req,video)).allowed;
  for(const type of ['media','cover']){
    app.get('/api/videos/:id/'+type,auth,async(req,res)=>{
      try{
