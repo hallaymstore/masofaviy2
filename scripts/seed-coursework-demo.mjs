@@ -1,4 +1,5 @@
 import 'dotenv/config';
+if(process.env.NODE_ENV==='production')throw Error('Demo ma’lumotlarini production bazasiga yuklash taqiqlangan. Alohida staging bazasidan foydalaning.');
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import {Readable} from 'node:stream';

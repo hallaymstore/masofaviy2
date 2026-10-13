@@ -1,4 +1,5 @@
 import 'dotenv/config';
+if(process.env.NODE_ENV==='production')throw Error('Demo ma’lumotlarini production bazasiga yuklash taqiqlangan. Alohida staging bazasidan foydalaning.');
 import fs from 'node:fs';
 import path from 'node:path';
 import mongoose from 'mongoose';

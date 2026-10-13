@@ -25,20 +25,23 @@ import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from 
 import { summarizeLiveLessonGroup } from './lesson-roster.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 import { installCompliance } from './compliance.js';
+import { normalizeAllowedOrigins, originAllowed, validateProductionSecrets } from './security-policy.js';
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 const server = http.createServer(app);
-const allowedOrigins = String(process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);
+const production=process.env.NODE_ENV==='production';
+const allowedOrigins = normalizeAllowedOrigins(process.env.ALLOWED_ORIGINS);
 const originCheck = (origin,callback) => {
-  if(!origin || !allowedOrigins.length || allowedOrigins.includes(origin))return callback(null,true);
+  if(!origin||allowedOrigins.includes(origin)||!production)return callback(null,true);
   callback(new Error('Origin ruxsat etilmagan'));
 };
 const corsOptions = { origin: originCheck, credentials: true };
-const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'polling'] });
+const io = new Server(server, { cors: corsOptions, transports: ['websocket', 'polling'],
+  allowRequest:(req,callback)=>callback(null,originAllowed({origin:req.headers.origin,host:req.headers.host,configuredOrigins:allowedOrigins,production})) });
 const PORT = Number(process.env.PORT || 3000);
-const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
+const JWT_SECRET = process.env.JWT_SECRET || (production?'':'development-secret-change-me');
 const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || JWT_SECRET;
 const REQUIRE_IN_PERSON_IDENTITY = String(process.env.REQUIRE_IN_PERSON_IDENTITY||'false').toLowerCase()==='true';
 const IN_PERSON_IDENTITY_ROLES = new Set(String(process.env.IN_PERSON_IDENTITY_ROLES||'student').split(',').map(x=>x.trim()).filter(Boolean));
@@ -377,7 +380,7 @@ const auth = async (req, res, next) => { try {
     const expected=csrfFor(cookie),actual=String(req.headers['x-csrf-token']||'');
     if(actual.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))return res.status(403).json({message:'So‘rov himoya tekshiruvidan o‘tmadi'});
   }
-  req.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean();if(!req.user?.active)throw new Error();if(data.id!=='demo'&&Number(data.sv||0)!==Number(req.user.sessionVersion||0))throw new Error();next();
+  if(production&&data.id==='demo')throw new Error('Demo sessiya productionda ruxsat etilmaydi');req.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean();if(!req.user?.active)throw new Error();if(data.id!=='demo'&&Number(data.sv||0)!==Number(req.user.sessionVersion||0))throw new Error();next();
 }catch{res.status(401).json({ message: 'Xavfsizlik uchun tizimga qayta kiring.' });} };
 const can = permission => (req, res, next) => { const base = permissionsByRole[req.user.role] || []; const allowed = (base.includes('*') || base.includes(permission) || req.user.permissions?.includes(permission)) && !req.user.deniedPermissions?.includes(permission); return allowed ? next() : res.status(403).json({ message: 'Bu amal uchun ruxsat yo‘q' }); };
 const audit = (req, action, entity, entityId, meta={}) => Audit.create({ actorId: mongoose.isValidObjectId(req.user?._id) ? req.user._id : undefined, actorLogin:req.user?.login, actorName:req.user?.fullName, action, entity, entityId, ip: req.ip, meta }).catch(()=>{});
@@ -799,6 +802,7 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
 });
 
 app.post('/api/users/test-students/reset',auth,can('users.manage'),async(req,res)=>{
+  if(production)return res.status(403).json({message:'Production tizimida namunaviy foydalanuvchilarni yaratish taqiqlangan'});
   if(!['superadmin','admin','tech'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
   const password='student00';
   const groups=await Structure.find({type:'group',active:true,externalId:{$in:['QDTU-MT-2026-DI-01','QDTU-MT-2026-SI-01']}}).lean();
@@ -1479,7 +1483,7 @@ app.get('/api/media/status',auth,async(req,res)=>{
 });
 
 installLessonHistory(app,{mongoose,auth,User,Schedule,Structure,Attendance,LiveSession,resolveScope});
-io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active||data.id!=='demo'&&Number(data.sv||0)!==Number(socket.user.sessionVersion||0)) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
+io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); if(production&&data.id==='demo')throw new Error('Demo sessiya productionda ruxsat etilmaydi');socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active||data.id!=='demo'&&Number(data.sv||0)!==Number(socket.user.sessionVersion||0)) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
 io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||''),data=msg?.data||{};let node=null;if(method==='join'){try{const payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});node=pickSfuNode(String(payload.roomName||''));if(node){clientNodeMap.set(socket.id,node.id);clientRoomMap.set(socket.id,String(payload.roomName||''))}}catch{}}else{const nodeId=clientNodeMap.get(socket.id);if(nodeId)node=sfuNodes.get(nodeId)}if(!node||!sfuSendTo(node,{clientId:socket.id,id,method,data}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet media klasterida sog‘lom SFU node topilmadi'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});if(socket.data.activeLessonId===String(lessonId)&&socket.data.attendanceId)return;socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=new Attendance({lessonId:String(lessonId),userId:socket.user._id,dateKey,status:late?'late':'present',minutes:0,reconnectCount:0});else if(!row.joinedAt&&!row.manualMarkedAt&&row.status!=='excused')row.status=late?'late':'present';recordPresenceJoin(row,now);await row.save();socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;socket.data.activeLessonId=String(lessonId);io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
@@ -1659,47 +1663,12 @@ socket.on('disconnect', async()=>{
   clientNodeMap.delete(socket.id);clientRoomMap.delete(socket.id);
   if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){if(recordPresenceLeave(row,socket.data.attendanceSessionStartedAt,new Date()))await row.save()}} }); });
 
-async function ensureQdtuTestAccounts(){
-  const groups=await Structure.find({type:'group',active:true,externalId:/^QDTU-MT-2026-/}).sort({externalId:1}).lean();
-  if(groups.length<12)return;
-  const teacherSeeds=[
-    ['QDTU-T-001','azizbek.karimov','Azizbek Karimov','Azizbek.Karimov2026!'],
-    ['QDTU-T-002','dilshod.raximov','Dilshod Raximov','Dilshod.Raximov2026!'],
-    ['QDTU-T-003','mohira.ergasheva','Mohira Ergasheva','Mohira.Ergasheva2026!'],
-    ['QDTU-T-004','shahnoza.aliyeva','Shahnoza Aliyeva','Shahnoza.Aliyeva2026!'],
-    ['QDTU-T-005','javohir.xasanov','Javohir Xasanov','Javohir.Xasanov2026!'],
-    ['QDTU-T-006','madina.jorayeva','Madina Jo‘rayeva','Madina.Jo‘rayeva2026!'],
-    ['QDTU-T-007','sardor.qodirov','Sardor Qodirov','Sardor.Qodirov2026!'],
-    ['QDTU-T-008','nodira.toxtayeva','Nodira To‘xtayeva','Nodira.To‘xtayeva2026!'],
-    ['QDTU-T-009','bekzod.mamatqulov','Bekzod Mamatqulov','Bekzod.Mamatqulov2026!'],
-    ['QDTU-T-010','nilufar.ismoilova','Nilufar Ismoilova','Nilufar.Ismoilova2026!']
-  ];
-  for(const [externalId,login,fullName,password] of teacherSeeds){
-    if(!await User.exists({externalId}))await User.create({externalId,login,fullName,role:'teacher',passwordHash:await bcrypt.hash(password,11),active:true,mustChangePassword:false,permissions:[],deniedPermissions:[]});
-  }
-  const first=['Azizbek','Diyorbek','Jasurbek','Sherzod','Bekzod','Sardor','Asadbek','Shoxrux','Umid','Akmal','Mohira','Madina','Nilufar','Shahnoza','Dilnoza','Malika','Sevara','Zarina','Gulnoza','Nodira'];
-  const last=['Aliyev','Karimov','Raximov','Xasanov','Qodirov','Mamatqulov','Ismoilov','Tursunov','Ergashev','Jo‘rayev','Sodiqov','Nazarov'];
-  let n=0;
-  for(const g of groups){
-    const count=/DI-01$/.test(g.externalId)?50:10;
-    const dep=g.parentId?await Structure.findById(g.parentId).lean():null,fac=dep?.parentId?await Structure.findById(dep.parentId).lean():null;
-    for(let j=0;j<count;j++,n++){
-      const fn=first[n%first.length],ln=last[Math.floor(n/first.length)%last.length],seq=String(j+1).padStart(2,'0');
-      const key=String(g.code||g.externalId).toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,12);
-      const login=(fn+'.'+ln+'.'+key+seq).toLowerCase().replace(/[‘’']/g,'');
-      const externalId='QDTU-S-'+String(n+1).padStart(4,'0');
-      if(await User.exists({externalId}))continue;
-      await User.create({externalId,login,fullName:fn+' '+ln,role:'student',passwordHash:await bcrypt.hash(fn+'.'+ln+'2026!',11),active:true,mustChangePassword:false,permissions:[],deniedPermissions:[],faculty:fac?.name||'',department:dep?.name||'',group:g.name,facultyId:fac?._id,departmentId:dep?._id,groupId:g._id,courseYear:1,direction:String(g.name||'').replace(/\s+—\s+.*$/,'')});
-    }
-  }
-  console.log('QDTU test akkauntlari tayyor:',await User.countDocuments({externalId:/^QDTU-(T|S)-/}));
-}
-
 async function bootstrap(){
-  if(process.env.NODE_ENV==='production'&&!process.env.JWT_SECRET)throw new Error('Production uchun JWT_SECRET majburiy');
+  const securityErrors=validateProductionSecrets(process.env);
+  if(securityErrors.length)throw new Error('Production xavfsizlik sozlamalari yetarli emas: '+securityErrors.join('; '));
   if(process.env.NODE_ENV==='production'&&SFU_BRIDGE_URL&&SFU_BRIDGE_SECRET.length<32)throw new Error('SFU_BRIDGE_URL uchun 32+ belgili SFU_BRIDGE_SECRET majburiy');
   initSfuCluster();
-  if(process.env.NODE_ENV==='production'&&!process.env.ADMIN_PASSWORD)throw new Error('Production uchun ADMIN_PASSWORD majburiy');
+  // The security preflight validates administrator password policy.
   server.listen(PORT,'0.0.0.0',()=>console.log(`Masofaviy2 :${PORT}`));
   if(!process.env.MONGODB_URI){if(process.env.NODE_ENV==='production')throw new Error('Production uchun MONGODB_URI majburiy');console.warn('MONGODB_URI yo‘q: taqdimot rejimi ishga tushdi');return}
   try{
@@ -1710,7 +1679,7 @@ async function bootstrap(){
       await User.create({login,fullName:'Bosh administrator',role:'superadmin',passwordHash:await bcrypt.hash(adminPassword,11),mustChangePassword:false,active:true});
     }
     console.log('MongoDB ulandi');
-    await ensureQdtuTestAccounts();
+    // Production must not bootstrap accounts with shared example credentials.
     const attendanceTimer=setInterval(()=>attendanceSweep().catch(()=>{}),60000);attendanceTimer.unref?.();
   }catch(err){if(process.env.NODE_ENV==='production')throw err;console.error('MongoDB ulanmagan, taqdimot rejimi:',err.message)}
 }
