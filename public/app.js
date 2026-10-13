@@ -1535,10 +1535,25 @@ async function renderWatchPlayer(v){
     player.innerHTML='<iframe src="'+esc(v.sourceUrl)+'" title="'+esc(v.title)+'" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture" allowfullscreen></iframe><div class="video-progress-note">Bu tashqi player ko‘rilgan soniyani avtomatik bera olmaydi; sahifadan chiqishda esa to‘xtatiladi.</div>';
   }
 }
+let videoOpenRequestSerial=0;
 async function openVideoLesson(id,pushHistory=true){
+  const requestSerial=++videoOpenRequestSerial;
   if(!videoLessonsCache.length)videoLessonsCache=await api('/videos');
   const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)return toast('Videodars topilmadi');
-  if(user?.role==='student'&&v.locked)return toast('🔒 Oldingi videomavzuni tugatgandan keyin bu mavzu ochiladi');
+  if(user?.role==='student'){
+    if(v.locked)return toast('🔒 Oldingi videomavzuni tugatgandan keyin bu mavzu ochiladi');
+    // Always obtain a fresh server decision BEFORE starting an iframe or video tag.
+    // Cached playlists and search links cannot grant playback access.
+    try{
+      const permission=await api('/videos/'+encodeURIComponent(id)+'/playback');
+      if(requestSerial!==videoOpenRequestSerial)return;
+      if(!permission.allowed||!permission.sourceUrl)return toast('Videodars hozircha yopiq');
+      v.sourceUrl=permission.sourceUrl;
+      v.sourceType=permission.sourceType||v.sourceType;
+      v.progress=permission.progress||v.progress||null;
+    }catch(e){if(requestSerial===videoOpenRequestSerial)toast(e.message||'Avvalgi videomavzuni tugating');return}
+  }
+  if(requestSerial!==videoOpenRequestSerial)return;
   if(activeVideoId)clearWatchPage(); // Switch between related videos: stop and save the previous player first.
   activeVideoId=String(v._id);commentReplyTo=null;go('videoWatch');
   if(pushHistory&&location.hash!=='#video='+encodeURIComponent(activeVideoId))history.pushState({videoId:activeVideoId},'',location.pathname+location.search+'#video='+encodeURIComponent(activeVideoId));
@@ -1559,6 +1574,7 @@ async function openVideoLesson(id,pushHistory=true){
   await loadVideoComments(activeVideoId);
 }
 function clearWatchPage(){
+  videoOpenRequestSerial++;
   stopWatchTracking(true);activeVideoId='';commentReplyTo=null;$('#watchPlayer').innerHTML='';$('#commentsList').innerHTML='';$('#commentReplyState').classList.add('hidden');
 }
 $('#backToVideos').onclick=()=>{clearWatchPage();history.pushState({},'',location.pathname+location.search);go('videos');loadVideoLessons()};

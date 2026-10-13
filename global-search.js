@@ -2,7 +2,7 @@ import {SEARCH_TYPES,normalizeSearchQuery,safeSearchRegex,buildSearchHit} from '
 
 // Search uses the same role/group boundaries as the target pages.
 // Results contain only minimal public labels, never passwords, answers, or proctor telemetry.
-export function installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission}){
+export function installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission,checkVideoAccess}){
  const isWide=role=>['admin','superadmin','tech','rectorate'].includes(role);
  const managers=new Set(['dean','department','tutor']);
  const str=x=>String(x?._id||x||'');
@@ -14,6 +14,8 @@ export function installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,V
        .populate('teacherId','fullName login').populate('groupIds','name externalId code')
        .populate('courseId','code title language').populate('checkpointQuizId','title durationMinutes proctorRequired published').lean();
      if(!video)return res.status(404).json({message:'Videodars topilmadi'});
+     const permission=await checkVideoAccess(req,video);
+     if(!permission.allowed)return res.status(permission.status||403).json({locked:Boolean(permission.locked),message:permission.message});
      const progress=mongoose.isValidObjectId(req.user._id)?
        await mongoose.models.VideoProgress.findOne({userId:req.user._id,videoId:video._id}).lean():null;
      const commentCount=await mongoose.models.VideoComment.countDocuments({videoId:video._id});

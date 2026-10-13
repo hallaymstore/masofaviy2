@@ -15,7 +15,8 @@ import WebSocket from 'ws';
 import ExcelJS from 'exceljs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { installLms } from './lms.js';
-import { annotateVideoLocks, videoAllowedForGroup, verifiedVideoCompletion } from './video-learning-rules.js';
+import { annotateVideoLocks, videoAllowedForGroup, verifiedVideoCompletion, isVideoCompleted } from './video-learning-rules.js';
+import { createVideoAccess } from './video-access.js';
 import { installVideoMedia } from './video-media.js';
 import { installBrandingUploads } from './branding-media.js';
 import { installLessonHistory } from './lesson-history.js';
@@ -390,7 +391,8 @@ app.use('/api',async(req,res,next)=>{
   next();
 });
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId});
-installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission});
+const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
+installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission,checkVideoAccess});
 installCompliance(app,{mongoose,User,auth,audit});
 installBrandingUploads(app,{mongoose,auth,InstitutionSettings,audit});
 
@@ -1249,7 +1251,19 @@ setTimeout(autoEndLiveLessons,3000).unref?.();
 
 
 
-installVideoMedia(app,{mongoose,auth,VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
+installVideoMedia(app,{mongoose,auth,VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission,checkVideoAccess});
+app.get('/api/videos/:id/playback',auth,async(req,res)=>{
+  try{
+    if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});
+    const item=await VideoLesson.findById(req.params.id).lean();
+    const grant=await checkVideoAccess(req,item);
+    res.set('Cache-Control','private,no-store');
+    if(!grant.allowed)return res.status(grant.status||403).json({locked:Boolean(grant.locked),prerequisiteVideoId:grant.prerequisiteVideoId||null,message:grant.message});
+    const progress=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean();
+    const safeProgress=req.user.role==='student'&&progress?.completed&&!isVideoCompleted(progress)?{...progress,completed:false}:progress;
+    return res.json({allowed:true,sourceType:item.sourceType,sourceUrl:item.sourceUrl,progress:safeProgress});
+  }catch(e){res.status(500).json({message:'Videodars ruxsatini tekshirib bo‘lmadi'})}
+});
 app.get('/api/videos', auth, async(req,res)=>{
   const filter={published:true};if((hasPermission(req.user,'videos.manage')||hasPermission(req.user,'videos.upload'))&&req.query.all==='1')delete filter.published;
   if(req.query.subject)filter.subject={$regex:escapeRegex(String(req.query.subject).slice(0,80)),$options:'i'};
@@ -1260,7 +1274,7 @@ app.get('/api/videos', auth, async(req,res)=>{
   const eligible=req.user.role==='student'?rows.filter(v=>videoAllowedForGroup(v,gid)):rows;
   const scored=eligible.map(v=>{let score=v.featured?15:0;if(gid&&v.groupIds?.some(g=>String(g._id)===String(gid)))score+=100;if(req.user.courseYear&&v.courseYears?.includes(req.user.courseYear))score+=35;if(req.user.direction&&v.direction&&v.direction.toLowerCase()===req.user.direction.toLowerCase())score+=30;if(!v.groupIds?.length&&!v.direction&&!v.courseYears?.length)score+=10;return {...v,recommendationScore:score}});
   scored.sort((a,b)=>b.recommendationScore-a.recommendationScore||new Date(b.createdAt)-new Date(a.createdAt));
-  const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),x]));
+  const progress=mongoose.isValidObjectId(req.user._id)?await VideoProgress.find({userId:req.user._id,videoId:{$in:scored.map(x=>x._id)}}).lean():[],pm=Object.fromEntries(progress.map(x=>[String(x.videoId),req.user.role==='student'&&x.completed&&!isVideoCompleted(x)?{...x,completed:false}:x]));
   const counts=scored.length?await VideoComment.aggregate([{$match:{videoId:{$in:scored.map(x=>x._id)}}},{$group:{_id:'$videoId',count:{$sum:1}}}]):[],cm=Object.fromEntries(counts.map(x=>[String(x._id),x.count]));
   const gated=annotateVideoLocks(scored,pm,req.user.role==='student');
   res.set('Cache-Control','private,no-store');
@@ -1307,36 +1321,19 @@ app.delete('/api/videos/:id', auth, async(req,res)=>{
 });
 app.post('/api/videos/:id/view', auth, async(req,res)=>{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Video ID noto‘g‘ri'});const item=await VideoLesson.findById(req.params.id);if(!item)return res.status(404).json({message:'Videodars topilmadi'});
-  if(req.user.role==='student'&&!item.published)return res.status(404).json({message:'Videodars topilmadi'});
+  const grant=await checkVideoAccess(req,item);
+  if(!grant.allowed)return res.status(grant.status||403).json({message:grant.message,locked:Boolean(grant.locked),prerequisiteVideoId:grant.prerequisiteVideoId||null});
   const position=Math.max(0,Math.min(24*3600,Number(req.body.positionSeconds)||0)),duration=Math.max(0,Math.min(24*3600,Number(req.body.durationSeconds)||0)),reportedDelta=Math.max(0,Math.min(30,Number(req.body.watchDeltaSeconds)||0));
   let progress=null;
   if(mongoose.isValidObjectId(req.user._id)){
     const existing=await VideoProgress.findOne({videoId:item._id,userId:req.user._id}).lean(),now=new Date();
-    if(req.user.role==='student'){
-      const gid=await resolveUserGroupId(req.user);
-      const Course=mongoose.models.Course;
-      const course=item.courseId&&Course?await Course.findById(item.courseId).select('groupId active').lean():null;
-      if(item.courseId&&!course?.active)return res.status(403).json({message:'Bu fan faol emas'});
-      if(!videoAllowedForGroup({groupIds:item.groupIds,courseId:course?{groupId:course.groupId}:null},gid))
-        return res.status(403).json({message:'Bu video sizning guruhingizga tegishli emas'});
-      // Always verify preceding topics: an old partial watch record must not bypass
-      // an unfinished prerequisite after deployment or course reordering.
-      if(item.courseId){
-        const lessons=await VideoLesson.find({courseId:item.courseId,published:true})
-          .select('_id courseId moduleTitle sequence createdAt').lean();
-        const prior=await VideoProgress.find({userId:req.user._id,videoId:{$in:lessons.map(v=>v._id)}})
-          .select('videoId completed').lean();
-        const byId=Object.fromEntries(prior.map(p=>[String(p.videoId),p]));
-        const target=annotateVideoLocks(lessons,byId,true).find(v=>String(v._id)===String(item._id));
-        if(target?.locked)return res.status(423).json({message:'Oldingi videomavzuni tugating. Hozirgi darsingizning progressi saqlangan.'});
-      }
-    }
+    // Playback permission is checked by the shared server guard above.
     const elapsed=existing?.lastViewedAt?Math.max(0,Math.min(30,(now-new Date(existing.lastViewedAt))/1000)):Math.min(5,reportedDelta);
     const credit=Math.max(0,Math.min(reportedDelta,elapsed+1.5,15));
     const previousWatched=Math.max(0,Number(existing?.watchedSeconds)||0),nextWatched=Math.min(duration||24*3600,previousWatched+credit);
     const completed=verifiedVideoCompletion(existing,position,duration,nextWatched);
-    const update={$set:{watchedSeconds:nextWatched,lastPositionSeconds:position,lastViewedAt:now},$max:{durationSeconds:duration}};
-    if(completed){update.$set.completed=true;if(!existing?.completedAt)update.$set.completedAt=now}
+    const update={$set:{watchedSeconds:nextWatched,lastPositionSeconds:position,lastViewedAt:now,completed},$max:{durationSeconds:duration}};
+    if(completed){if(!existing?.completedAt)update.$set.completedAt=now}else update.$set.completedAt=null;
     progress=await VideoProgress.findOneAndUpdate({videoId:item._id,userId:req.user._id},update,{new:true,upsert:true,setDefaultsOnInsert:true});
     if(!existing)await VideoLesson.findByIdAndUpdate(item._id,{$inc:{views:1}});
   }
