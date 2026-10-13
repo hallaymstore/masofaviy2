@@ -18,7 +18,7 @@ export function createGlobalSearchUi({api,esc,onPick,canView=()=>true,toast=()=>
      kind=button.dataset.globalType;renderTypes();perform();
    });
  };
- const pages=q=>[...document.querySelectorAll('nav button[data-page]')]
+ const pages=q=>[...document.querySelectorAll('#sidebar nav button[data-page]')]
    .filter(b=>!b.classList.contains('hidden')&&!['lesson','search'].includes(b.dataset.page))
    .map(b=>({type:'page',id:b.dataset.page,page:b.dataset.page,title:(b.textContent||'').trim().replace(/\s+/g,' '),subtitle:'Sahifani ochish',score:50}))
    .filter(x=>x.title.toLocaleLowerCase('uz').includes(q.toLocaleLowerCase('uz'))).slice(0,12);
