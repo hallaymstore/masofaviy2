@@ -228,6 +228,8 @@ const onlineUsers = new Map();
 const liveProctorStates = new Map();
 const liveProctorBroadcastByLesson = new Map();
 const liveFeedbackProtectionByLesson = new Map();
+const liveQuizByLesson = new Map();
+const livePulseByLesson = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 10));
@@ -1582,6 +1584,55 @@ socket.on('lesson:feedback-alert',({lessonId,frequency,duration})=>{
   liveFeedbackProtectionByLesson.set(key,{at:now,strikes,until:now+ms});
   io.to('lesson:'+lessonId).emit('lesson:feedback-protect',{lessonId,frequency:freq,duration:ms,strikes,escalated:strikes>=2,by:String(socket.user._id),at:now});
 });
+// ---- Live quiz + understanding pulse (in-memory, per lesson; nothing is persisted) ----
+const lessonTeacherCheck=async(lessonId)=>{
+  if(!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return false;
+  const lesson=await Schedule.findById(lessonId).select('teacherId').lean();if(!lesson)return false;
+  return String(socket.user._id)===String(lesson.teacherId)||hasPermission(socket.user,'live.manage');
+};
+const finishLiveQuiz=(lessonId)=>{
+  const q=liveQuizByLesson.get(String(lessonId));if(!q||q.done)return;
+  q.done=true;clearTimeout(q.timer);
+  const counts=q.options.map(()=>0);for(const a of q.answers.values())if(counts[a.choice]!==undefined)counts[a.choice]++;
+  const top=q.correct>=0?[...q.answers.values()].filter(a=>a.choice===q.correct).sort((a,b)=>a.at-b.at).slice(0,3).map(a=>({name:a.name,ms:a.at-q.startedAt})):[];
+  io.to('lesson:'+lessonId).emit('lesson:quiz',{lessonId,id:q.id,phase:'result',question:q.question,options:q.options,counts,total:q.answers.size,correct:q.correct,top});
+  setTimeout(()=>{if(liveQuizByLesson.get(String(lessonId))===q)liveQuizByLesson.delete(String(lessonId))},60000);
+};
+socket.on('lesson:quiz-start',async({lessonId,question,options,correct,seconds})=>{
+  try{
+    if(!await lessonTeacherCheck(lessonId))return;
+    const opts=(Array.isArray(options)?options:[]).map(x=>String(x||'').trim().slice(0,120)).filter(Boolean).slice(0,6);
+    if(opts.length<2)return socket.emit('lesson:error',{message:'Kamida 2 ta javob varianti kerak'});
+    const prev=liveQuizByLesson.get(String(lessonId));if(prev&&!prev.done){clearTimeout(prev.timer);prev.done=true}
+    const sec=Math.max(10,Math.min(180,Number(seconds)||30)),now=Date.now(),c=Number.isInteger(Number(correct))&&Number(correct)>=0&&Number(correct)<opts.length?Number(correct):-1;
+    const q={id:now.toString(36)+Math.random().toString(36).slice(2,6),question:String(question||'').trim().slice(0,300),options:opts,correct:c,startedAt:now,endsAt:now+sec*1000,answers:new Map(),done:false};
+    q.timer=setTimeout(()=>finishLiveQuiz(lessonId),sec*1000+400);
+    liveQuizByLesson.set(String(lessonId),q);
+    io.to('lesson:'+lessonId).emit('lesson:quiz',{lessonId,id:q.id,phase:'open',question:q.question,options:q.options,endsAt:q.endsAt,seconds:sec,serverNow:now});
+  }catch(e){console.warn('quiz-start',e.message)}
+});
+socket.on('lesson:quiz-answer',({lessonId,id,choice})=>{
+  const q=liveQuizByLesson.get(String(lessonId||''));
+  if(!q||q.done||q.id!==id||!socket.rooms.has('lesson:'+lessonId)||Date.now()>q.endsAt+1500)return;
+  const uid=String(socket.user._id),i=Number(choice);
+  if(q.answers.has(uid)||!Number.isInteger(i)||i<0||i>=q.options.length)return;
+  q.answers.set(uid,{choice:i,at:Date.now(),name:socket.user.fullName||socket.user.login||'Talaba'});
+  socket.emit('lesson:quiz-ack',{lessonId,id,choice:i});
+  io.to('lesson:'+lessonId).emit('lesson:quiz-progress',{lessonId,id,answered:q.answers.size,online:onlineStudentIds(lessonId).size});
+});
+socket.on('lesson:quiz-end',async({lessonId})=>{try{if(await lessonTeacherCheck(lessonId))finishLiveQuiz(lessonId)}catch{}});
+const emitPulse=(lessonId)=>{
+  const m=livePulseByLesson.get(String(lessonId))||new Map(),online=onlineStudentIds(lessonId),now=Date.now();let ok=0,lost=0;
+  for(const [uid,v] of m){if(!online.has(uid)||now-v.at>5*60*1000){m.delete(uid);continue}if(v.state==='ok')ok++;else if(v.state==='lost')lost++}
+  io.to('lesson:'+lessonId).emit('lesson:pulse',{lessonId,ok,lost,online:online.size});
+};
+socket.on('lesson:pulse',({lessonId,state})=>{
+  if(!lessonId||!socket.rooms.has('lesson:'+lessonId)||socket.user.role!=='student')return;
+  const key=String(lessonId),m=livePulseByLesson.get(key)||new Map();livePulseByLesson.set(key,m);
+  if(state==='ok'||state==='lost')m.set(String(socket.user._id),{state,at:Date.now()});else m.delete(String(socket.user._id));
+  emitPulse(lessonId);
+});
+socket.on('lesson:pulse-reset',async({lessonId})=>{try{if(!await lessonTeacherCheck(lessonId))return;livePulseByLesson.delete(String(lessonId));io.to('lesson:'+lessonId).emit('lesson:pulse',{lessonId,ok:0,lost:0,reset:true,online:onlineStudentIds(lessonId).size})}catch{}});
 socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
   if(clean&&mongoose.isValidObjectId(lessonId)&&socket.rooms.has('lesson:'+lessonId)){
