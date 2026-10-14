@@ -1001,6 +1001,7 @@ async function openConference(payload){
         if(state.screen!==undefined){const b=$('#callScreen');b?.classList.toggle('active-control',Boolean(state.screen));b?.setAttribute('aria-pressed',state.screen?'true':'false')}
         if(state.proximityGuard!==undefined){const b=$('#echoGuard');b?.classList.toggle('active-control',state.proximityGuard);b?.setAttribute('aria-pressed',state.proximityGuard?'true':'false')}
         if(state.studentVideoChanged!==undefined)syncTeacherRailCamera(state.studentVideoChanged);
+        if(state.railMediaChanged)syncTeacherRailCamera();
         if(state.autoHalfDuplex&&Date.now()-(window._lastAudioSafetyNotice||0)>20000){window._lastAudioSafetyNotice=Date.now();toast('Chiyillash aniqlandi: karnay xavfsizlik uchun vaqtincha o‘chirildi. Eshitish uchun mikrofonni OFF qiling yoki quloqchin ulang.')}
         if(state.audioBlocked&&Date.now()-lastAudioBlockedToast>15000){lastAudioBlockedToast=Date.now();toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing')}
         if(state.micInterrupted)toast('Mikrofon uzildi (quloqchin yoki qo‘ng‘iroq). Qayta yoqish uchun mikrofon tugmasini bosing.');
@@ -1114,12 +1115,29 @@ function syncTeacherRailCamera(userId=''){
       preview.play().catch(()=>{});
     }else if(preview.srcObject)preview.srcObject=null;
     const tag=row.querySelector('.rail-video-state');
-    if(tag)tag.textContent=status==='live'?'📹 Jonli video':status==='connecting'?'◌ Ulanmoqda':'';
+    if(tag)tag.textContent=status==='live'?'':status==='connecting'?'Video ulanmoqda':'';
+    row.classList.toggle('mic-on',Boolean(mediaRoomClient.studentMicOn?.(row.dataset.studentId)));
   }
+  updateLessonRailOrder();
+}
+// Rail order: live camera first, then speaking, then microphone on, then online, then offline.
+// CSS order (not DOM moves) keeps playing <video> elements from restarting.
+function updateLessonRailOrder(){
+  const host=$('#lessonStudentRailItems');if(!host)return;
+  const cards=[...host.querySelectorAll('[data-student-id]')];let live=0;
+  cards.forEach((el,i)=>{
+    const video=el.classList.contains('live-video'),connecting=el.classList.contains('video-connecting'),speak=el.classList.contains('speaking'),mic=el.classList.contains('mic-on'),online=el.dataset.online==='1';
+    if(video)live++;
+    const rank=video?(speak?0:1):connecting?2:speak?3:mic?4:online?5:6;
+    el.style.order=String(rank*1000+i);
+  });
+  host.classList.toggle('has-live-video',live>0);
+  const label=$('#lessonStudentRailCount');if(label)label.dataset.live=String(live);
 }
 
 function updateLessonRailSpeakerState(){
   document.querySelectorAll('#lessonStudentRailItems [data-student-id]').forEach(el=>el.classList.toggle('speaking',lessonActiveSpeakerUserIds.has(el.dataset.studentId)));
+  updateLessonRailOrder();
 }
 function updateLessonRailStatus(userId,proctor){
   const el=[...document.querySelectorAll('#lessonStudentRailItems [data-student-id]')].find(x=>x.dataset.studentId===String(userId));
@@ -1138,7 +1156,7 @@ function renderLessonStudentRail(rows,groupAudit=null){
     const initials=name.trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
     const proctor=liveProctorStates.get(String(r._id))||r.proctor||{};
     const status=proctor.cameraReady?(proctor.faceState==='present'?'✓ Yuz faol':proctor.faceState==='away'?'⚠ Bosh burilgan':proctor.faceState==='missing'?'⚠ Yuz yo‘q':'◌ Tahlil yo‘q'):'○ Kamera yo‘q';
-    return '<button class="student-rail-card '+(r.online?'online':'offline')+(proctor.cameraReady&&proctor.faceState==='present'?' face-ready':'')+'" data-student-id="'+esc(r._id)+'" data-online="'+(r.online?'1':'0')+'" type="button" role="listitem" title="'+esc(name)+' · '+(r.online?'Onlayn':'Oflayn')+'"><span class="rail-avatar">'+esc(initials)+'</span><b>'+esc(name)+'</b><small class="rail-proctor-status">'+esc(status)+'</small><i class="rail-presence-dot"></i></button>'
+    return '<button class="student-rail-card '+(r.online?'online':'offline')+(proctor.cameraReady&&proctor.faceState==='present'?' face-ready':'')+'" data-student-id="'+esc(r._id)+'" data-online="'+(r.online?'1':'0')+'" type="button" role="listitem" title="'+esc(name)+' · '+(r.online?'Onlayn':'Oflayn')+'"><video class="rail-live-video" muted playsinline autoplay aria-hidden="true"></video><span class="rail-avatar">'+esc(initials)+'</span><b>'+esc(name)+'</b><small class="rail-proctor-status">'+esc(status)+'</small><small class="rail-video-state"></small><i class="rail-mic" aria-hidden="true"></i><i class="rail-presence-dot"></i></button>'
   }).join('')||'<span class="rail-loading">Guruhda talaba topilmadi</span>';
   host.querySelectorAll('[data-student-id]').forEach(button=>button.addEventListener('click',()=>{
     const id=button.dataset.studentId;

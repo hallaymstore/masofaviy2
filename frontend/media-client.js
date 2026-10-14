@@ -254,7 +254,17 @@ export class MediaRoomClient{
       preview.srcObject=null;card.classList.remove('has-live-preview');
     }
   }
+  queueRailMediaUpdate(){
+    // Coalesce per-peer mic/camera changes into one UI refresh (student rail ordering).
+    clearTimeout(this.railMediaTimer);this.railMediaTimer=setTimeout(()=>{if(!this.closed)this.onState({railMediaChanged:true})},250);
+  }
+  studentMicOn(userId=''){
+    const id=String(userId||'');if(!id)return false;
+    const tile=[...this.tiles.values()].find(t=>String(t.dataset?.userId||'')===id&&t.dataset?.role==='student');
+    return Boolean(tile&&(this.participantMediaState.get(String(tile.dataset.peerId||''))||{}).micOn);
+  }
   updateParticipantCardCamera(peerId,on){
+    this.queueRailMediaUpdate();
     const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
     const prev=this.participantMediaState.get(id)||{};this.participantMediaState.set(id,{...prev,cameraOn:Boolean(on)});
     card.classList.toggle('camera-on',Boolean(on));card.classList.toggle('camera-off',!on);
@@ -262,7 +272,10 @@ export class MediaRoomClient{
     this.syncParticipantCardVideo(id);
   }
   updateParticipantCardMic(peerId,on){
-    const id=String(peerId||''),card=this.participantCards.get(id);if(!card)return;
+    const id=String(peerId||''),known=this.participantMediaState.get(id)||{};
+    if(!this.participantCards.get(id)){this.participantMediaState.set(id,{...known,micOn:Boolean(on)});this.queueRailMediaUpdate();return}
+    this.queueRailMediaUpdate();
+    const card=this.participantCards.get(id);
     const prev=this.participantMediaState.get(id)||{};this.participantMediaState.set(id,{...prev,micOn:Boolean(on)});
     card.classList.toggle('mic-on',Boolean(on));card.classList.toggle('mic-off',!on);
     const icon=qs('.ms-mini-mic',card);if(icon){icon.textContent=on?'🎙':'🔇';icon.setAttribute('aria-label',on?'Mikrofon yoqilgan':'Mikrofon o‘chiq');}
@@ -605,7 +618,7 @@ export class MediaRoomClient{
     }else if(this.user?.role!=='student'&&this.explicitStagePeerId&&selected&&String(selected.dataset.peerId||'')===String(this.explicitStagePeerId)){
       primary=usable(selected)?selected:null;
     }else{
-      primary=(this.user?.role==='student'?[screen,teacher]:[teacher,selected,local,screen,...tiles]).find(usable)||null;
+      primary=(this.user?.role==='student'?[screen,teacher]:[teacher,selected,local,screen,...tiles.filter(tile=>tile?.dataset?.role!=='student')]).find(usable)||null;
     }
     const track=this.primaryTileTrack(primary);
     const label=primary?(qs('.ms-label b',primary)?.textContent||this.user?.fullName||'Video'):'';
