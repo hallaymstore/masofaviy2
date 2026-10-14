@@ -988,6 +988,42 @@ async function startLiveLessonProctoring(){
     return false;
   }
 }
+/* Classroom audio mode (students). A phone in the same room as the teacher plays no lesson audio at all,
+   which removes the speaker→teacher-mic loop (echo, squeal). Remembered per lesson. */
+let lastRoomModeHintAt=0;
+function roomModeSaved(){try{return activeLessonId?localStorage.getItem('m2-room-mode:'+activeLessonId)||'':''}catch{return ''}}
+async function applyRoomMode(mode){
+  if(user?.role!=='student'||!mediaRoomClient)return;
+  try{localStorage.setItem('m2-room-mode:'+activeLessonId,mode);localStorage.setItem('m2-room-mode-last',mode)}catch{}
+  hideRoomModeSheet();
+  await mediaRoomClient.setInRoom(mode==='room');
+  updateRoomModeUI();
+  toast(mode==='room'?'Auditoriya rejimi: telefon ovozi o‘chdi. O‘qituvchini xonada eshitasiz, subtitr ishlaydi':'Masofaviy rejim: ovoz yoqildi. Quloqchin ishlatsangiz aks-sado bo‘lmaydi');
+}
+function updateRoomModeUI(){
+  const student=user?.role==='student'&&Boolean(mediaRoomClient),inRoom=Boolean(mediaRoomClient?.inRoom);
+  let pill=$('#roomModePill');
+  if(!pill&&student){const stage=$('#lesson .video-stage');if(stage){pill=document.createElement('button');pill.id='roomModePill';pill.type='button';pill.className='room-mode-pill';pill.addEventListener('click',()=>showRoomModeSheet());stage.appendChild(pill)}}
+  if(pill){pill.classList.toggle('hidden',!student);pill.classList.toggle('in-room',inRoom);pill.innerHTML=inRoom?'<span aria-hidden="true">🏫</span> Auditoriyada · ovoz o‘chiq':'<span aria-hidden="true">🎧</span> Masofadan';pill.title='Qatnashish joyini o‘zgartirish'}
+  const b=$('#callRoomMode');if(b){b.classList.toggle('hidden',!student);b.classList.toggle('active-control',inRoom);b.setAttribute('aria-pressed',inRoom?'true':'false')}
+}
+function hideRoomModeSheet(){$('#roomModeSheet')?.classList.add('hidden')}
+function showRoomModeSheet(reason=''){
+  if(user?.role!=='student'||!mediaRoomClient)return;
+  let sh=$('#roomModeSheet');
+  if(!sh){
+    sh=document.createElement('div');sh.id='roomModeSheet';sh.className='room-mode-sheet hidden';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');sh.setAttribute('aria-labelledby','roomModeTitle');
+    sh.innerHTML='<div class="room-mode-card"><p class="room-mode-alert" id="roomModeAlert" hidden>⚠️ Xonada chiyillash aniqlandi. O‘qituvchi bilan bir xonada bo‘lsangiz «Auditoriyadaman»ni tanlang.</p><h2 id="roomModeTitle">Darsga qayerdan qatnashyapsiz?</h2><p class="room-mode-sub">Bir xonadagi telefonlar ovozi o‘qituvchi mikrofoniga qaytib, aks-sado va chiyillash beradi.</p><button type="button" class="room-mode-opt" data-room-mode="room"><span class="room-mode-ico" aria-hidden="true">🏫</span><span><b>Auditoriyadaman</b><small>O‘qituvchi bilan bir xonada. Telefon ovozi o‘chadi, video va subtitr ishlaydi.</small></span></button><button type="button" class="room-mode-opt" data-room-mode="remote"><span class="room-mode-ico" aria-hidden="true">🏠</span><span><b>Masofadan</b><small>Uyda yoki boshqa joyda. Ovoz eshitiladi, quloqchin tavsiya etiladi.</small></span></button></div>';
+    sh.addEventListener('keydown',e=>{if(e.key==='Escape'&&roomModeSaved())hideRoomModeSheet()});
+    sh.addEventListener('click',e=>{if(e.target===sh&&roomModeSaved())return hideRoomModeSheet();const b=e.target.closest('[data-room-mode]');if(b)applyRoomMode(b.dataset.roomMode).catch(err=>toast(err.message||String(err)))});
+    document.body.appendChild(sh);
+  }
+  const last=(()=>{try{return localStorage.getItem('m2-room-mode-last')||''}catch{return ''}})();
+  sh.querySelectorAll('[data-room-mode]').forEach(b=>b.classList.toggle('is-last',b.dataset.roomMode===last));
+  const al=$('#roomModeAlert');if(al)al.hidden=reason!=='feedback';
+  sh.classList.remove('hidden');sh.querySelector(reason==='feedback'?'[data-room-mode="room"]':'.room-mode-opt.is-last, .room-mode-opt')?.focus?.({preventScroll:true});
+}
+$('#callRoomMode')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control');showRoomModeSheet()});
 async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
@@ -1011,6 +1047,7 @@ async function openConference(payload){
       },
       onState:state=>{
         if(user?.role==='student')queueMicrotask(syncStudentStage);
+        if(state.inRoom!==undefined)updateRoomModeUI();
         if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — aks-sadoni kamaytirish uchun quloqchin tavsiya etiladi':'Mikrofon OFF — yoqish')}
         if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',user.role==='student'?(cameraOn?'Kamera ON — o‘qituvchiga ko‘rinadi. Proktor lokal ishlaydi':'Kamera OFF — o‘qituvchiga uzatilmaydi. Proktor lokal ishlaydi'):(cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish'))}
@@ -1045,6 +1082,7 @@ async function openConference(payload){
       if(seq!==conferenceSeq)return false;
       if(!proctorOk)throw Object.assign(new Error('Jonli darsga kirish uchun kamera ruxsati va proktor kamera majburiy'),{noRetry:true});
     }
+    if(user.role==='student'){const saved=roomModeSaved();client.inRoom=saved?saved==='room':true}
     await client.connect();
     if(seq!==conferenceSeq||client.closed)return false;
     const isTeachingRole=user.role==='teacher';
@@ -1062,7 +1100,7 @@ async function openConference(payload){
     studentCameraGranted=user.role!=='student';studentMicGranted=true; // Student broadcast is opt-in on every camera ON action.
     showLessonSide(user.role==='student'?'chat':'participants',false);setLessonDrawer(false);
     if(user.role!=='student')await loadLessonParticipants();
-    if(user.role==='student'&&mediaRoomClient.proximityGuard)toast('Echo himoyasi faol: mikrofon ON paytida karnay ovozi o‘chadi. Eshitish uchun mikrofonni OFF qiling; quloqchinda Yana → Yaqin qurilmalar orqali o‘chirishingiz mumkin.');
+    if(user.role==='student'){updateRoomModeUI();if(!roomModeSaved())showRoomModeSheet();else toast(mediaRoomClient.inRoom?'Auditoriya rejimi: telefon ovozi o‘chiq, subtitr va video ishlaydi':'Jonli darsga ulandingiz · quloqchin tavsiya etiladi')}
     else toast('Jonli darsga ulandingiz');
     ok=true;
   }catch(e){
@@ -1084,7 +1122,7 @@ async function leaveConferenceNow(back=true){
   if(handRaised&&activeLessonId&&socket?.connected)socket.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:false});setHandRaised(false);
   clearTimeout(participantsTimer);clearTimeout(proctorRestartTimer);proctorRestarts=0;attendanceDirty=false;autoRejoinAttempt=0;lastAutoQuality='';chatUnread=0;$('#chatUnreadBadge')?.classList.add('hidden');$('#lesson')?.classList.remove('student-focus-live');$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStates.clear();lessonRailRows=[];lessonActiveSpeakerUserIds.clear();$('#lessonStudentRailItems')?.replaceChildren();
-  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
+  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');hideRoomModeSheet();$('#roomModePill')?.classList.add('hidden');lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
   activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
@@ -1904,6 +1942,8 @@ function connectSocket(){
   socket.on('camera:student-result',function(x){if(activeLessonId&&user.role==='teacher')toast((x.fullName||'Talaba')+(x.accepted?' kamerani yoqdi':' kamera so‘rovini rad etdi'))});
   socket.on('lesson:feedback-protect',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||!mediaRoomClient)return;
+    if(user.role==='student'&&!mediaRoomClient.inRoom)showRoomModeSheet('feedback');
+    if(user.role==='teacher'&&Date.now()-lastRoomModeHintAt>20000){lastRoomModeHintAt=Date.now();toast('Chiyillash aniqlandi: auditoriyadagi talabalarga telefon ovozini o‘chirish taklif qilindi')}
     const applied=mediaRoomClient.engageCoordinatedFeedbackGuard?.(x.duration||120000,x.frequency||0);
     if(applied)toast('Chiyillashga qarshi vaqtincha xavfsiz rejim yoqildi. Eshitish uchun mikrofonni o‘chiring yoki quloqchin ulang.');
   });

@@ -36,5 +36,5 @@ test('student near-device half duplex defaults to ON unless explicitly opted out
  assert.ok(src.includes("this.user?.role==='student'&&localStorage.getItem('m2-proximity-guard')!=='0'"));
  assert.ok(src.includes("active&&(this.proximityGuard||now<this.autoHalfDuplexUntil)"));
  assert.ok(src.includes("this.proximityGuard?'1':'0'"));
- assert.ok(text('public/app.js').includes('Echo himoyasi faol: mikrofon ON'));
+ assert.ok(text('public/app.js').includes('Darsga qayerdan qatnashyapsiz?'),'students choose classroom/remote audio on join');
 });

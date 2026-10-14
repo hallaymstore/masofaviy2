@@ -1260,3 +1260,28 @@ html.video-cinema-fallback #lesson #videoMount .ms-grid.fullscreen-video-grid>.m
 html #lesson #videoMount :is(.ms-grid.fullscreen-video-grid:fullscreen,.ms-grid.fullscreen-video-grid:-webkit-full-screen)>.ms-tile.cinema-primary .ms-video,
 html.video-cinema-fallback #lesson #videoMount .ms-grid.fullscreen-video-grid>.ms-tile.cinema-primary .ms-video{
  display:block!important;visibility:visible!important;opacity:1!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#000!important}
+
+/* Classroom audio mode: stage pill + choice sheet (students) */
+html.hx #lesson .video-stage>#roomModePill{position:absolute!important;left:10px!important;bottom:10px!important;z-index:25!important;display:inline-flex;align-items:center;gap:6px;height:30px!important;min-height:0!important;padding:0 12px!important;border:0!important;border-radius:999px!important;background:rgba(5,8,26,.72)!important;color:#fff!important;font:700 12px/1 "Onest Hx",system-ui,sans-serif;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+html.hx #lesson .video-stage>#roomModePill.in-room{background:rgba(255,182,39,.95)!important;color:#0f1537!important}
+html.hx #lesson .video-stage>#roomModePill.hidden{display:none!important}
+.room-mode-sheet{position:fixed;inset:0;z-index:2000;display:flex;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom));background:rgba(5,8,26,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.room-mode-sheet.hidden{display:none!important}
+.room-mode-card{width:min(460px,100%);background:#fff;color:#0f1537;border-radius:24px;padding:22px 18px 18px;box-shadow:0 30px 80px rgba(0,0,0,.45);font-family:"Onest Hx",system-ui,sans-serif;animation:hxSheetIn .22s ease-out}
+@keyframes hxSheetIn{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.room-mode-card h2{margin:0 0 6px;font:800 20px/1.2 "Bricolage Hx","Onest Hx",system-ui,sans-serif;letter-spacing:-.01em}
+.room-mode-sub{margin:0 0 14px;color:#58607e;font-size:13.5px;line-height:1.45}
+.room-mode-alert{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#fff1ef;color:#b3261e;font-size:13px;font-weight:700;line-height:1.4}
+.room-mode-alert[hidden]{display:none}
+.room-mode-opt{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 10px;padding:14px;border:2px solid #e3e7f3;border-radius:18px;background:#f7f8fc;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.room-mode-opt:last-child{margin-bottom:0}
+.room-mode-opt:hover,.room-mode-opt:focus-visible{border-color:#0b4fd8;background:#eef3ff;outline:none}
+.room-mode-opt.is-last{border-color:#b9c8f5}
+.room-mode-opt b{display:block;font-size:16px;margin-bottom:3px}
+.room-mode-opt small{display:block;color:#58607e;font-size:12.5px;line-height:1.4}
+.room-mode-ico{flex:none;width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:#fff;font-size:24px;box-shadow:0 2px 8px rgba(15,21,55,.08)}
+html.hx[data-theme="dark"] .room-mode-card{background:#141b3d;color:#eef1fb}
+html.hx[data-theme="dark"] :is(.room-mode-sub,.room-mode-opt small){color:#a9b1cf}
+html.hx[data-theme="dark"] .room-mode-opt{background:#1b2350;border-color:#2a3366}
+html.hx[data-theme="dark"] .room-mode-ico{background:#0f1537}
+@media (min-width:700px){.room-mode-sheet{align-items:center}}
