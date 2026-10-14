@@ -1219,3 +1219,10 @@ html.hx:not([data-user-role="student"]) #lesson #videoMount .ms-grid>.ms-tile.ro
  html.hx #lesson #lessonStudentRailItems .student-rail-card .rail-mic{width:16px;height:16px;left:4px;top:4px}
 }
 @media (prefers-reduced-motion:reduce){html.hx #lesson #lessonStudentRailItems .student-rail-card.speaking .rail-mic{animation:none}}
+
+/* Student stage shows only the teacher / screen share. The student's own camera tile
+   (legacy rule forces .ms-tile.local visible) covered the teacher's video; the student
+   already sees themself in the small proctor preview. */
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #videoMount .ms-grid>.ms-tile:is(.local,.role-student){display:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is-visible{z-index:19!important}
+html.hx:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is-visible video{transform:none!important;translate:none!important;object-position:center!important;top:0!important;left:0!important}
