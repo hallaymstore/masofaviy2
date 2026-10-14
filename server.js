@@ -230,6 +230,8 @@ const liveProctorBroadcastByLesson = new Map();
 const liveFeedbackProtectionByLesson = new Map();
 const liveQuizByLesson = new Map();
 const livePulseByLesson = new Map();
+const liveQaByLesson = new Map();
+const liveCloudByLesson = new Map();
 const disconnectUserSockets=userId=>{for(const socket of io.sockets.sockets.values())if(String(socket.user?._id||'')===String(userId))socket.disconnect(true)};
 const APP_UTC_OFFSET_MINUTES = Number(process.env.APP_UTC_OFFSET_MINUTES || 300);
 const LATE_AFTER_MINUTES = Math.max(1, Number(process.env.LATE_AFTER_MINUTES || 10));
@@ -1633,6 +1635,54 @@ socket.on('lesson:pulse',({lessonId,state})=>{
   emitPulse(lessonId);
 });
 socket.on('lesson:pulse-reset',async({lessonId})=>{try{if(!await lessonTeacherCheck(lessonId))return;livePulseByLesson.delete(String(lessonId));io.to('lesson:'+lessonId).emit('lesson:pulse',{lessonId,ok:0,lost:0,reset:true,online:onlineStudentIds(lessonId).size})}catch{}});
+// ---- Q&A queue (upvotes, optional anonymity), word cloud, random pick (in-memory per lesson) ----
+const qaPublic=(lessonId)=>{const list=liveQaByLesson.get(String(lessonId))||[];return [...list].sort((a,b)=>(a.answered-b.answered)||(b.votes.size-a.votes.size)||(a.at-b.at)).map(q=>({id:q.id,text:q.text,name:q.anon?'':q.name,votes:q.votes.size,answered:q.answered,at:q.at}))};
+const emitQa=(lessonId,to=null)=>(to||io.to('lesson:'+lessonId)).emit('lesson:qa',{lessonId,items:qaPublic(lessonId)});
+socket.on('lesson:qa-sync',({lessonId})=>{if(lessonId&&socket.rooms.has('lesson:'+lessonId))emitQa(lessonId,socket)});
+socket.on('lesson:qa-ask',({lessonId,text,anon})=>{
+  if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+  const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,280);if(clean.length<3)return;
+  const now=Date.now();if(now-(socket.data.lastQaAt||0)<15000)return socket.emit('lesson:error',{message:'Keyingi savolni 15 soniyadan keyin yuboring'});
+  socket.data.lastQaAt=now;
+  const list=liveQaByLesson.get(String(lessonId))||[];liveQaByLesson.set(String(lessonId),list);
+  list.push({id:now.toString(36)+Math.random().toString(36).slice(2,6),text:clean,name:socket.user.fullName||socket.user.login||'Talaba',userId:String(socket.user._id),anon:Boolean(anon),votes:new Set([String(socket.user._id)]),answered:false,at:now});
+  if(list.length>60)list.splice(0,list.length-60);
+  emitQa(lessonId);
+});
+socket.on('lesson:qa-vote',({lessonId,id})=>{
+  if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
+  const q=(liveQaByLesson.get(String(lessonId))||[]).find(x=>x.id===id);if(!q||q.answered)return;
+  const uid=String(socket.user._id);if(q.votes.has(uid))q.votes.delete(uid);else q.votes.add(uid);emitQa(lessonId);
+});
+socket.on('lesson:qa-answer',async({lessonId,id,remove})=>{
+  try{if(!await lessonTeacherCheck(lessonId))return;const list=liveQaByLesson.get(String(lessonId))||[],i=list.findIndex(x=>x.id===id);if(i<0)return;
+  if(remove)list.splice(i,1);else list[i].answered=!list[i].answered;emitQa(lessonId)}catch{}
+});
+const cloudPublic=(c)=>[...c.words.entries()].sort((a,b)=>b[1].size-a[1].size).slice(0,40).map(([w,set])=>({w,n:set.size}));
+socket.on('lesson:cloud-start',async({lessonId,prompt})=>{
+  try{if(!await lessonTeacherCheck(lessonId))return;
+  const c={id:Date.now().toString(36),prompt:String(prompt||'').trim().slice(0,160),words:new Map(),per:new Map(),open:true};liveCloudByLesson.set(String(lessonId),c);
+  io.to('lesson:'+lessonId).emit('lesson:cloud',{lessonId,id:c.id,prompt:c.prompt,open:true,words:[],people:0})}catch{}
+});
+socket.on('lesson:cloud-word',({lessonId,id,word})=>{
+  const c=liveCloudByLesson.get(String(lessonId||''));if(!c||!c.open||c.id!==id||!socket.rooms.has('lesson:'+lessonId))return;
+  const w=String(word||'').trim().toLocaleLowerCase('uz').replace(/[^\p{L}\p{N}\s'‘’ʼ-]/gu,'').replace(/\s+/g,' ').slice(0,28);if(w.length<2)return;
+  const uid=String(socket.user._id),mine=c.per.get(uid)||0;if(mine>=3)return socket.emit('lesson:error',{message:'Har bir talaba 3 tagacha so‘z yuboradi'});
+  if(!c.words.has(w)&&c.words.size>=300)return;
+  const set=c.words.get(w)||new Set();if(set.has(uid))return;set.add(uid);c.words.set(w,set);c.per.set(uid,mine+1);
+  io.to('lesson:'+lessonId).emit('lesson:cloud',{lessonId,id:c.id,prompt:c.prompt,open:true,words:cloudPublic(c),people:c.per.size});
+});
+socket.on('lesson:cloud-end',async({lessonId})=>{
+  try{if(!await lessonTeacherCheck(lessonId))return;const c=liveCloudByLesson.get(String(lessonId));if(!c)return;c.open=false;
+  io.to('lesson:'+lessonId).emit('lesson:cloud',{lessonId,id:c.id,prompt:c.prompt,open:false,words:cloudPublic(c),people:c.per.size})}catch{}
+});
+socket.on('lesson:pick',async({lessonId})=>{
+  try{if(!await lessonTeacherCheck(lessonId))return;
+  const seen=new Map();for(const peer of lessonRoomSockets(lessonId))if(peer.user?.role==='student')seen.set(String(peer.user._id),peer.user.fullName||peer.user.login||'Talaba');
+  const pool=[...seen.entries()];if(!pool.length)return socket.emit('lesson:error',{message:'Darsda onlayn talaba yo‘q'});
+  const [userId,name]=pool[Math.floor(Math.random()*pool.length)];
+  io.to('lesson:'+lessonId).emit('lesson:pick',{lessonId,userId,name,names:pool.map(p=>p[1]).slice(0,40)})}catch{}
+});
 socket.on('lesson:caption',({lessonId,text,lang,final})=>{
   const clean=String(text||'').trim().replace(/\s+/g,' ').slice(0,260),language=['uz-UZ','ru-RU','en-US'].includes(lang)?lang:'uz-UZ';
   if(clean&&mongoose.isValidObjectId(lessonId)&&socket.rooms.has('lesson:'+lessonId)){

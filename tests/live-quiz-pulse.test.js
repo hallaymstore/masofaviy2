@@ -22,3 +22,13 @@ test('client wires quiz card, composer and pulse chips',()=>{
  assert.ok(html.includes('id="callQuiz"'));
  for(const t of ["socket.on('lesson:quiz',onLessonQuiz)","socket.on('lesson:pulse',onLessonPulse)","function openLiveQuizComposer()","resetLiveExtras();"])assert.ok(app.includes(t),t);
 });
+
+test('Q&A queue, word cloud and random pick: teacher-gated controls, rate limits, anonymity',()=>{
+ assert.ok(server.includes("name:q.anon?'':q.name"),'anonymous questions never expose the name');
+ assert.ok(server.includes("if(now-(socket.data.lastQaAt||0)<15000)"));
+ assert.ok(server.includes("socket.on('lesson:qa-answer',async({lessonId,id,remove})=>{\n  try{if(!await lessonTeacherCheck(lessonId))return;"));
+ assert.ok(server.includes("if(mine>=3)return socket.emit('lesson:error'"));
+ assert.ok(server.includes("socket.on('lesson:pick',async({lessonId})=>{\n  try{if(!await lessonTeacherCheck(lessonId))return;"));
+ for(const t of ['id="callQa"','id="callCloud"','id="callPick"'])assert.ok(html.includes(t),t);
+ for(const t of ["socket.on('lesson:qa',onLessonQa)","socket.on('lesson:cloud',onLessonCloud)","socket.on('lesson:pick',onLessonPick)","function hxConfetti()"])assert.ok(app.includes(t),t);
+});

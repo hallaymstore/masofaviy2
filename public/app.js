@@ -1080,6 +1080,7 @@ function onLessonQuiz(x){
   }else{
     const mine=liveQuiz?.id===x.id?liveQuiz.mine:undefined;
     liveQuiz={...x,mine,skew:0};
+    if(!isLessonHost()&&x.correct>=0&&mine===x.correct)setTimeout(hxConfetti,150);
     liveQuizHideTimer=setTimeout(()=>{if(liveQuiz?.id===x.id&&liveQuiz.phase==='result'){quizCard().classList.add('hidden')}},isLessonHost()?60000:20000);
   }
   renderQuiz();
@@ -1109,6 +1110,65 @@ function onLessonPulse(x){
   pill.innerHTML='<span>🤔 <b>'+lost+'</b> tushunmadi</span><span>👍 <b>'+ok+'</b></span>';
 }
 $('#callQuiz')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control');openLiveQuizComposer()});
+/* ---- Q&A queue, word cloud, random pick, confetti ---- */
+let qaItems=[],qaSeen=0,qaVoted=new Set(),liveCloud=null,pickTimer=null;
+function hxConfetti(){
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const box=document.createElement('div');box.className='hx-confetti';box.setAttribute('aria-hidden','true');
+  const colors=['#ffb627','#e5483b','#0b4fd8','#1f9d55','#ff7a45','#8b5cf6'];
+  for(let i=0;i<46;i++){const c=document.createElement('i');c.style.left=Math.random()*100+'%';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.35)+'s';c.style.animationDuration=(1.6+Math.random()*1.2)+'s';c.style.setProperty('--dx',(Math.random()*160-80)+'px');c.style.setProperty('--r',(Math.random()*720-360)+'deg');box.appendChild(c)}
+  document.body.appendChild(box);setTimeout(()=>box.remove(),3400);
+}
+function qaSheet(){
+  let sh=$('#qaSheet');if(sh)return sh;
+  sh=document.createElement('div');sh.id='qaSheet';sh.className='room-mode-sheet hidden';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');
+  sh.innerHTML='<div class="room-mode-card qa-card"><div class="qa-head"><h2>❓ Savollar</h2><button type="button" class="lq-close qa-x" aria-label="Yopish">×</button></div><p class="room-mode-sub qa-sub"></p><div class="qa-list" id="qaList"></div><form class="qa-form" id="qaForm"><textarea name="t" rows="2" maxlength="280" placeholder="Savolingizni yozing…"></textarea><div class="qa-row"><label class="qa-anon"><input type="checkbox" name="anon" checked> Anonim</label><button type="submit" class="quiz-go">Yuborish</button></div></form></div>';
+  sh.addEventListener('click',e=>{
+    if(e.target===sh||e.target.closest('.qa-x'))return sh.classList.add('hidden');
+    const v=e.target.closest('[data-qa-vote]');if(v){const id=v.dataset.qaVote;qaVoted.has(id)?qaVoted.delete(id):qaVoted.add(id);socket?.emit('lesson:qa-vote',{lessonId:activeLessonId,id});renderQa();return}
+    const a=e.target.closest('[data-qa-done]');if(a){socket?.emit('lesson:qa-answer',{lessonId:activeLessonId,id:a.dataset.qaDone});return}
+    const r=e.target.closest('[data-qa-del]');if(r){socket?.emit('lesson:qa-answer',{lessonId:activeLessonId,id:r.dataset.qaDel,remove:true});return}
+  });
+  sh.querySelector('#qaForm').addEventListener('submit',e=>{e.preventDefault();const f=e.target,t=f.t.value.trim();if(t.length<3)return toast('Savol juda qisqa');if(!socket?.connected)return toast('Aloqa yo‘q');socket.emit('lesson:qa-ask',{lessonId:activeLessonId,text:t,anon:f.anon.checked});f.t.value='';toast('Savolingiz navbatga qo‘shildi')});
+  document.body.appendChild(sh);return sh;
+}
+function openQa(){if(!activeLessonId)return toast('Avval darsga kiring');const sh=qaSheet();sh.querySelector('.qa-form').classList.toggle('hidden',isLessonHost());sh.querySelector('.qa-sub').textContent=isLessonHost()?'Talabalar savollari ovozlar soni bo‘yicha tartiblangan. Javob berganingizni belgilang.':'Savol bering yoki boshqalarnikiga 👍 bosing — eng ko‘p ovoz olgan savolga o‘qituvchi birinchi javob beradi.';socket?.emit('lesson:qa-sync',{lessonId:activeLessonId});qaSeen=qaItems.length;updateQaBadge();renderQa();sh.classList.remove('hidden')}
+function renderQa(){
+  const list=$('#qaList');if(!list)return;const host=isLessonHost();
+  list.innerHTML=qaItems.length?qaItems.map(q=>'<div class="qa-item'+(q.answered?' is-done':'')+'"><button type="button" class="qa-vote'+(qaVoted.has(q.id)?' on':'')+'" data-qa-vote="'+esc(q.id)+'"'+(q.answered?' disabled':'')+' aria-label="Ovoz berish"><span>▲</span><b>'+q.votes+'</b></button><div class="qa-body"><p>'+esc(q.text)+'</p><small>'+(q.name?esc(q.name):'Anonim')+(q.answered?' · ✓ javob berildi':'')+'</small></div>'+(host?'<div class="qa-acts"><button type="button" data-qa-done="'+esc(q.id)+'" title="Javob berildi">✓</button><button type="button" data-qa-del="'+esc(q.id)+'" title="O‘chirish">×</button></div>':'')+'</div>').join(''):'<p class="qa-empty">Hozircha savol yo‘q. Birinchi bo‘ling!</p>';
+}
+function updateQaBadge(){const open=qaItems.filter(q=>!q.answered).length,b=$('#callQa');if(!b)return;let i=b.querySelector('i.control-badge');if(!i){i=document.createElement('i');i.className='control-badge';b.appendChild(i)}i.textContent=String(open);i.classList.toggle('hidden',!open)}
+function onLessonQa(x){
+  if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
+  const before=qaItems.length;qaItems=Array.isArray(x.items)?x.items:[];
+  if(isLessonHost()&&qaItems.length>before&&$('#qaSheet')?.classList.contains('hidden')!==false)toast('❓ Yangi savol: '+(qaItems.filter(q=>!q.answered).length)+' ta javobsiz savol');
+  updateQaBadge();renderQa();
+}
+function cloudCard(){let c=$('#liveCloudCard');if(!c){c=document.createElement('section');c.id='liveCloudCard';c.className='live-quiz live-cloud hidden';c.addEventListener('click',e=>{if(e.target.closest('.lq-close'))return c.classList.add('hidden');if(e.target.closest('.lc-end'))return socket?.emit('lesson:cloud-end',{lessonId:activeLessonId})});c.addEventListener('submit',e=>{e.preventDefault();const inp=e.target.querySelector('input');const w=inp.value.trim();if(w.length<2||!liveCloud)return;socket?.emit('lesson:cloud-word',{lessonId:activeLessonId,id:liveCloud.id,word:w});liveCloud.sent=(liveCloud.sent||0)+1;inp.value='';renderCloud()});document.body.appendChild(c)}return c}
+function renderCloud(){
+  const c=cloudCard(),k=liveCloud;if(!k)return c.classList.add('hidden');
+  const host=isLessonHost(),max=Math.max(1,...k.words.map(w=>w.n)),pal=['#ffb627','#7fb2ff','#6fe3a2','#ff8f7a','#c9a6ff','#fff'];
+  const words=k.words.map((w,i)=>'<span style="font-size:'+(13+Math.round(22*w.n/max))+'px;color:'+pal[i%pal.length]+'">'+esc(w.w)+(w.n>1?'<sup>'+w.n+'</sup>':'')+'</span>').join(' ');
+  const canSend=!host&&k.open&&(k.sent||0)<3;
+  c.innerHTML='<div class="lq-head"><span class="lq-tag">☁️ So‘z buluti</span>'+(k.open?'<span class="lq-time">'+(k.people||0)+' kishi</span>':'<span class="lq-tag lq-done">Yakunlandi</span>')+'<button type="button" class="lq-close" aria-label="Yopish">×</button></div><h3 class="lq-q">'+esc(k.prompt||'Bir so‘z bilan ayting')+'</h3><div class="lc-words">'+(words||'<small class="lc-empty">So‘zlar shu yerda paydo bo‘ladi…</small>')+'</div>'+(canSend?'<form class="lc-form"><input maxlength="28" placeholder="Bir-ikki so‘z ('+(3-(k.sent||0))+' ta qoldi)" aria-label="So‘z"><button type="submit" class="lq-end">Yuborish</button></form>':(!host&&k.open?'<div class="lq-foot"><span>✓ So‘zlaringiz qo‘shildi</span></div>':''))+(host&&k.open?'<div class="lq-foot"><span>Talabalar 3 tagacha so‘z yuboradi</span><button type="button" class="lq-end lc-end">Yakunlash</button></div>':'');
+  c.classList.remove('hidden');
+}
+function onLessonCloud(x){if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;const sent=liveCloud?.id===x.id?liveCloud.sent:0,isNew=liveCloud?.id!==x.id;liveCloud={...x,words:x.words||[],sent};if(isNew&&!isLessonHost())try{navigator.vibrate?.(60)}catch{};renderCloud()}
+function startCloud(){if(!activeLessonId)return toast('Avval darsga kiring');const p=prompt('So‘z buluti savoli (masalan: «Bugungi mavzu bir so‘zda»):','Bugungi mavzu bir so‘zda');if(p===null)return;socket?.emit('lesson:cloud-start',{lessonId:activeLessonId,prompt:p})}
+function onLessonPick(x){
+  if(!activeLessonId||String(x.lessonId)!==String(activeLessonId))return;
+  const me=String(user?._id||user?.id||'')===String(x.userId);
+  if(me){try{navigator.vibrate?.([80,60,80])}catch{};hxConfetti();toast('🎲 O‘qituvchi sizni tanladi! Javob berishga tayyorlaning')}
+  if(!isLessonHost())return;
+  let c=$('#livePickCard');if(!c){c=document.createElement('section');c.id='livePickCard';c.className='live-quiz live-pick hidden';c.addEventListener('click',e=>{if(e.target.closest('.lq-close'))return c.classList.add('hidden');if(e.target.closest('.lp-again'))return socket?.emit('lesson:pick',{lessonId:activeLessonId});const sp=e.target.closest('.lp-spot');if(sp){socket?.emit('lesson:spotlight',{lessonId:activeLessonId,userId:sp.dataset.uid});c.classList.add('hidden')}});document.body.appendChild(c)}
+  const names=(x.names&&x.names.length?x.names:[x.name]);let n=0;clearInterval(pickTimer);
+  const frame=(name,final)=>{c.innerHTML='<div class="lq-head"><span class="lq-tag">🎲 Tasodifiy talaba</span><button type="button" class="lq-close" aria-label="Yopish">×</button></div><div class="lp-name'+(final?' final':'')+'">'+esc(name)+'</div>'+(final?'<div class="lq-foot"><button type="button" class="lq-end lp-spot" data-uid="'+esc(x.userId)+'">Ekranga chiqarish</button><button type="button" class="lq-end lp-again">Yana bir marta</button></div>':'');c.classList.remove('hidden')};
+  pickTimer=setInterval(()=>{n++;if(n>=14||names.length<2){clearInterval(pickTimer);frame(x.name,true);return}frame(names[Math.floor(Math.random()*names.length)],false)},90);
+}
+function resetLiveFun(){qaItems=[];qaSeen=0;qaVoted=new Set();liveCloud=null;clearInterval(pickTimer);for(const id of ['#qaSheet','#liveCloudCard','#livePickCard'])$(id)?.classList.add('hidden');updateQaBadge()}
+$('#callQa')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control');openQa()});
+$('#callCloud')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control');startCloud()});
+$('#callPick')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');$('#callMore')?.classList.remove('active-control');if(!activeLessonId)return toast('Avval darsga kiring');socket?.emit('lesson:pick',{lessonId:activeLessonId})});
 async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
@@ -1118,7 +1178,7 @@ async function openConference(payload){
   if(chatLessonId!==String(s._id)){$('#messages')?.replaceChildren();chatLessonId=String(s._id)}
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;setHandRaised(false);raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end+(user.role==='student'?' · Proktor kamera lokal nazoratda':' · Yuz-faollik nazorati');
-  $('#endLiveLesson').classList.add('hidden');$('#lesson')?.classList.toggle('student-focus-live',user.role==='student');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#callQuiz')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));resetLiveExtras();$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();clearInterval(hxStageTimer);if(user.role==='student')hxStageTimer=setInterval(syncStudentStage,1000);
+  $('#endLiveLesson').classList.add('hidden');$('#lesson')?.classList.toggle('student-focus-live',user.role==='student');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#callQuiz')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#callCloud')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#callPick')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));resetLiveExtras();resetLiveFun();setTimeout(()=>{if(activeLessonId)socket?.emit('lesson:qa-sync',{lessonId:activeLessonId})},2500);$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();clearInterval(hxStageTimer);if(user.role==='student')hxStageTimer=setInterval(syncStudentStage,1000);
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · broadcast kamera OFF · proktor kamera majburiy':(ultraLiteUI?'Lite qurilma · adaptiv HD':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
@@ -1207,7 +1267,7 @@ async function leaveConferenceNow(back=true){
   if(handRaised&&activeLessonId&&socket?.connected)socket.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:false});setHandRaised(false);
   clearTimeout(participantsTimer);clearTimeout(proctorRestartTimer);proctorRestarts=0;attendanceDirty=false;autoRejoinAttempt=0;lastAutoQuality='';chatUnread=0;$('#chatUnreadBadge')?.classList.add('hidden');$('#lesson')?.classList.remove('student-focus-live');$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStates.clear();lessonRailRows=[];lessonActiveSpeakerUserIds.clear();$('#lessonStudentRailItems')?.replaceChildren();
-  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');hideRoomModeSheet();$('#roomModePill')?.classList.add('hidden');resetLiveExtras();lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
+  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');hideRoomModeSheet();$('#roomModePill')?.classList.add('hidden');resetLiveExtras();resetLiveFun();lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
   activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
@@ -2029,6 +2089,9 @@ function connectSocket(){
   socket.on('lesson:quiz-ack',x=>{if(liveQuiz&&liveQuiz.id===x.id&&liveQuiz.phase==='open'){liveQuiz.mine=Number(x.choice);renderQuiz()}});
   socket.on('lesson:quiz-progress',x=>{if(liveQuiz&&liveQuiz.id===x.id&&liveQuiz.phase==='open'){liveQuiz.answered=x.answered;liveQuiz.online=x.online;if(isLessonHost())renderQuiz()}});
   socket.on('lesson:pulse',onLessonPulse);
+  socket.on('lesson:qa',onLessonQa);
+  socket.on('lesson:cloud',onLessonCloud);
+  socket.on('lesson:pick',onLessonPick);
   socket.on('lesson:feedback-protect',function(x){
     if(!activeLessonId||String(x.lessonId)!==String(activeLessonId)||!mediaRoomClient)return;
     if(user.role==='student'&&!mediaRoomClient.inRoom)showRoomModeSheet('feedback');

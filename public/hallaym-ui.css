@@ -1351,3 +1351,49 @@ html.hx[data-theme="dark"] .pulse-chips button:not(.on){background:#1b2350;borde
 html.hx #lesson .video-stage>#pulsePill{position:absolute!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:25!important;display:inline-flex;gap:12px;align-items:center;height:32px!important;min-height:0!important;padding:0 14px!important;border:0!important;border-radius:999px!important;background:rgba(5,8,26,.78)!important;color:#fff!important;font:600 12.5px/1 "Onest Hx",system-ui,sans-serif!important;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 html.hx #lesson .video-stage>#pulsePill.alert{background:#ffb627!important;color:#0f1537!important;animation:hxPulse 1.6s ease-out 3}
 html.hx #lesson .video-stage>#pulsePill.hidden{display:none!important}
+
+/* Q&A queue */
+.qa-card{max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.qa-head{display:flex;align-items:center;gap:8px}
+.qa-head h2{margin:0}
+.qa-head .lq-close{background:#eef0f7;color:#0f1537}
+.qa-sub{margin-top:6px}
+.qa-list{flex:1;min-height:60px;overflow:auto;display:grid;align-content:start;gap:8px;margin-bottom:12px}
+.qa-item{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1.5px solid #e3e7f3;border-radius:16px;background:#f7f8fc}
+.qa-item.is-done{opacity:.55}
+.qa-vote{flex:none;width:46px;padding:6px 0;border:1.5px solid #d6dcef;border-radius:12px;background:#fff;color:#0f1537;display:grid;justify-items:center;gap:1px;cursor:pointer;font:800 14px/1 "Onest Hx",system-ui,sans-serif}
+.qa-vote span{font-size:11px;color:#8a92b2}
+.qa-vote.on{background:#0b4fd8;border-color:#0b4fd8;color:#fff}.qa-vote.on span{color:#cfe0ff}
+.qa-body{flex:1;min-width:0}
+.qa-body p{margin:0 0 4px;font-size:14.5px;line-height:1.4;word-wrap:break-word}
+.qa-body small{color:#6b7392;font-size:12px}
+.qa-acts{display:flex;flex-direction:column;gap:6px}
+.qa-acts button{width:34px;height:34px;border:0;border-radius:10px;background:#e8f7ee;color:#1f9d55;font-weight:900;cursor:pointer}
+.qa-acts button[data-qa-del]{background:#fdeceb;color:#c0392b}
+.qa-empty{margin:8px 0;color:#6b7392;text-align:center}
+.qa-form textarea{width:100%;box-sizing:border-box;padding:12px;border:2px solid #e3e7f3;border-radius:14px;font:500 15px/1.4 "Onest Hx",system-ui,sans-serif;resize:none;background:#f7f8fc;color:inherit}
+.qa-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.qa-anon{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:#3a4266}
+.qa-row .quiz-go{margin-left:auto;height:42px;padding:0 18px;border:0;border-radius:12px;font:800 14px "Onest Hx",system-ui,sans-serif;cursor:pointer}
+.qa-form.hidden{display:none!important}
+html.hx[data-theme="dark"] :is(.qa-item,.qa-form textarea){background:#1b2350;border-color:#2a3366;color:#eef1fb}
+html.hx[data-theme="dark"] .qa-vote:not(.on){background:#0f1537;border-color:#2a3366;color:#eef1fb}
+html.hx[data-theme="dark"] .qa-anon{color:#c7cdea}
+
+/* Word cloud + random pick */
+.live-cloud .lc-words{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 12px;min-height:90px;padding:12px;border-radius:16px;background:rgba(255,255,255,.05);font-weight:800;line-height:1.1}
+.live-cloud .lc-words span{animation:hxSheetIn .3s ease-out}
+.live-cloud .lc-words sup{font-size:10px;opacity:.7;margin-left:2px}
+.lc-empty{color:#8f97bd;font-weight:500}
+.lc-form{display:flex;gap:8px;margin-top:12px}
+.lc-form input{flex:1;min-width:0;height:42px;padding:0 12px;border:0;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font:600 15px "Onest Hx",system-ui,sans-serif;outline:none}
+.lc-form .lq-end{margin-left:0}
+.live-pick .lp-name{margin:8px 0 4px;padding:18px 10px;border-radius:16px;background:rgba(255,255,255,.06);text-align:center;font:800 22px/1.2 "Bricolage Hx","Onest Hx",system-ui,sans-serif;color:#c7cdea}
+.live-pick .lp-name.final{background:rgba(255,182,39,.16);color:#ffb627;animation:hxSheetIn .25s ease-out}
+.live-pick .lq-foot{gap:8px}.live-pick .lq-foot .lq-end{margin-left:0;flex:1}
+.live-pick .lp-again{background:rgba(255,255,255,.14)!important;color:#fff!important}
+
+/* Confetti */
+.hx-confetti{position:fixed;inset:0;pointer-events:none;z-index:3000;overflow:hidden}
+.hx-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;animation:hxConf 2s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes hxConf{to{transform:translate(var(--dx),105vh) rotate(var(--r));opacity:.9}}
