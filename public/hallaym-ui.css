@@ -1055,3 +1055,49 @@ html.hx #lesson #attendanceSave.needs-save{box-shadow:0 0 0 3px rgba(255,182,39,
  html.hx #lesson .conference-controls #callHangup{flex:1.15 1 0!important}
  html.hx #lesson .conference-controls .control-badge{top:1px!important;right:4px!important;min-width:16px;height:16px;font-size:10px!important}
 }
+
+/* ==========================================================================
+   STUDENT CLASSROOM: teacher video on top, lesson chat always open below
+   (phone portrait), chat column beside the video (tablet / desktop).
+   Teachers keep the drawer with attendance + chat. The fullscreen fallback
+   and phone landscape keep the legacy video-first layout.
+   ========================================================================== */
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-shell{
+ display:grid!important;grid-template-columns:minmax(0,1fr) minmax(300px,360px)!important;grid-template-rows:minmax(0,1fr) auto!important;
+ gap:10px!important;height:calc(100dvh - var(--hx-head) - 100px)!important;min-height:420px!important;max-height:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-main{display:contents!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .video-stage{grid-column:1!important;grid-row:1!important;min-height:0!important;height:auto!important;max-height:none!important;border-radius:18px 18px 0 0!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-controls.zoom-dock{grid-column:1!important;grid-row:2!important;margin:-10px 0 0!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonStudentRail{display:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawerBackdrop{display:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawer.lesson-side{
+ grid-column:2!important;grid-row:1/3!important;position:relative!important;inset:auto!important;transform:none!important;visibility:visible!important;opacity:1!important;
+ width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;z-index:1!important;
+ display:flex!important;flex-direction:column!important;padding:0!important;overflow:hidden!important;
+ border-radius:18px!important;border:1px solid var(--hx-line)!important;background:var(--hx-surface)!important;box-shadow:var(--hx-shadow)!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawer :is(.lesson-drawer-head,.lesson-side-tabs,#teacherQuickControls,#participantsPanel){display:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonChatPanel{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;max-height:none!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonChatPanel>h2{display:flex!important;align-items:center;gap:8px;margin:0!important;padding:12px 16px!important;border-bottom:1px solid var(--hx-line)!important;font-size:15px!important;font-weight:700!important;color:var(--hx-text)!important;background:var(--hx-raised)!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonChatPanel>h2::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--hx-green)}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #messages{flex:1 1 auto!important;min-height:0!important;height:auto!important;max-height:none!important;overflow-y:auto!important;padding:12px 12px 4px!important;background:transparent!important;display:flex!important;flex-direction:column!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #messages:empty::before{content:"Savolingizni shu yerga yozing. Xabarlarni o‘qituvchi va guruh ko‘radi.";margin:auto;max-width:240px;text-align:center;color:var(--hx-muted);font-size:13.5px;line-height:1.5}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm{display:flex!important;gap:8px!important;align-items:center!important;padding:10px!important;margin:0!important;border-top:1px solid var(--hx-line)!important;background:var(--hx-surface)!important;position:static!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm input{flex:1 1 auto!important;min-width:0!important;height:44px!important;min-height:44px!important;padding:0 16px!important;border-radius:999px!important;border:1.5px solid var(--hx-line-strong)!important;background:var(--hx-raised)!important;color:var(--hx-text)!important;font:15px var(--hx-font)!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm input:focus{border-color:var(--hx-brand)!important;box-shadow:var(--hx-ring)!important;outline:none!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm button{flex:none!important;width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border-radius:50%!important;border:0!important;display:grid!important;place-items:center!important;background:var(--hx-brand)!important;color:var(--hx-brand-ink)!important}
+html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #callChat .control-badge{display:none!important}
+@media (max-width:900px) and (orientation:portrait){
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-shell{
+  grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:8px!important;
+  height:calc(100dvh - 112px - env(safe-area-inset-bottom))!important;min-height:0!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .video-stage{grid-column:1!important;grid-row:1!important;aspect-ratio:16/10!important;height:auto!important;max-height:42dvh!important;flex:none!important;border-radius:16px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawer.lesson-side{grid-column:1!important;grid-row:2!important;border-radius:16px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-controls.zoom-dock{grid-column:1!important;grid-row:3!important;margin:0!important;border-radius:16px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonChatPanel>h2{padding:9px 14px!important;font-size:14px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm{padding:8px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm input{height:42px!important;min-height:42px!important}
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #chatForm button{width:42px!important;height:42px!important;min-height:42px!important}
+}
+@media (max-width:900px) and (orientation:landscape){
+ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conference-shell{grid-template-columns:minmax(0,1fr) minmax(240px,300px)!important;height:calc(100dvh - 60px)!important;min-height:0!important}
+}

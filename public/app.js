@@ -1365,7 +1365,7 @@ $('#callCamera').onclick=async()=>{
 $('#callScreen').onclick=async()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');try{await mediaRoomClient.toggleScreen()}catch(e){toast(e.message)}};
 $('#videoQuality')?.addEventListener('change',async()=>{if(!mediaRoomClient)return;await mediaRoomClient.setReceiveQuality($('#videoQuality').value);toast('Video sifati: '+($('#videoQuality').value==='auto'?'Auto':$('#videoQuality').value+'p'))});
 $('#echoGuard')?.addEventListener('click',()=>{if(!mediaRoomClient)return toast('Avval video xonaga kiring');const on=mediaRoomClient.setProximityGuard(!mediaRoomClient.proximityGuard);toast(on?'Yaqin qurilmalar rejimi ON: mikrofon yoniq paytda karnay ovozi bloklanadi. Eshitish uchun mikrofonni OFF qiling.':'Yaqin qurilmalar rejimi OFF. Echo cancellation va chiyillash kuzatuvi faol qoladi.');});
-$('#callChat').onclick=()=>showLessonSide('chat');
+$('#callChat').onclick=()=>{if(user?.role==='student'){showLessonSide('chat',false);const i=$('#chatForm input');i?.focus();i?.scrollIntoView?.({block:'nearest'});return}showLessonSide('chat')};
 function applyInclusivePrefs(){
   document.documentElement.classList.toggle('inclusive-mode',accessibilityEnabled);
   document.documentElement.dataset.captionSize=String(captionSizeLevel);
