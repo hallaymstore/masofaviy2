@@ -1071,7 +1071,7 @@ html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson .conferenc
 html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonStudentRail{display:none!important}
 html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawerBackdrop{display:none!important}
 html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #lessonDrawer.lesson-side{
- grid-column:2!important;grid-row:1/3!important;position:relative!important;inset:auto!important;transform:none!important;visibility:visible!important;opacity:1!important;
+ grid-column:2!important;grid-row:1/3!important;position:relative!important;inset:auto!important;transform:none!important;pointer-events:auto!important;visibility:visible!important;opacity:1!important;
  width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;z-index:1!important;
  display:flex!important;flex-direction:column!important;padding:0!important;overflow:hidden!important;
  border-radius:18px!important;border:1px solid var(--hx-line)!important;background:var(--hx-surface)!important;box-shadow:var(--hx-shadow)!important}
@@ -1229,7 +1229,9 @@ html.hx:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is
 
 /* Student stage: dedicated top-layer teacher video (#hxStageVideo, set by app.js) */
 html.hx #lesson .video-stage>#hxStageVideo{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#05081a!important;z-index:20!important;transform:none!important;border-radius:inherit;display:block!important}
-html.hx #lesson .video-stage.hx-stage-live #videoMount :is(.ms-inline-self-stage,.ms-empty-stage,.ms-grid>.ms-tile){visibility:hidden!important}
+html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live #videoMount :is(.ms-inline-self-stage,.ms-empty-stage,.ms-grid:not(.fullscreen-video-grid)>.ms-tile){visibility:hidden!important}
+/* Full screen keeps the real grid (the overlay video is outside it): show it and make its controls clickable again */
+html.hx #lesson .video-stage #videoMount .ms-grid.fullscreen-video-grid{pointer-events:auto!important;visibility:visible!important}
 html.hx #lesson .video-stage.hx-stage-live #videoMount>:is(.ms-stage-badge,.ms-stage-fullscreen){position:absolute!important;z-index:23!important;visibility:visible!important}
 html.hx[data-user-role="student"] #lesson .video-stage.hx-stage-live #videoMount>.ms-stage-badge{display:none!important}
 html.hx #lesson .video-stage #liveStudentProctorStatus{z-index:24!important}
@@ -1250,3 +1252,11 @@ html.hx #lesson .video-stage #liveCaptions{z-index:26!important}
 /* keep the stage badge + fullscreen button above the student overlay: mount goes on top, transparent */
 html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live>#videoMount{z-index:21!important;background:transparent!important;pointer-events:none!important}
 html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live>#videoMount :is(.ms-stage-fullscreen,.ms-stage-badge){pointer-events:auto!important}
+
+/* Full screen: the primary tile is always shown (legacy premium rule hides any tile that is not first/focused/pinned) */
+html #lesson #videoMount :is(.ms-grid.fullscreen-video-grid:fullscreen,.ms-grid.fullscreen-video-grid:-webkit-full-screen)>.ms-tile.cinema-primary,
+html.video-cinema-fallback #lesson #videoMount .ms-grid.fullscreen-video-grid>.ms-tile.cinema-primary{
+ display:block!important;visibility:visible!important;opacity:1!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;background:#000!important;transform:none!important;z-index:1!important}
+html #lesson #videoMount :is(.ms-grid.fullscreen-video-grid:fullscreen,.ms-grid.fullscreen-video-grid:-webkit-full-screen)>.ms-tile.cinema-primary .ms-video,
+html.video-cinema-fallback #lesson #videoMount .ms-grid.fullscreen-video-grid>.ms-tile.cinema-primary .ms-video{
+ display:block!important;visibility:visible!important;opacity:1!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#000!important}
