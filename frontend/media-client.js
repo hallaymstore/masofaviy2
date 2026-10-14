@@ -895,28 +895,49 @@ export class MediaRoomClient{
     video.onloadedmetadata=()=>{if(!this.closed&&!document.hidden&&video.srcObject){this.ensureInlineVideoStage();video.play().catch(()=>this.onState({cameraPreviewBlocked:true}));}};
     this.updateParticipantCardCamera(this.room?.peerId,true);this.syncParticipantCardVideo(this.room?.peerId);
   }
+  async publishScreenTrack(track,{label='Ekran',source='display'}={}){
+    const lite=this.lowEnd||this.mediaProfile==='lecture-lite';
+    try{track.contentHint=source==='canvas'?'text':'detail'}catch{}
+    const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?900000:(lite?2800000:4500000),maxFramerate:source==='canvas'?20:(this.ultraLite?20:30)}],appData:{mediaTag:'screen',role:this.user.role,quality:'1080p',source,label}});
+    this.producers.set('screen',producer);
+    const screenTile=this.ensureTile('local:screen',{fullName:(this.user.fullName||this.user.login)+' · '+label,role:this.user.role},true);
+    screenTile.classList.add('screen-share','local-screen','has-video');
+    const screenVideo=qs('video',screenTile);screenVideo.srcObject=new MediaStream([track]);screenVideo.muted=true;
+    this.grid?.classList.add('screen-layout');
+    this.ensureInlineVideoStage();
+    const cameraTile=this.tiles.get('local');if(cameraTile?.classList.contains('has-video'))cameraTile.classList.add('screen-camera-pip');
+    producer.on('trackended',()=>this.closeProducer('screen').finally(()=>this.onState({screen:false,canvasShare:''})));producer.on('transportclose',()=>this.producers.delete('screen'));
+    return producer;
+  }
   async toggleScreen(){
     const p=this.producers.get('screen');
-    if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
+    if(p){await this.closeProducer('screen');this.onState({screen:false,canvasShare:''});return false}
     if(this.mediaBusy?.screen)return false;
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.screen=true;
     let stream=null;
     try{
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite';stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false});const track=stream.getVideoTracks()[0];
+      stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false});const track=stream.getVideoTracks()[0];
       if(this.closed){stream.getTracks().forEach(t=>t.stop());return false}
-      try{track.contentHint='detail'}catch{}
-      const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?900000:(lite?2800000:4500000),maxFramerate:this.ultraLite?20:30}],appData:{mediaTag:'screen',role:this.user.role,quality:'1080p'}});
-      this.producers.set('screen',producer);
-      const screenTile=this.ensureTile('local:screen',{fullName:(this.user.fullName||this.user.login)+' · Ekran',role:this.user.role},true);
-      screenTile.classList.add('screen-share','local-screen','has-video');
-      const screenVideo=qs('video',screenTile);screenVideo.srcObject=new MediaStream([track]);screenVideo.muted=true;
-      this.grid?.classList.add('screen-layout');
-      this.ensureInlineVideoStage();
-      const cameraTile=this.tiles.get('local');if(cameraTile?.classList.contains('has-video'))cameraTile.classList.add('screen-camera-pip');
-      producer.on('trackended',()=>this.closeProducer('screen').finally(()=>this.onState({screen:false})));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
+      await this.publishScreenTrack(track,{label:'Ekran',source:'display'});this.onState({screen:true,canvasShare:''});return true;
     }catch(e){try{if(!this.producers.get('screen'))stream?.getTracks().forEach(t=>t.stop())}catch{};if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
     finally{this.mediaBusy.screen=false}
   }
+  // Share a <canvas> (electronic board, virtual lab) as the lesson's screen stream. Students get it on the main stage
+  // with the teacher camera as picture-in-picture; no browser screen picker, no extra permissions.
+  async shareCanvas(canvas,{fps=15,label='Elektron doska'}={}){
+    if(!canvas?.captureStream)throw new Error('Brauzer canvas ulashishni qo‘llamaydi');
+    if(this.mediaBusy?.screen)return false;
+    this.mediaBusy=this.mediaBusy||{};this.mediaBusy.screen=true;
+    let track=null;
+    try{
+      if(this.producers.get('screen'))await this.closeProducer('screen');
+      track=canvas.captureStream(fps).getVideoTracks()[0];if(!track)throw new Error('Canvas oqimi yaratilmadi');
+      await this.publishScreenTrack(track,{label,source:'canvas'});this.canvasShareLabel=label;this.onState({screen:true,canvasShare:label});return true;
+    }catch(e){try{if(!this.producers.get('screen'))track?.stop()}catch{};this.onError(new Error(label+' ulashilmadi: '+(e.message||e)));return false}
+    finally{this.mediaBusy.screen=false}
+  }
+  async stopScreenShare(){if(this.producers.get('screen')){await this.closeProducer('screen');this.canvasShareLabel='';this.onState({screen:false,canvasShare:''})}}
+  localCameraTrack(){const p=this.producers.get('camera');const t=p&&!p.paused?p.track:null;return t&&t.readyState==='live'?t:null}
   async closeProducer(tag){
     const p=this.producers.get(tag);if(!p)return;
     try{await this.request('closeProducer',{producerId:p.id})}catch{}

@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/telegram-design.css?v=20261013-rc5">
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/hallaym-ui.css?v=20261014-hx11">
+  <link rel="stylesheet" href="/hallaym-ui.css?v=20261014-hx12">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -88,6 +88,7 @@
         <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
         <button data-page="grades" class="hidden"><span data-ico="star" data-fallback="★"></span><span id="gradeNavLabel">Mening baholarim</span></button>
         <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
+        <button data-page="lab"><span data-ico="flask" data-fallback="⚗"></span>Virtual laboratoriya</button>
 
       </details>
       <details class="nav-group"><summary><span>Nazorat</span><i>⌄</i></summary>
@@ -299,6 +300,11 @@
       </div>
     </section>
 
+    <section id="lab" class="page">
+      <div class="page-head"><div><h1>Virtual laboratoriya</h1><p>Fizika, elektrotexnika va oliy matematikadan interaktiv tajribalar: o‘lchov jurnali, grafik va hisobot</p></div><div class="head-actions"><button id="labOpenBoard" class="secondary" type="button"><span data-ico="board" data-fallback="✎"></span>Elektron doska</button></div></div>
+      <div id="labRoot" class="vl-root"></div>
+    </section>
+
     <section id="lesson" class="page">
       <div class="page-head"><div><h1 id="liveLessonTitle">Jonli dars xonasi</h1><p id="liveLessonMeta">Guruh video konferensiyasi</p></div><div class="head-actions"><button id="backToLive" class="secondary"><span data-ico="back" data-fallback="←"></span>Guruh darslari</button><button id="endLiveLesson" class="danger hidden">Darsni yakunlash</button></div></div>
       <div class="conference-shell">
@@ -326,7 +332,7 @@
                 <button id="callReaction"><span>👏</span><span>Reaksiya</span></button>
                 <button id="callViewMode"><span>▦</span><span>Ko‘rinish</span></button>
                 <label class="more-select"><span>Sifat</span><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
-                <button id="callQa" title="Savollar navbati"><span>❓</span><span>Savollar</span></button><button id="callCloud" class="hidden" title="Talabalar fikri — so‘z buluti"><span>☁️</span><span>So‘z buluti</span></button><button id="callPick" class="hidden" title="Onlayn talabalardan birini tasodifiy tanlash"><span>🎲</span><span>Tasodifiy talaba</span></button><button id="callQuiz" class="hidden" title="Talabalarga tezkor savol"><span>📊</span><span>Kviz</span></button><button id="callRoomMode" class="hidden" aria-pressed="false" title="Auditoriyada bo‘lsangiz telefon ovozi o‘chadi — aks-sado va chiyillash bo‘lmaydi"><span>🏫</span><span>Auditoriyadaman</span></button><button id="echoGuard" title="Bir xonadagi qurilmalar uchun: mikrofon ON bo‘lsa karnay ovozi o‘chadi"><span>🔇</span><span>Yaqin qurilmalar</span></button>
+                <button id="callBoard" class="hidden" title="Elektron doska — talabalarga avtomatik ko‘rsatiladi"><span>✎</span><span>Elektron doska</span></button><button id="callLab" title="Virtual laboratoriya (kamera PiP bilan)"><span>⚗</span><span>Laboratoriya</span></button><button id="callQa" title="Savollar navbati"><span>❓</span><span>Savollar</span></button><button id="callCloud" class="hidden" title="Talabalar fikri — so‘z buluti"><span>☁️</span><span>So‘z buluti</span></button><button id="callPick" class="hidden" title="Onlayn talabalardan birini tasodifiy tanlash"><span>🎲</span><span>Tasodifiy talaba</span></button><button id="callQuiz" class="hidden" title="Talabalarga tezkor savol"><span>📊</span><span>Kviz</span></button><button id="callRoomMode" class="hidden" aria-pressed="false" title="Auditoriyada bo‘lsangiz telefon ovozi o‘chadi — aks-sado va chiyillash bo‘lmaydi"><span>🏫</span><span>Auditoriyadaman</span></button><button id="echoGuard" title="Bir xonadagi qurilmalar uchun: mikrofon ON bo‘lsa karnay ovozi o‘chadi"><span>🔇</span><span>Yaqin qurilmalar</span></button>
                 <button id="callDevices"><span>⌃</span><span>Qurilmalar</span></button>
                 <button id="callFlipCamera"><span>↻</span><span>Kamera aylantirish</span></button>
                 <button id="callLowBandwidth"><span>⇣</span><span>Lite</span></button>
@@ -505,5 +511,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc6"></script><script type="module" src="/app.js?v=20261014-hx11"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc7"></script><script type="module" src="/app.js?v=20261014-hx12"></script>
 </body></html>

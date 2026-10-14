@@ -1229,7 +1229,7 @@ html.hx:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is
 
 /* Student stage: dedicated top-layer teacher video (#hxStageVideo, set by app.js) */
 html.hx #lesson .video-stage>#hxStageVideo{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#05081a!important;z-index:20!important;transform:none!important;border-radius:inherit;display:block!important}
-html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live #videoMount :is(.ms-inline-self-stage,.ms-empty-stage,.ms-grid:not(.fullscreen-video-grid)>.ms-tile){visibility:hidden!important}
+html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live #videoMount :is(.ms-inline-self-stage,.ms-empty-stage,.ms-teacher-pip-stage,.ms-grid:not(.fullscreen-video-grid)>.ms-tile){visibility:hidden!important}
 /* Full screen keeps the real grid (the overlay video is outside it): show it and make its controls clickable again */
 html.hx #lesson .video-stage #videoMount .ms-grid.fullscreen-video-grid{pointer-events:auto!important;visibility:visible!important}
 html.hx #lesson .video-stage.hx-stage-live #videoMount>:is(.ms-stage-badge,.ms-stage-fullscreen){position:absolute!important;z-index:23!important;visibility:visible!important}
@@ -1397,3 +1397,153 @@ html.hx[data-theme="dark"] .qa-anon{color:#c7cdea}
 .hx-confetti{position:fixed;inset:0;pointer-events:none;z-index:3000;overflow:hidden}
 .hx-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;animation:hxConf 2s cubic-bezier(.2,.6,.4,1) forwards}
 @keyframes hxConf{to{transform:translate(var(--dx),105vh) rotate(var(--r));opacity:.9}}
+
+/* Student stage: teacher camera PiP over board / lab / screen */
+html.hx #lesson .video-stage>#hxStagePip{position:absolute!important;right:10px;bottom:10px;z-index:22!important;width:26%;max-width:180px;aspect-ratio:4/3;height:auto!important;object-fit:cover!important;border-radius:14px!important;border:2px solid rgba(255,255,255,.85)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;background:#05081a!important;cursor:pointer;transition:width .2s ease,max-width .2s ease}
+html.hx #lesson .video-stage>#hxStagePip.big{width:46%;max-width:360px}
+
+/* ===== Elektron doska ===== */
+html.wb-open{overflow:hidden}
+.wb{position:fixed;inset:0;z-index:1900;display:flex;flex-direction:column;background:#0b1028;color:#eef1fb;font-family:"Onest Hx",system-ui,sans-serif}
+.wb.hidden{display:none!important}
+.wb button{font:inherit;color:inherit;cursor:pointer}
+.wb-top{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));background:#121937;border-bottom:1px solid rgba(255,255,255,.08);overflow-x:auto;scrollbar-width:none}
+.wb-top::-webkit-scrollbar{display:none}
+.wb-tools,.wb-colors,.wb-sizes,.wb-acts{display:flex;align-items:center;gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06);flex:none}
+.wb-tools button,.wb-acts button,.wb-sizes button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;font-size:18px;font-weight:800;display:grid;place-items:center}
+.wb-tools button:hover,.wb-acts button:hover,.wb-sizes button:hover{background:rgba(255,255,255,.1)}
+.wb-tools button.on,.wb-sizes button.on{background:#ffb627;color:#0f1537}
+.wb-acts button:disabled{opacity:.35;cursor:default}
+.wb-acts select{height:36px;border:0;border-radius:10px;background:#0b1028;color:#eef1fb;padding:0 8px;font:600 13px "Onest Hx",system-ui,sans-serif}
+.wb-sizes i{display:block;border-radius:50%;background:currentColor}
+.wb-colors button{width:28px;height:28px;border-radius:50%;border:3px solid transparent;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.wb-colors button.on{border-color:#ffb627;transform:scale(1.1)}
+.wb-close{margin-left:auto;flex:none;height:40px;padding:0 16px;border:0;border-radius:12px;background:#e5483b;font-weight:800!important}
+.wb-stage{position:relative;flex:1;min-height:0;display:grid;place-items:center;padding:10px}
+.wb-stage canvas{max-width:100%;max-height:100%;aspect-ratio:16/9;width:auto;height:100%;background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);touch-action:none;cursor:crosshair}
+@media (max-aspect-ratio:16/9){.wb-stage canvas{width:100%;height:auto}}
+.wb-stage canvas[data-tool="eraser"]{cursor:cell}.wb-stage canvas[data-tool="text"]{cursor:text}.wb-stage canvas[data-tool="laser"]{cursor:none}
+.wb-cam{position:absolute;right:22px;bottom:22px;width:min(240px,26vw);aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:#05081a;border:2px solid rgba(255,255,255,.85);box-shadow:0 12px 36px rgba(0,0,0,.5);cursor:grab;touch-action:none;z-index:2}
+.wb-cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.wb-cam .wb-cam-off{position:absolute;inset:0;display:none;place-items:center;font-size:13px;color:#aab3d6}
+.wb-cam.off video{display:none}.wb-cam.off .wb-cam-off{display:grid}
+.wb-cam.min{width:72px;border-radius:50%;aspect-ratio:1}
+.wb-cam-min{position:absolute;top:6px;right:6px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(5,8,26,.7);color:#fff;font-weight:900;line-height:1}
+.wb-cam.min .wb-cam-min{top:2px;right:2px}
+.wb-bottom{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));background:#121937;border-top:1px solid rgba(255,255,255,.08);flex-wrap:wrap}
+.wb-pages{display:flex;align-items:center;gap:6px}
+.wb-pages button{height:38px;min-width:38px;padding:0 12px;border:0;border-radius:10px;background:rgba(255,255,255,.08);font-weight:700}
+.wb-pageno{min-width:56px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.wb-share{margin-left:auto;height:40px;padding:0 16px;border:0;border-radius:12px;background:#0b4fd8;font-weight:800!important}
+.wb-share.on{background:#1f9d55}
+.wb-share[hidden]{display:none}
+.wb-text{position:fixed;z-index:1950;min-width:120px;max-width:60vw;padding:2px 4px;border:2px dashed #0b4fd8;background:rgba(255,255,255,.9);font-family:"Onest Hx",system-ui,sans-serif;font-weight:600;line-height:1.25;resize:none;outline:none;field-sizing:content}
+@media (max-width:720px){.wb-tools button,.wb-acts button,.wb-sizes button{width:36px;height:36px;font-size:16px}.wb-cam{width:120px}.wb-pages [data-act=delpage]{display:none}}
+
+/* ===== Suzuvchi dars kamerasi (dars sahifasidan tashqarida) ===== */
+.hx-float-cam{position:fixed;right:16px;bottom:calc(90px + env(safe-area-inset-bottom));z-index:1700;width:min(260px,46vw);aspect-ratio:4/3;border-radius:18px;overflow:hidden;background:#05081a;border:2px solid rgba(255,255,255,.9);box-shadow:0 18px 48px rgba(5,8,26,.5);touch-action:none;cursor:grab;font-family:"Onest Hx",system-ui,sans-serif}
+.hx-float-cam.hidden{display:none!important}
+.hx-float-cam video{width:100%;height:100%;object-fit:cover;display:block}
+.hx-float-cam .hfc-off{position:absolute;inset:0;display:none;place-items:center;color:#aab3d6;font-size:13px}
+.hx-float-cam.off video{display:none}.hx-float-cam.off .hfc-off{display:grid}
+.hfc-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:6px;padding:8px;background:linear-gradient(transparent,rgba(5,8,26,.85))}
+.hfc-live{padding:4px 8px;border-radius:999px;background:#e5483b;color:#fff;font-size:11px;font-weight:800}
+.hfc-bar button{height:30px;padding:0 10px;border:0;border-radius:9px;background:rgba(255,255,255,.18);color:#fff;font:700 12px "Onest Hx",system-ui,sans-serif;cursor:pointer}
+.hfc-bar button[data-f=back]{margin-left:auto;background:#ffb627;color:#0f1537}
+.hfc-bar button[data-f=mic].on{background:#1f9d55}
+.hfc-bar button[hidden]{display:none}
+@media (min-width:1000px){.hx-float-cam{bottom:24px}}
+
+/* ===== Virtual laboratoriya ===== */
+.vl-root{min-height:300px}
+.vl-cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.vl-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:18px;border:1px solid var(--hx-line,#e3e7f3);border-radius:22px;background:var(--hx-surface,#fff);color:inherit;text-align:left;cursor:pointer;font:inherit;box-shadow:var(--hx-shadow,0 8px 24px rgba(15,21,55,.06));transition:transform .15s ease,box-shadow .15s ease}
+.vl-card:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(15,21,55,.12)}
+.vl-card b{font:800 17px/1.25 "Bricolage Hx","Onest Hx",system-ui,sans-serif}
+.vl-card small{color:var(--hx-muted,#58607e);font-size:13px;line-height:1.45}
+.vl-ico{width:52px;height:52px;display:grid;place-items:center;border-radius:16px;background:#0f1537;font-size:26px;margin-bottom:4px}
+.vl-sub{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#0b4fd8}
+.vl-go{margin-top:auto;padding-top:8px;font-weight:800;color:#0b4fd8;font-size:13.5px}
+.vl-note{margin:16px 2px 0;color:var(--hx-muted,#58607e);font-size:13.5px;line-height:1.5}
+.vl{display:grid;gap:14px}
+.vl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vl-head h2{margin:2px 0 0;font:800 20px/1.2 "Bricolage Hx","Onest Hx",system-ui,sans-serif}
+.vl-title{flex:1;min-width:200px}
+.vl-back,.vl-full,.vl-share,.vl-reset,.vl-record,.vl-actions button,.vl-journal header button{height:40px;padding:0 14px;border:1px solid var(--hx-line,#e3e7f3);border-radius:12px;background:var(--hx-surface,#fff);color:inherit;font:700 13.5px "Onest Hx",system-ui,sans-serif;cursor:pointer}
+.vl-head-acts{display:flex;gap:8px}
+.vl-share{background:#0b4fd8!important;color:#fff!important;border-color:#0b4fd8!important}
+.vl-share.on{background:#1f9d55!important;border-color:#1f9d55!important}
+.vl-share.hidden{display:none!important}
+.vl-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+.vl-sim{position:relative;border-radius:18px;overflow:hidden;background:#0d1330;box-shadow:var(--hx-shadow,0 8px 24px rgba(15,21,55,.08))}
+.vl-sim canvas{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.vl-sim:fullscreen{display:grid;place-items:center;background:#05081a}
+.vl-sim:fullscreen canvas{max-height:100vh;width:auto;max-width:100%}
+.vl-actions{position:absolute;left:12px;bottom:12px;display:flex;gap:8px}
+.vl-actions button{background:#ffb627!important;color:#0f1537!important;border:0!important;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.vl-panel{padding:16px;border:1px solid var(--hx-line,#e3e7f3);border-radius:18px;background:var(--hx-surface,#fff);display:grid;gap:10px}
+.vl-panel h3{margin:4px 0 0;font:800 14px "Onest Hx",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:var(--hx-muted,#58607e)}
+.vl-field{display:grid;gap:6px;font-size:13.5px;font-weight:600}
+.vl-field>span{display:flex;justify-content:space-between;gap:8px}
+.vl-field output{font-weight:800;color:#0b4fd8;font-variant-numeric:tabular-nums}
+.vl-field input[type=range]{width:100%;accent-color:#0b4fd8}
+.vl-field :is(select,input[type=text]){height:40px;padding:0 10px;border:1.5px solid var(--hx-line,#e3e7f3);border-radius:10px;background:var(--hx-bg,#f7f8fc);color:inherit;font:600 14px "Onest Hx",system-ui,sans-serif}
+.vl-field input[type=text]{font-family:ui-monospace,Menlo,Consolas,monospace}
+.vl-check{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
+.vl-readings{display:grid;gap:6px}
+.vl-readings div{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:10px;background:var(--hx-bg,#f3f5fb);font-size:13px}
+.vl-readings b{font-variant-numeric:tabular-nums}
+.vl-readings small{color:var(--hx-muted,#58607e);font-weight:600}
+.vl-record{background:#0b4fd8!important;color:#fff!important;border-color:#0b4fd8!important;height:44px!important}
+.vl-lower{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+.vl-journal,.vl-theory{padding:16px;border:1px solid var(--hx-line,#e3e7f3);border-radius:18px;background:var(--hx-surface,#fff)}
+.vl-journal header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.vl-journal header h3{margin:0;flex:1;font:800 16px "Onest Hx",system-ui,sans-serif}
+.vl-journal header h3 small{color:var(--hx-muted,#58607e);font-weight:600}
+.vl-journal header div{display:flex;gap:6px;flex-wrap:wrap}
+.vl-journal header button{height:34px;font-size:12.5px}
+.vl-table{max-height:260px;overflow:auto;border-radius:12px;border:1px solid var(--hx-line,#e3e7f3);margin-bottom:12px}
+.vl-table table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.vl-table th{position:sticky;top:0;background:var(--hx-bg,#f3f5fb);text-align:left;padding:8px 10px;font-weight:800;white-space:nowrap}
+.vl-table td{padding:7px 10px;border-top:1px solid var(--hx-line,#eef0f7);white-space:nowrap}
+.vl-empty{margin:0;padding:16px;color:var(--hx-muted,#58607e);font-size:13.5px}
+.vl-chart{width:100%;height:auto;border-radius:12px;border:1px solid var(--hx-line,#e3e7f3)}
+.vl-theory h3{margin:0 0 6px;font:800 15px "Onest Hx",system-ui,sans-serif}
+.vl-theory h3+p,.vl-theory ol{margin:0 0 14px;font-size:13.5px;line-height:1.55}
+.vl-theory ol{padding-left:20px}
+@media (max-width:1100px){.vl-main,.vl-lower{grid-template-columns:1fr}}
+@media (max-width:600px){.vl-head h2{font-size:17px}.vl-actions{left:8px;bottom:8px}.vl-actions button{height:34px;padding:0 10px;font-size:12.5px}}
+html.hx[data-theme="dark"] .vl-ico{background:#1b2350}
+/* Printable lab report */
+.vl-print{display:none}
+@media print{
+ html.vl-printing body *{visibility:hidden!important}
+ html.vl-printing .vl-print,html.vl-printing .vl-print *{visibility:visible!important}
+ html.vl-printing .vl-print{display:block;position:absolute;left:0;top:0;width:100%;padding:0 8mm;color:#000;background:#fff;font:12pt/1.45 "Onest Hx",Arial,sans-serif}
+ .vl-print h1{font-size:18pt;margin:0 0 4pt}.vl-print h2{font-size:13pt;margin:14pt 0 4pt;border-bottom:1px solid #999}
+ .vl-print table{width:100%;border-collapse:collapse;font-size:10pt}.vl-print th,.vl-print td{border:1px solid #888;padding:3pt 5pt;text-align:left}
+ .vl-print img{max-width:100%;max-height:85mm;display:block;margin:4pt 0}
+ .vl-print-lines{height:40mm;background:repeating-linear-gradient(transparent 0 9mm,#bbb 9mm 9.3mm)}
+}
+
+/* Lab catalog cards must not inherit the generic one-line button layout */
+html.hx #lab .vl-card{white-space:normal!important;align-items:flex-start!important;justify-content:flex-start!important;text-align:left!important;height:auto!important;min-height:0!important;padding:18px!important;gap:6px!important;border-radius:22px!important;background:var(--hx-surface)!important;border:1px solid var(--hx-line)!important;color:var(--hx-text)!important}
+html.hx #lab .vl-card:hover{border-color:var(--hx-brand)!important}
+html.hx #lab .vl-card small{white-space:normal!important;display:block}
+html.hx #lab .vl-card .vl-go{margin-top:auto;padding-top:6px;color:var(--hx-brand);font-weight:800;font-size:14px}
+html.hx #lab .vl-title h2{font:800 22px/1.2 "Bricolage Hx","Onest Hx",system-ui,sans-serif!important;margin:2px 0 0!important}
+.wb-cam[hidden]{display:none!important}
+/* Lab: never wider than the page (wide journal tables scroll inside their own box) */
+html.hx #lab .vl{grid-template-columns:minmax(0,1fr)}
+html.hx #lab :is(.vl-main,.vl-lower)>*{min-width:0}
+html.hx #lab .vl-title{min-width:0;flex:1}
+html.hx #lab .vl-title h2{overflow-wrap:anywhere}
+html.hx #lab .vl-journal header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+html.hx #lab .vl-journal header>div{display:flex;flex-wrap:wrap;gap:6px}
+html.hx #lab .vl-chart{width:100%;height:auto;display:block}
+@media (max-width:600px){html.hx #lab .vl-journal header>div button{height:34px!important;padding:0 10px!important;font-size:12.5px!important}html.hx #lab .page-head .head-actions{width:100%}}
+.hx-float-cam .hfc-min{position:absolute;top:6px;right:6px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(5,8,26,.72);color:#fff;font:900 16px/1 "Onest Hx",system-ui,sans-serif;cursor:pointer;z-index:2}
+.hx-float-cam.min{width:84px!important;aspect-ratio:1!important;border-radius:50%!important}
+.hx-float-cam.min .hfc-bar,.hx-float-cam.min .hfc-off{display:none!important}
+.hx-float-cam.min .hfc-min{top:50%;right:50%;transform:translate(50%,-50%);opacity:0}
+.hx-float-cam.min:hover .hfc-min{opacity:1}
