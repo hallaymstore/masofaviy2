@@ -1226,3 +1226,27 @@ html.hx:not([data-user-role="student"]) #lesson #videoMount .ms-grid>.ms-tile.ro
 html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #videoMount .ms-grid>.ms-tile:is(.local,.role-student){display:none!important}
 html.hx[data-user-role="student"]:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is-visible{z-index:19!important}
 html.hx:not(.video-cinema-fallback) #lesson #videoMount>.ms-inline-self-stage.is-visible video{transform:none!important;translate:none!important;object-position:center!important;top:0!important;left:0!important}
+
+/* Student stage: dedicated top-layer teacher video (#hxStageVideo, set by app.js) */
+html.hx #lesson .video-stage>#hxStageVideo{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;background:#05081a!important;z-index:20!important;transform:none!important;border-radius:inherit;display:block!important}
+html.hx #lesson .video-stage.hx-stage-live #videoMount :is(.ms-inline-self-stage,.ms-empty-stage,.ms-grid>.ms-tile){visibility:hidden!important}
+html.hx #lesson .video-stage.hx-stage-live #videoMount>:is(.ms-stage-badge,.ms-stage-fullscreen){position:absolute!important;z-index:23!important;visibility:visible!important}
+html.hx[data-user-role="student"] #lesson .video-stage.hx-stage-live #videoMount>.ms-stage-badge{display:none!important}
+html.hx #lesson .video-stage #liveStudentProctorStatus{z-index:24!important}
+html.hx #lesson .video-stage #liveCaptions{z-index:26!important}
+
+/* Fullscreen extras: CC toggle + live caption line */
+.ms-fs-actions{display:flex;align-items:center;gap:8px;flex:none}
+.ms-fs-cc{height:40px;min-width:46px;padding:0 12px;border:0;border-radius:12px;background:rgba(255,255,255,.16);color:#fff;font:800 13px/1 "Onest Hx",system-ui,sans-serif;letter-spacing:.02em;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.ms-fs-cc[aria-pressed="true"]{background:#fff;color:#0f1537}
+.ms-fs-cc:focus-visible{outline:2px solid #ffb627;outline-offset:2px}
+.ms-fs-caption{display:none}
+:is(.ms-grid.fullscreen-video-grid:fullscreen,.ms-grid.fullscreen-video-grid:-webkit-full-screen,html.video-cinema-fallback .ms-grid.fullscreen-video-grid) .ms-fs-caption.show{
+ display:block;position:absolute;left:50%;bottom:max(64px,calc(env(safe-area-inset-bottom) + 56px));transform:translateX(-50%);z-index:28;
+ width:max-content;max-width:min(88vw,1100px);padding:10px 18px;border-radius:14px;background:rgba(5,8,22,.78);color:#fff;
+ font:600 clamp(16px,2.2vw,26px)/1.4 "Onest Hx",system-ui,sans-serif;text-align:center;text-wrap:balance;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.ms-fs-caption b{display:block;font-size:.62em;font-weight:700;color:#ffd27a;margin-bottom:2px}
+:is(.ms-grid.fullscreen-video-grid:fullscreen,.ms-grid.fullscreen-video-grid:-webkit-full-screen,html.video-cinema-fallback .ms-grid.fullscreen-video-grid).fs-captions-off .ms-fs-caption{display:none!important}
+/* keep the stage badge + fullscreen button above the student overlay: mount goes on top, transparent */
+html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live>#videoMount{z-index:21!important;background:transparent!important;pointer-events:none!important}
+html.hx:not(.video-cinema-fallback) #lesson .video-stage.hx-stage-live>#videoMount :is(.ms-stage-fullscreen,.ms-stage-badge){pointer-events:auto!important}

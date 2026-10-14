@@ -392,6 +392,7 @@ export class MediaRoomClient{
   }
   clearFullscreenLayout(){
     clearTimeout(this.fsHideTimer);this.grid?.classList.remove('fullscreen-video-grid','fs-ui-visible');
+    if(this.fsPrevQuality!==undefined){const q=this.fsPrevQuality;this.fsPrevQuality=undefined;this.setReceiveQuality(q,false).catch(()=>{})}
     for(const t of this.tiles.values())t.classList.remove('cinema-primary','fullscreen-teacher-pip');
   }
   ensureFullscreenBar(){
@@ -405,7 +406,11 @@ export class MediaRoomClient{
       const exit=el('button',{className:'ms-fs-exit',type:'button',title:'To‘liq ekrandan chiqish'});exit.setAttribute('aria-label','To‘liq ekrandan chiqish');
       exit.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/></svg>';
       exit.addEventListener('click',e=>{e.stopPropagation();this.exitPrimaryFullscreen().catch(()=>{})});
-      bar.append(info,exit);this.grid.append(bar);
+      const cc=el('button',{className:'ms-fs-cc',type:'button',title:'Subtitrni yoqish/o‘chirish'});cc.setAttribute('aria-label','Subtitr');cc.setAttribute('aria-pressed','true');cc.textContent='CC';
+      cc.addEventListener('click',e=>{e.stopPropagation();const off=this.grid.classList.toggle('fs-captions-off');cc.setAttribute('aria-pressed',String(!off));this.fsWake?.()});
+      const actions=el('div',{className:'ms-fs-actions'});actions.append(cc,exit);
+      bar.append(info,actions);this.grid.append(bar);
+      const caption=el('div',{className:'ms-fs-caption'});caption.setAttribute('role','status');caption.setAttribute('aria-live','polite');this.grid.append(caption);
       const wake=()=>{
         if(!this.grid?.classList.contains('fullscreen-video-grid'))return;
         const t=document.getElementById('lessonTimeLeft')?.textContent||'';const tn=qs('.ms-fs-time',this.grid);if(tn)tn.textContent=t&&t!=='--:--'?t:'';
@@ -420,6 +425,8 @@ export class MediaRoomClient{
     const layout=this.prepareFullscreenLayout();
     if(!layout)throw new Error('Asosiy video topilmadi');
     this.ensureFullscreenBar();
+    // Full screen = best picture: ask the SFU for the top simulcast layer (teacher sends 1080p).
+    if(this.fsPrevQuality===undefined){this.fsPrevQuality=this.receiveQuality||localStorage.getItem('m2-video-quality')||'auto';this.setReceiveQuality('1080',false).catch(()=>{})}
     const {target}=layout,video=qs('video',target),host=this.grid||this.mount;
     try{
       if(host?.requestFullscreen){
@@ -1159,8 +1166,8 @@ export class MediaRoomClient{
     this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.refreshRemoteAudioVolume();this.onState({echoGuard:true});
     return true;
   }
-  async setReceiveQuality(value){
-    const allowed=['auto','240','360','480','720','1080'];this.receiveQuality=allowed.includes(String(value))?String(value):'auto';localStorage.setItem('m2-video-quality',this.receiveQuality);
+  async setReceiveQuality(value,persist=true){
+    const allowed=['auto','240','360','480','720','1080'];this.receiveQuality=allowed.includes(String(value))?String(value):'auto';if(persist)localStorage.setItem('m2-video-quality',this.receiveQuality);
     for(const c of this.consumers.values())if(c.kind==='video'){try{await this.request('setConsumerQuality',{consumerId:c.id,quality:this.receiveQuality})}catch{}}
     this.onState({videoQuality:this.receiveQuality});
   }

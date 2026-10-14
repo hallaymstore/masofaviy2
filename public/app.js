@@ -707,6 +707,22 @@ async function loadLiveRooms(){
     hydrateIcons($('#liveRooms'));
   }catch(e){$('#liveRooms').innerHTML='<div class="empty"><b>Jonli xonalarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
+// Student stage: render the teacher / screen-share track in a dedicated top-layer video,
+// so legacy tile layouts and the proctor preview can never offset or cover it.
+let hxStageTimer=null;
+function syncStudentStage(){
+  const host=$('#lesson .video-stage');if(!host)return;
+  let v=$('#hxStageVideo');
+  if(user?.role!=='student'||!activeLessonId||!mediaRoomClient||mediaRoomClient.closed){if(v){v.srcObject=null;v.remove()}host.classList.remove('hx-stage-live');return}
+  const tiles=[...(mediaRoomClient.tiles?.values?.()||[])].filter(t=>t?.dataset?.role!=='student'&&!t.classList?.contains('local'));
+  const pick=tiles.find(t=>t.classList.contains('screen-share')&&mediaRoomClient.primaryTileTrack?.(t))||tiles.find(t=>t.classList.contains('role-teacher')&&mediaRoomClient.primaryTileTrack?.(t))||null;
+  const track=pick?mediaRoomClient.primaryTileTrack(pick):null;
+  if(!track||track.readyState!=='live'){if(v&&v.srcObject){v.srcObject=null}host.classList.remove('hx-stage-live');return}
+  if(!v){v=document.createElement('video');v.id='hxStageVideo';v.muted=true;v.autoplay=true;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('aria-label','O‘qituvchi videosi');v.addEventListener('dblclick',()=>mediaRoomClient?.enterPrimaryFullscreen?.().catch(()=>{}));host.appendChild(v)}
+  if(v.srcObject?.getVideoTracks?.()[0]!==track)v.srcObject=new MediaStream([track]);
+  if(v.paused)v.play().catch(()=>{});
+  host.classList.add('hx-stage-live');host.dataset.stageKind=pick.classList.contains('screen-share')?'screen':'camera';
+}
 // Live lesson flow guards: every join/leave bumps conferenceSeq so stale async work bails out.
 let conferenceSeq=0,leavingConference=null,chatLessonId='',participantsTimer=null,participantsSeq=0,attendanceDirty=false,proctorSeq=0,proctorRestartTimer=null,proctorRestarts=0,lastAudioBlockedToast=0,lessonWarnedId='';
 const liveJoinInFlight=new Set();
@@ -767,7 +783,7 @@ function startNetworkMonitor(){
       const b=$('#networkQualityBadge');if(b){b.className='network-quality '+quality;b.textContent='● '+label;b.title=health?'WebRTC: '+health.state+(health.rttMs?' · RTT '+Math.round(health.rttMs)+' ms':'')+(health.lossPercent!=null?' · paket yo‘qotish '+health.lossPercent.toFixed(1)+'%':''):'Brauzer tarmoq bahosi (taxminiy)';}
       // Never throttle a 1080p teacher/screen stream based solely on the browser's
       // estimated connection speed. WebRTC congestion control handles transient changes.
-      if(media&&!media.lowBandwidthMode&&(localStorage.getItem('m2-video-quality')||'auto')==='auto'){
+      if(media&&!media.lowBandwidthMode&&media.fsPrevQuality===undefined&&(localStorage.getItem('m2-video-quality')||'auto')==='auto'){
         const loss=health?.lossPercent;
         const veryPoor=health?.state==='failed'||health?.state==='disconnected'||(loss!=null&&loss>12)||(health?.rttMs||0)>850;
         const degraded=health?.state==='connecting'||(loss!=null&&loss>5)||(health?.rttMs||0)>500;
@@ -981,7 +997,7 @@ async function openConference(payload){
   if(chatLessonId!==String(s._id)){$('#messages')?.replaceChildren();chatLessonId=String(s._id)}
   activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;setHandRaised(false);raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end+(user.role==='student'?' · Proktor kamera lokal nazoratda':' · Yuz-faollik nazorati');
-  $('#endLiveLesson').classList.add('hidden');$('#lesson')?.classList.toggle('student-focus-live',user.role==='student');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();
+  $('#endLiveLesson').classList.add('hidden');$('#lesson')?.classList.toggle('student-focus-live',user.role==='student');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();clearInterval(hxStageTimer);if(user.role==='student')hxStageTimer=setInterval(syncStudentStage,1000);
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · broadcast kamera OFF · proktor kamera majburiy':(ultraLiteUI?'Lite qurilma · adaptiv HD':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
@@ -994,6 +1010,7 @@ async function openConference(payload){
         else mediaRoomClient?.focusUserForClass?.(userId);
       },
       onState:state=>{
+        if(user?.role==='student')queueMicrotask(syncStudentStage);
         if(state.mic!==undefined){micOn=Boolean(state.mic);const b=$('#callMic');b?.classList.toggle('active-control',micOn);b?.classList.toggle('is-off',!micOn);b?.setAttribute('aria-pressed',micOn?'true':'false');b?.setAttribute('title',micOn?'Mikrofon ON — aks-sadoni kamaytirish uchun quloqchin tavsiya etiladi':'Mikrofon OFF — yoqish')}
         if(state.micBusy!==undefined){const b=$('#callMic');if(b){b.disabled=Boolean(state.micBusy);b.classList.toggle('is-busy',Boolean(state.micBusy));b.setAttribute('aria-busy',state.micBusy?'true':'false')}}
         if(state.camera!==undefined){cameraOn=Boolean(state.camera);const b=$('#callCamera');b?.classList.toggle('active-control',cameraOn);b?.classList.toggle('is-off',!cameraOn);b?.setAttribute('aria-pressed',cameraOn?'true':'false');b?.setAttribute('title',user.role==='student'?(cameraOn?'Kamera ON — o‘qituvchiga ko‘rinadi. Proktor lokal ishlaydi':'Kamera OFF — o‘qituvchiga uzatilmaydi. Proktor lokal ishlaydi'):(cameraOn?'Kamera ON — o‘chirish':'Kamera OFF — yoqish'))}
@@ -1067,7 +1084,7 @@ async function leaveConferenceNow(back=true){
   if(handRaised&&activeLessonId&&socket?.connected)socket.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:false});setHandRaised(false);
   clearTimeout(participantsTimer);clearTimeout(proctorRestartTimer);proctorRestarts=0;attendanceDirty=false;autoRejoinAttempt=0;lastAutoQuality='';chatUnread=0;$('#chatUnreadBadge')?.classList.add('hidden');$('#lesson')?.classList.remove('student-focus-live');$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStates.clear();lessonRailRows=[];lessonActiveSpeakerUserIds.clear();$('#lessonStudentRailItems')?.replaceChildren();
-  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
+  stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
   activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
@@ -1317,7 +1334,8 @@ function showCaption(fullName,text){
   const clean=trimCaptionWords(normalizeMathCaption(text,$('#captionLang')?.value||'uz-UZ'));if(!clean)return;
   $('#captionSpeaker').textContent=(fullName||'')+(fullName?' · ':'');
   $('#captionText').textContent=clean;box.classList.remove('hidden');
-  clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent=''},5000);
+  const fsCap=document.querySelector('#videoMount .ms-fs-caption');if(fsCap){fsCap.innerHTML=(fullName?'<b>'+esc(fullName)+'</b>':'')+esc(clean);fsCap.classList.add('show')}
+  clearTimeout(captionClearTimer);captionClearTimer=setTimeout(()=>{box.classList.add('hidden');$('#captionText').textContent='';$('#captionSpeaker').textContent='';document.querySelector('#videoMount .ms-fs-caption')?.classList.remove('show')},5000);
 }
 function stopCaptions(silent=false){
   captionsEnabled=false;captionFinalWords=[];
