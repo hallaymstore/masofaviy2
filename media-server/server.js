@@ -12,7 +12,11 @@ const RTC_LISTEN_IP=process.env.RTC_LISTEN_IP||process.env.LISTEN_IP||'0.0.0.0';
 const ANNOUNCED_IP=process.env.ANNOUNCED_IP||'127.0.0.1';
 const RTC_BASE_PORT=Number(process.env.RTC_BASE_PORT||50000);
 const WORKERS=Math.max(1,Math.min(Number(process.env.MEDIASOUP_WORKERS||Math.max(1,Math.min(os.cpus().length,16))),32));
-const ENABLE_RTC_TCP=process.env.ENABLE_RTC_TCP==='true';
+// TCP candidates are on by default: UDP is blocked on many campus/corporate/mobile networks, and without a TCP
+// fallback those students get no media at all. UDP stays preferred (preferUdp) whenever it works.
+const ENABLE_RTC_TCP=process.env.ENABLE_RTC_TCP!=='false';
+// Peers survive a short loss of the platform bridge (app restart, bridge reconnect) instead of being dropped at once.
+const BRIDGE_GRACE_MS=Math.max(5000,Number(process.env.SFU_BRIDGE_GRACE_MS||30000));
 const PLATFORM_VERIFY_URL=process.env.PLATFORM_VERIFY_URL||'http://127.0.0.1:3000/api/media/verify';
 const SFU_BRIDGE_SECRET=String(process.env.SFU_BRIDGE_SECRET||'');
 const MAX_PEERS_PER_ROOM=Math.max(2,Number(process.env.MAX_PEERS_PER_ROOM||120));
@@ -91,7 +95,7 @@ async function verifyTicket(ticket){
 function workerPeerCount(slot){let n=0;for(const r of rooms.values())if(r.workerSlot===slot)n+=r.peers.size;return n}
 function chooseWorker(roomId){
   if(!workers.length)throw new Error('SFU worker mavjud emas');
-  const available=workers.filter(w=>w.rooms<MAX_ROOMS_PER_WORKER);
+  const available=workers.filter(w=>w.alive!==false&&w.rooms<MAX_ROOMS_PER_WORKER);
   if(!available.length)throw new Error('SFU workerlar xona sig‘imiga yetdi');
   const seed=crypto.createHash('sha256').update(roomId).digest().readUInt32BE(0);
   return available.slice().sort((a,b)=>{
@@ -122,8 +126,22 @@ function serializeProducer(producer,owner){
 function serializeTransport(t){
   return {id:t.id,iceParameters:t.iceParameters,iceCandidates:t.iceCandidates,dtlsParameters:t.dtlsParameters,sctpParameters:t.sctpParameters};
 }
+function orphanPeer(peer){
+  peer.bridge=null;clearTimeout(peer.orphanTimer);
+  peer.orphanTimer=setTimeout(()=>{if(!peer.bridge)closePeer(peer.id,true)},BRIDGE_GRACE_MS);peer.orphanTimer.unref?.();
+}
+function adoptBridge(peer,ws){
+  if(peer.bridge===ws)return true;
+  if(peer.bridge&&peer.bridge.readyState===1)return false;
+  peer.bridge=ws;clearTimeout(peer.orphanTimer);peer.orphanTimer=null;return true;
+}
+function existingProducersFor(peer){
+  const list=[];for(const other of peer.room.peers.values())if(other.id!==peer.id)for(const producer of other.producers.values())if(canAccessProducer(peer,producer,other))list.push(serializeProducer(producer,other));
+  return list;
+}
 async function closePeer(clientId,notify=true){
   const peer=peers.get(clientId);if(!peer)return;
+  clearTimeout(peer.orphanTimer);
   peers.delete(clientId);const room=peer.room;
   if(room?.audioFloor?.peerId===peer.id)clearAudioFloor(room,peer.id);
   for(const producer of peer.producers.values())try{producer.close()}catch{}
@@ -167,20 +185,25 @@ async function handleRequest(ws,msg){
     if(method==='join'){
       const payload=await verifyTicket(String(data.ticket||''));
       if(!payload?.roomName||!payload?.sub)throw new Error('Media ticket noto‘g‘ri');
-      const previous=peers.get(clientId);if(previous&&previous.bridge!==ws)throw new Error('Peer boshqa signaling ulanishiga tegishli');
+      const previous=peers.get(clientId);if(previous&&previous.bridge&&previous.bridge!==ws&&previous.bridge.readyState===1)throw new Error('Peer boshqa signaling ulanishiga tegishli');
       await closePeer(clientId,false);
       if(peers.size>=MAX_TOTAL_PEERS)throw new Error('SFU umumiy ishtirokchilar limiti to‘lgan');
       const room=await getRoom(payload.roomName,payload.mediaProfile,payload.maxParticipants);
       if(room.peers.size>=room.maxParticipants)throw new Error('Bu xonada ishtirokchilar limiti to‘lgan');
       const peer={id:clientId,bridge:ws,room,user:{id:payload.sub,fullName:payload.fullName,login:payload.login,role:payload.role,avatarUrl:payload.avatarUrl||''},transports:new Map(),producers:new Map(),consumers:new Map(),joinedAt:new Date()};
       peers.set(clientId,peer);room.peers.set(clientId,peer);
-      const existing=[];for(const other of room.peers.values())if(other.id!==clientId)for(const producer of other.producers.values())if(canAccessProducer(peer,producer,other))existing.push(serializeProducer(producer,other));
+      const existing=existingProducersFor(peer);
       reply(ws,clientId,id,true,{room:{roomId:room.id,peerId:clientId},mediaProfile:room.profile,limits:roomState(room).limits,routerRtpCapabilities:room.router.rtpCapabilities,producers:existing,participants:roomState(room,peer).participants});
       broadcast(room,'peerJoined',{peerId:clientId,user:peer.user},clientId);broadcast(room,'roomState',roomState(room));
       return;
     }
     const peer=peers.get(clientId);if(!peer)throw new Error('Avval media xonaga ulaning');
-    if(peer.bridge!==ws)throw new Error('Peer boshqa signaling ulanishiga tegishli');
+    if(!adoptBridge(peer,ws))throw new Error('Peer boshqa signaling ulanishiga tegishli');
+    if(method==='resume'){
+      // Signaling came back (new socket or new bridge): media transports were never touched. Return the current
+      // producer list so the client can consume what appeared and drop what closed while events could not arrive.
+      reply(ws,clientId,id,true,{room:{roomId:peer.room.id,peerId:peer.id},mediaProfile:peer.room.profile,producers:existingProducersFor(peer),participants:roomState(peer.room,peer).participants,audioFloor:roomState(peer.room,peer).audioFloor||null});return;
+    }
     if(method==='createTransport'){reply(ws,clientId,id,true,await createTransport(peer,data.direction==='recv'?'recv':'send'));return}
     if(method==='connectTransport'){
       const t=peer.transports.get(data.transportId);if(!t)throw new Error('Transport topilmadi');
@@ -217,6 +240,8 @@ async function handleRequest(ws,msg){
       if(!peer.room.router.canConsume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities}))throw new Error('Brauzer bu media formatini qabul qila olmaydi');
       const consumer=await t.consume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities,paused:true,appData:{meta:serializeProducer(found.producer,found.owner)}});
       peer.consumers.set(consumer.id,consumer);
+      // Bandwidth goes first to what the lesson depends on: screen/board, then the teacher camera, then student cameras.
+      try{const tag=found.producer.appData?.mediaTag,role=found.owner.user?.role;await consumer.setPriority(consumer.kind==='audio'?255:(tag==='screen'?230:(role==='teacher'?200:40)))}catch{}
       if(consumer.kind==='video'&&consumer.type==='simulcast')try{
         const q=String(data.quality||'auto'),map={240:[0,0],360:[0,2],480:[1,0],720:[1,2],1080:[2,2]};
         const pair=map[q]||(peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'?[1,1]:[2,2]);
@@ -270,17 +295,32 @@ async function handleRequest(ws,msg){
   }catch(e){reply(ws,clientId,id,false,null,e?.message||'SFU xatosi')}
 }
 
+async function createWorkerSlot(i){
+  const worker=await mediasoup.createWorker({logLevel:process.env.MEDIASOUP_LOG_LEVEL||'warn',logTags:['ice','dtls','rtp','srtp','rtcp']});
+  const port=RTC_BASE_PORT+i,listenInfos=[{protocol:'udp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port,recvBufferSize:4*1024*1024,sendBufferSize:4*1024*1024}];
+  if(ENABLE_RTC_TCP)listenInfos.push({protocol:'tcp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port});
+  const webRtcServer=await worker.createWebRtcServer({listenInfos});
+  const slot={index:i,worker,webRtcServer,port,rooms:0,alive:true};
+  worker.on('died',err=>onWorkerDied(slot,err));
+  return slot;
+}
+// A crashed worker no longer takes the whole SFU (every lesson) down: only its rooms are told to rejoin,
+// and a replacement worker is started on the same RTC port.
+function onWorkerDied(slot,err){
+  if(!slot.alive)return;slot.alive=false;
+  console.error('mediasoup worker died',slot.index,err?.message||err);
+  // Router 'close' may already have removed the room from the map, so walk the peers (they still reference it).
+  for(const p of [...peers.values()])if(p.room?.workerSlot===slot){event(p,'roomClosed',{reason:'worker-restart'});closePeer(p.id,false)}
+  for(const room of [...rooms.values()])if(room.workerSlot===slot)rooms.delete(room.id);
+  const respawn=async(attempt=0)=>{
+    try{const fresh=await createWorkerSlot(slot.index);const at=workers.indexOf(slot);if(at>=0)workers[at]=fresh;else workers.push(fresh);console.log('worker',slot.index,'qayta ishga tushirildi')}
+    catch(e){console.error('worker respawn failed',slot.index,e?.message||e);if(attempt<6)setTimeout(()=>respawn(attempt+1),1000*(attempt+1));else process.exit(1)}
+  };
+  setTimeout(()=>respawn(0),400);
+}
 async function boot(){
   if(process.env.NODE_ENV==='production'&&(!SFU_BRIDGE_SECRET||SFU_BRIDGE_SECRET.length<32||!process.env.ANNOUNCED_IP||!process.env.PLATFORM_VERIFY_URL))throw new Error('SFU_BRIDGE_SECRET (32+), ANNOUNCED_IP va PLATFORM_VERIFY_URL majburiy');
-  for(let i=0;i<WORKERS;i++){
-    const worker=await mediasoup.createWorker({logLevel:process.env.MEDIASOUP_LOG_LEVEL||'warn',logTags:['ice','dtls','rtp','srtp','rtcp']});
-    worker.on('died',err=>{console.error('mediasoup worker died',i,err);setTimeout(()=>process.exit(1),2000)});
-    const port=RTC_BASE_PORT+i,listenInfos=[{protocol:'udp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port,recvBufferSize:4*1024*1024,sendBufferSize:4*1024*1024}];
-    if(ENABLE_RTC_TCP)listenInfos.push({protocol:'tcp',ip:RTC_LISTEN_IP,announcedAddress:ANNOUNCED_IP,port});
-    const webRtcServer=await worker.createWebRtcServer({listenInfos});
-    workers.push({index:i,worker,webRtcServer,port,rooms:0});
-    console.log('worker',i,'RTC',port,ENABLE_RTC_TCP?'UDP/TCP':'UDP');
-  }
+  for(let i=0;i<WORKERS;i++){workers.push(await createWorkerSlot(i));console.log('worker',i,'RTC',RTC_BASE_PORT+i,ENABLE_RTC_TCP?'UDP/TCP':'UDP')}
 
   const server=http.createServer((req,res)=>{
     if(req.url==='/health'){
@@ -300,7 +340,7 @@ async function boot(){
   wss.on('connection',(ws,req)=>{
     ws.isAlive=true;ws.on('pong',()=>ws.isAlive=true);
     ws.on('message',raw=>{try{const msg=JSON.parse(String(raw));handleRequest(ws,msg)}catch(e){send(ws,{ok:false,error:'JSON noto‘g‘ri'})}});
-    ws.on('close',()=>{for(const p of [...peers.values()])if(p.bridge===ws)closePeer(p.id,true)});
+    ws.on('close',()=>{for(const p of [...peers.values()])if(p.bridge===ws)orphanPeer(p)});
     ws.on('error',()=>{});
   });
   const ping=setInterval(()=>{for(const ws of wss.clients){if(!ws.isAlive){try{ws.terminate()}catch{};continue}ws.isAlive=false;try{ws.ping()}catch{}}},20000);ping.unref?.();

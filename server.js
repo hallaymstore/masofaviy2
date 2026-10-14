@@ -1422,8 +1422,9 @@ function sfuSendTo(node,payload){
 }
 function routeSfuMessage(msg){
   if(!msg?.clientId)return;
-  if(msg.event)io.to(msg.clientId).emit('media:event',msg);
-  else io.to(msg.clientId).emit('media:response',msg);
+  const target=mediaSessionTarget(msg.clientId);
+  if(msg.event)io.to(target).emit('media:event',msg);
+  else io.to(target).emit('media:response',msg);
 }
 async function pollSfuHealth(node){
   try{
@@ -1448,6 +1449,8 @@ function connectSfuNode(node){
       node.connectedAt=new Date();node.lastSeen=Date.now();
       await pollSfuHealth(node);
       console.log('SFU node ulandi:',node.id,node.url);
+      clearTimeout(node.offlineTimer);node.offlineTimer=null;
+      for(const sess of mediaSessions.values())if(sess.nodeId===node.id)io.to(sess.socketId).emit('media:resync',{nodeId:node.id});
       io.emit('media:bridge',{online:true,nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});
     });
     node.ws.on('message',raw=>{try{routeSfuMessage(JSON.parse(String(raw)))}catch{}});
@@ -1458,12 +1461,68 @@ function connectSfuNode(node){
         io.to(client).emit('media:reconnect-required',{reason:'sfu-node-offline',nodeId:node.id});
         clientNodeMap.delete(client);clientRoomMap.delete(client);
       }
+      clearTimeout(node.offlineTimer);
+      node.offlineTimer=setTimeout(()=>{
+        node.offlineTimer=null;if(sfuNodeOnline(node))return;
+        for(const [sid,sess] of [...mediaSessions])if(sess.nodeId===node.id){io.to(sess.socketId).emit('media:reconnect-required',{reason:'sfu-node-offline',nodeId:node.id});clearTimeout(sess.leaveTimer);mediaSessions.delete(sid)}
+      },MEDIA_NODE_GRACE_MS);node.offlineTimer.unref?.();
       io.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});
       scheduleSfuReconnect(node);
     });
     node.ws.on('error',()=>{});
   }catch{scheduleSfuReconnect(node)}
 }
+// ---- Resumable media sessions ----
+// The SFU peer is keyed by a client-generated media session id (sid), not by the Socket.IO socket id. A signaling blip
+// (mobile network switch, phone screen lock, proxy timeout, app restart) therefore no longer tears down WebRTC media:
+// the peer is kept for MEDIA_RESUME_GRACE_MS and the reconnected socket re-binds to it with method 'resume'.
+const MEDIA_RESUME_GRACE_MS=Math.max(10000,Number(process.env.MEDIA_RESUME_GRACE_MS||45000));
+const MEDIA_NODE_GRACE_MS=Math.max(5000,Number(process.env.MEDIA_NODE_GRACE_MS||20000));
+const mediaSessions=new Map(); // sid -> {uid, socketId, nodeId, roomName, leaveTimer}
+const validSid=v=>{const x=String(v||'');return /^[A-Za-z0-9_-]{16,64}$/.test(x)?x:''};
+function mediaFail(socket,clientId,id,error){socket.emit('media:response',{clientId,id,ok:false,error})}
+function handleMediaRequest(socket,uid,msg){
+  const id=String(msg?.id||'');if(!id)return;
+  const method=String(msg?.method||''),data=msg?.data||{},sid=validSid(msg?.sid);
+  if(!sid){ // legacy client (old cached bundle): socket-bound peer
+    let node=null;
+    if(method==='join'){try{const payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});node=pickSfuNode(String(payload.roomName||''));if(node){clientNodeMap.set(socket.id,node.id);clientRoomMap.set(socket.id,String(payload.roomName||''))}}catch{}}
+    else{const nodeId=clientNodeMap.get(socket.id);if(nodeId)node=sfuNodes.get(nodeId)}
+    if(!node||!sfuSendTo(node,{clientId:socket.id,id,method,data}))mediaFail(socket,socket.id,id,'Universitet media klasterida sog‘lom SFU node topilmadi');
+    return;
+  }
+  let sess=mediaSessions.get(sid),node=null;
+  if(sess&&sess.uid!==uid)return mediaFail(socket,sid,id,'Media sessiya boshqa foydalanuvchiga tegishli');
+  if(method==='join'||(method==='resume'&&!sess)){
+    // join: fresh ticket. resume without a mapping (app server restarted): the ticket only proves which room/user;
+    // the SFU still refuses unless it holds a live peer with this sid.
+    let payload=null;try{payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu',ignoreExpiration:method==='resume'})}catch{}
+    if(!payload||payload.typ!=='media'||String(payload.sub)!==uid)return mediaFail(socket,sid,id,'Media ticket yaroqsiz');
+    node=pickSfuNode(String(payload.roomName||''));
+    if(!node)return mediaFail(socket,sid,id,'Universitet media klasterida sog‘lom SFU node topilmadi');
+    if(sess)clearTimeout(sess.leaveTimer);
+    sess={uid,socketId:socket.id,nodeId:node.id,roomName:String(payload.roomName||''),leaveTimer:null};mediaSessions.set(sid,sess);
+  }
+  if(!sess)return mediaFail(socket,sid,id,'Media sessiya topilmadi');
+  if(sess.socketId!==socket.id)sess.socketId=socket.id; // re-bind after reconnect
+  if(sess.leaveTimer){clearTimeout(sess.leaveTimer);sess.leaveTimer=null}
+  node=node||sfuNodes.get(sess.nodeId);
+  if(!node||!sfuSendTo(node,{clientId:sid,id,method,data}))return mediaFail(socket,sid,id,'Universitet media klasterida sog‘lom SFU node topilmadi');
+  if(method==='leave')setTimeout(()=>{if(mediaSessions.get(sid)===sess&&!sess.leaveTimer)mediaSessions.delete(sid)},5000).unref?.();
+}
+function detachMediaSessions(socketId){
+  for(const [sid,sess] of mediaSessions){
+    if(sess.socketId!==socketId)continue;
+    clearTimeout(sess.leaveTimer);
+    sess.leaveTimer=setTimeout(()=>{
+      if(mediaSessions.get(sid)!==sess||sess.socketId!==socketId)return; // re-bound meanwhile
+      mediaSessions.delete(sid);const node=sfuNodes.get(sess.nodeId);
+      if(node)sfuSendTo(node,{clientId:sid,id:'grace-leave-'+Date.now(),method:'leave',data:{}});
+    },MEDIA_RESUME_GRACE_MS);
+    sess.leaveTimer.unref?.();
+  }
+}
+function mediaSessionTarget(clientId){const sess=mediaSessions.get(String(clientId||''));return sess?sess.socketId:clientId}
 function initSfuCluster(){
   SFU_BRIDGE_URLS.forEach((url,index)=>{
     const id='sfu-'+String(index+1).padStart(2,'0');
@@ -1484,7 +1543,7 @@ app.get('/api/media/status',auth,async(req,res)=>{
 
 installLessonHistory(app,{mongoose,auth,User,Schedule,Structure,Attendance,LiveSession,resolveScope});
 io.use(async(socket,next)=>{ try { const token=readCookie(socket.handshake.headers.cookie,sessionCookie)||socket.handshake.auth?.token;const data=jwt.verify(token,JWT_SECRET); socket.user=data.id==='demo'?demoAdmin:await User.findById(data.id).lean(); if(!socket.user?.active||data.id!=='demo'&&Number(data.sv||0)!==Number(socket.user.sessionVersion||0)) throw new Error(); next(); } catch { next(new Error('unauthorized')); } });
-io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});socket.on('media:request',msg=>{const id=String(msg?.id||'');if(!id)return;const method=String(msg?.method||''),data=msg?.data||{};let node=null;if(method==='join'){try{const payload=jwt.verify(String(data.ticket||''),JWT_SECRET,{issuer:'masofaviy2',audience:'masofaviy2-sfu'});node=pickSfuNode(String(payload.roomName||''));if(node){clientNodeMap.set(socket.id,node.id);clientRoomMap.set(socket.id,String(payload.roomName||''))}}catch{}}else{const nodeId=clientNodeMap.get(socket.id);if(nodeId)node=sfuNodes.get(nodeId)}if(!node||!sfuSendTo(node,{clientId:socket.id,id,method,data}))socket.emit('media:response',{clientId:socket.id,id,ok:false,error:'Universitet media klasterida sog‘lom SFU node topilmadi'});}); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});if(socket.data.activeLessonId===String(lessonId)&&socket.data.attendanceId)return;socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=new Attendance({lessonId:String(lessonId),userId:socket.user._id,dateKey,status:late?'late':'present',minutes:0,reconnectCount:0});else if(!row.joinedAt&&!row.manualMarkedAt&&row.status!=='excused')row.status=late?'late':'present';recordPresenceJoin(row,now);await row.save();socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;socket.data.activeLessonId=String(lessonId);io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
+io.on('connection', socket => { const uid=String(socket.user._id);onlineUsers.set(uid,(onlineUsers.get(uid)||0)+1);io.emit('presence:count',{online:onlineUsers.size});socket.emit('media:bridge',{online:[...sfuNodes.values()].some(sfuNodeOnline),nodes:[...sfuNodes.values()].filter(sfuNodeOnline).length});socket.on('media:request',msg=>handleMediaRequest(socket,uid,msg)); socket.on('lesson:join', async({lessonId})=>{ try{if(!mongoose.isValidObjectId(lessonId))return socket.emit('lesson:error',{message:'Dars ID noto‘g‘ri'});const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return socket.emit('lesson:error',{message:'Dars topilmadi'});if(lesson.kind==='final_exam')return socket.emit('lesson:error',{message:'Yakuniy nazorat jonli xonada o‘tkazilmaydi'});let allowed=String(lesson.teacherId)===String(socket.user._id);if(hasPermission(socket.user,'lessons.support'))allowed=true;else if(hasPermission(socket.user,'lessons.monitor')){if(GLOBAL_SCOPE_ROLES.has(socket.user.role))allowed=true;else{try{const scope=await resolveScope(socket.user,{});allowed=scope.groupIds.some(id=>String(id)===String(lesson.groupId))}catch{allowed=false}}}if(socket.user.role==='student'){const gid=await resolveUserGroupId(socket.user);allowed=String(gid||'')===String(lesson.groupId)}if(!allowed)return socket.emit('lesson:error',{message:'Bu darsga kirish huquqi yo‘q'});if(socket.data.activeLessonId===String(lessonId)&&socket.data.attendanceId)return;socket.join('lesson:'+lessonId);const now=new Date(),dateKey=localDateKey(now),late=localWeekday(now)===lesson.weekday&&localMinuteOfDay(now)>timeToMinutes(lesson.start)+LATE_AFTER_MINUTES;let row=await Attendance.findOne({lessonId:String(lessonId),userId:socket.user._id,dateKey}).sort({createdAt:1});if(!row)row=new Attendance({lessonId:String(lessonId),userId:socket.user._id,dateKey,status:late?'late':'present',minutes:0,reconnectCount:0});else if(!row.joinedAt&&!row.manualMarkedAt&&row.status!=='excused')row.status=late?'late':'present';recordPresenceJoin(row,now);await row.save();socket.data.attendanceId=row.id;socket.data.attendanceSessionStartedAt=now;socket.data.activeLessonId=String(lessonId);io.to('lesson:'+lessonId).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'joined',status:row.status})}catch{socket.emit('lesson:error',{message:'Darsga ulanishda xatolik'})} }); socket.on('mic:permission-request',async({lessonId})=>{
   try{
     if(socket.user.role!=='student'||!mongoose.isValidObjectId(lessonId)||!socket.rooms.has('lesson:'+lessonId))return;
     const lesson=await Schedule.findById(lessonId).lean();if(!lesson)return;
@@ -1759,6 +1818,7 @@ socket.on('disconnect', async()=>{
   const oldNodeId=clientNodeMap.get(socket.id),oldRoom=clientRoomMap.get(socket.id);
   const oldNode=oldNodeId?sfuNodes.get(oldNodeId):null;
   if(oldNode)sfuSendTo(oldNode,{clientId:socket.id,id:'disconnect-'+Date.now(),method:'leave',data:{}});
+  detachMediaSessions(socket.id);
   clientNodeMap.delete(socket.id);clientRoomMap.delete(socket.id);
   if(oldRoom)setTimeout(()=>{if(![...clientRoomMap.values()].includes(oldRoom))roomNodeMap.delete(oldRoom)},30000).unref?.();const left=(onlineUsers.get(uid)||1)-1;if(left<=0)onlineUsers.delete(uid);else onlineUsers.set(uid,left);io.emit('presence:count',{online:onlineUsers.size});if(mongoose.isValidObjectId(socket.user._id))User.findByIdAndUpdate(socket.user._id,{lastSeenAt:new Date()}).catch(()=>{});if(socket.data.attendanceId){const row=await Attendance.findById(socket.data.attendanceId);if(row&&!row.leftAt){if(recordPresenceLeave(row,socket.data.attendanceSessionStartedAt,new Date()))await row.save()}} }); });
 

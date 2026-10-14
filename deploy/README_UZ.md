@@ -175,3 +175,13 @@ Keyingi GitHub yangilanishlari:
     sudo bash deploy/verify-production.sh
 
 Database backup/tiklash sinovi va rollback rejasi bajarilmasdan production release “yakunlangan” deb belgilanmaydi.
+
+## Jonli dars barqarorligi (2026-10)
+
+- **Signal uzilishi media'ni uzmaydi.** Har bir klient o‘z media seans ID siga (sid) ega. Socket.IO bir lahzaga uzilsa (Wi-Fi ↔ mobil tarmoq, telefon ekrani o‘chishi, proxy timeout), SFU peer `MEDIA_RESUME_GRACE_MS` (standart 45 000 ms) davomida saqlanadi. Qayta ulangan klient `resume` qiladi, WebRTC oqimi esa umuman to‘xtamaydi.
+- **Server ↔ SFU ko‘prigi uzilsa** (masalan, `masofaviy2` qayta ishga tushirilganda), SFU peerlarni `SFU_BRIDGE_GRACE_MS` (30 000 ms) davomida saqlaydi. Ko‘prik qaytgach klientlar avtomatik qayta sinxronlanadi. Ko‘prik `MEDIA_NODE_GRACE_MS` (20 000 ms) ichida qaytmasa, klientlar to‘liq qayta ulanadi.
+- **mediasoup worker qulasa,** SFU jarayoni to‘xtamaydi: faqat o‘sha workerdagi xonalar qayta ulanadi, worker o‘sha portda qayta ishga tushadi.
+- **TCP zaxira** endi standart holatda yoqiq (`ENABLE_RTC_TCP`, o‘chirish uchun `false`). UDP bloklangan tarmoqlardagi talabalar ham ulanadi. Firewall’da RTC portlarini TCP uchun ham oching, masalan: `sudo ufw allow 50000:50031/tcp` (oraliq: `RTC_BASE_PORT` … `RTC_BASE_PORT+MEDIASOUP_WORKERS-1`).
+- **Tarmoq almashganda** klient ICE’ni darhol qayta tiklaydi, ~30 soniya kutmaydi.
+- **Ustuvorlik:** tarmoq tor bo‘lsa, o‘tkazuvchanlik avval ekran yoki doskaga, keyin o‘qituvchi kamerasiga, oxirida talaba kameralariga beriladi.
+- **Uzoq darslar:** dars davomida telefon ekrani o‘chmaydi (Wake Lock). 2 daqiqa jim turgan talaba mikrofoni avtomatik o‘chadi.

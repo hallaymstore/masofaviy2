@@ -831,6 +831,28 @@ async function rejoinActiveLesson(){
     return false;
   }finally{autoRejoinInFlight=false}
 }
+let resumeInFlight=null;
+function resumeMediaSession(){
+  if(resumeInFlight)return resumeInFlight;
+  const client=mediaRoomClient,lessonId=activeLessonId;
+  resumeInFlight=(async()=>{
+    const ok=await client.resume();
+    if(client!==mediaRoomClient||lessonId!==activeLessonId)return;
+    if(ok){$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');socket?.emit('lesson:qa-sync',{lessonId:activeLessonId})}
+    else autoRejoinLesson(true);
+  })().finally(()=>{resumeInFlight=null});
+  return resumeInFlight;
+}
+/* Long lessons on phones: keep the screen awake while a lesson is open (the page would otherwise be backgrounded,
+   the browser throttles timers and media, and the signaling socket eventually drops). */
+let lessonWakeLock=null;
+async function keepLessonAwake(){
+  if(!activeLessonId||document.visibilityState!=='visible'||!navigator.wakeLock?.request)return;
+  if(lessonWakeLock&&!lessonWakeLock.released)return;
+  try{lessonWakeLock=await navigator.wakeLock.request('screen');lessonWakeLock.addEventListener?.('release',()=>{lessonWakeLock=null})}catch{lessonWakeLock=null}
+}
+function releaseLessonWakeLock(){try{lessonWakeLock?.release?.()}catch{}lessonWakeLock=null}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&activeLessonId)keepLessonAwake()});
 function autoRejoinLesson(immediate=false){
   if(!activeLessonId||autoRejoinTimer||autoRejoinInFlight)return;
   $('#callRejoin')?.classList.remove('hidden');$('#connectionBanner')?.classList.remove('hidden');
@@ -986,7 +1008,7 @@ async function startLiveLessonProctoring(){
            }
          }
       }finally{inFlight=false}
-    },1200):null;
+    },lowEndUI?2400:1200):null; // weak phones: half the detection rate keeps the lesson smooth over long sessions
     heartbeat=setInterval(emit,4000);emit();toast(detector?'Yuz nazorati ishga tushirilmoqda · kamera lokal ishlaydi':'Kamera ochildi · yuz detektori ishlamayapti');
     liveProctorStop=async()=>{
       if(stopped)return;stopped=true;clearInterval(timer);clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);try{detector?.instance?.close?.()}catch{};try{mediaRoomClient?.setExternalCameraTrack?.(null)}catch{};stream?.getTracks().forEach(t=>t.stop());if(video)video.srcObject=null;liveProctorStream=null;liveProctorTrack=null;$('#liveStudentProctorStatus')?.classList.add('hidden');
@@ -1273,6 +1295,7 @@ async function openConference(payload){
         }
         if(state.transport){const bad=['failed','disconnected','recovering'].includes(state.state);$('#connectionBanner')?.classList.toggle('hidden',!bad);if(state.recoveryFailed)autoRejoinLesson(true);if(state.state==='connected'){$('#callRejoin')?.classList.add('hidden');clearTimeout(autoRejoinTimer);autoRejoinTimer=null;}}
         if(state.cameraInterrupted)toast('Kamera uzildi. Avtomatik tiklash tekshirilmoqda.');
+        if(state.micIdleMuted)toast('Mikrofon 2 daqiqa jim turgani uchun o‘chirildi (shovqin bo‘lmasligi uchun). Gapirish uchun qayta yoqing.');
       },
       onError:e=>toast(e.message||String(e))
     });
@@ -1296,6 +1319,7 @@ async function openConference(payload){
     if($('#videoQuality'))$('#videoQuality').value=localStorage.getItem('m2-video-quality')||'auto';
     $('#echoGuard')?.classList.toggle('active-control',mediaRoomClient.proximityGuard);$('#echoGuard')?.setAttribute('aria-pressed',mediaRoomClient.proximityGuard?'true':'false');
     if(socket?.connected)socket.emit('lesson:join',{lessonId:activeLessonId});
+    keepLessonAwake();
     studentCameraGranted=user.role!=='student';studentMicGranted=true; // Student broadcast is opt-in on every camera ON action.
     showLessonSide(user.role==='student'?'chat':'participants',false);setLessonDrawer(false);
     if(user.role!=='student')await loadLessonParticipants();
@@ -1324,7 +1348,7 @@ async function leaveConferenceNow(back=true){
   stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);clearInterval(hxStageTimer);hxStageTimer=null;$('#hxStageVideo')?.remove();$('#hxStagePip')?.remove();$('#lesson .video-stage')?.classList.remove('hx-stage-live');hideRoomModeSheet();$('#roomModePill')?.classList.add('hidden');resetLiveExtras();resetLiveFun();if(board?.isOpen)board.close().catch(()=>{});lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
   if(mediaRoomClient){try{await mediaRoomClient.close()}catch{}mediaRoomClient=null}
-  activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
+  releaseLessonWakeLock();activeLessonId='';activeLiveSession=null;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();cameraOn=false;micOn=false;studentCameraGranted=false;studentMicGranted=false;setLessonDrawer(false);$('#videoMount').innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Video xona yopildi</b><small>Guruh darslari sahifasidan boshqa xonani tanlang.</small></div>';if(back){go('live');loadLiveRooms()}
 }
 async function endLiveRoom(id,fromCall=true){
   if(!confirm('Jonli dars yakunlansinmi?'))return;
@@ -2098,7 +2122,13 @@ $('#teacherSpotlightSelf')?.addEventListener('click',()=>activeLessonId&&socket?
 function connectSocket(){
   if(socket)socket.disconnect();
   socket=io({reconnection:true,reconnectionAttempts:Infinity,reconnectionDelay:500,reconnectionDelayMax:5000,timeout:10000,transports:['websocket','polling']});
-  socket.on('connect',function(){$('#onlineBadge').textContent='● Onlayn';if(!activeLessonId)$('#connectionBanner')?.classList.add('hidden');if(activeLessonId&&(!mediaRoomClient||autoRejoinAttempt>0)&&lastLessonPayload)autoRejoinLesson(true)});
+  socket.on('connect',function(){$('#onlineBadge').textContent='● Onlayn';if(!activeLessonId)$('#connectionBanner')?.classList.add('hidden');if(!activeLessonId)return;
+    // Signaling came back. The media peer survives a short outage on the server, so re-bind it instead of tearing the
+    // lesson down; only when that fails (long outage, server restart) do a full rejoin.
+    socket.emit('lesson:join',{lessonId:activeLessonId});
+    if(mediaRoomClient&&!mediaRoomClient.closed&&autoRejoinAttempt===0&&!autoRejoinInFlight){resumeMediaSession();return}
+    if(lastLessonPayload)autoRejoinLesson(true)});
+  socket.on('media:resync',function(){if(activeLessonId&&mediaRoomClient&&!mediaRoomClient.closed)resumeMediaSession()});
   socket.on('disconnect',function(){$('#onlineBadge').textContent='● Ulanish yo‘q';$('#connectionBanner')?.classList.remove('hidden');if(activeLessonId){autoRejoinAttempt=Math.max(1,autoRejoinAttempt);autoRejoinLesson(false)}});
   socket.on('presence:count',function(x){$('#onlineBadge').textContent='● '+(x.online||0)+' onlayn'});
   socket.on('lesson:error',function(x){toast(x.message||'Darsga kirib bo‘lmadi')});

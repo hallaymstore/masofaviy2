@@ -25,6 +25,10 @@ export class MediaRoomClient{
     this.mediaProfile=joinPayload?.mediaProfile||'standard';this.device=null;this.sendTransport=null;this.recvTransport=null;this.producers=new Map();this.consumers=new Map();this.consuming=new Map();this.audioPeerPending=new Map();this.canceledProducers=new Set();this.tiles=new Map();this.pending=new Map();this.closed=false;
     this.maxStudentVideos=this.user?.role==='student'?0:(this.ultraLite?1:(this.lowEnd?3:8));this.studentVideoConsumers=0;this.activeSpeakerCandidate='';this.activeSpeakerCandidateAt=0;this.activeSpeakerPeer='';this.activeSpeakerChangedAt=0;this.receiveQuality=localStorage.getItem('m2-video-quality')||'auto';this.echoGuard=true;localStorage.setItem('m2-echo-guard','1');this.proximityGuard=localStorage.getItem('m2-proximity-guard')==='1'||(this.user?.role==='student'&&localStorage.getItem('m2-proximity-guard')!=='0');this.feedbackRiskUntil=0;this.feedbackSafeUntil=0;this.micWarmupUntil=0;this.feedbackAudioResumeTimer=null;this.audioFloor=null;this.audioCtx=null;this.micAudioChain=null;this.feedbackMonitorTimer=null;this.micSafetyMonitor=null;this.localMicRawTrack=null;this.autoHalfDuplexUntil=0;this.autoFeedbackResumeTimer=null;this.feedbackToneTracker=null;this.feedbackMonitorStatus='off';this.feedbackToneSince=0;this.feedbackLastFreq=0;this.feedbackStableHits=0;this.multiMicCount=0;this.inRoom=false;this.viewMode=this.user?.role==='student'?'speaker':(this.ultraLite?'speaker':(localStorage.getItem('m2-view-mode')||'speaker'));this.lowBandwidthMode=localStorage.getItem('m2-low-bandwidth')==='1';this.facingMode=localStorage.getItem('m2-facing-mode')||'user';this.externalCameraTrack=null;this.proctorCameraBroadcast=false;this.pinnedUserId='';this.boundResponse=m=>this.handleResponse(m);this.boundEvent=m=>this.handleEvent(m);this.visibilityHandler=()=>this.updateVisibility();
     this.participantStrip=null;this.participantCards=new Map();this.participantMediaState=new Map();this.selectedStagePeerId='';this.explicitStagePeerId='';this.stageRefreshTimer=null;this.classSpotlightUserId='';this.lastRailSpeakingKey='';this.transportRecoveryTimers=new Map();this.transportRecoveryBusy=new Set();this.cameraRecoveryTimer=null;this.cameraRecoveryAttempts=0;this.automaticPiP=false;this.networkStats={received:0,lost:0,at:0};
+    // Stable media session id: the SFU peer is bound to it (not to the Socket.IO connection), so a signaling
+    // reconnect resumes the same peer and the WebRTC media keeps flowing.
+    this.sid=(crypto.randomUUID?.()||(Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9]/g,'').slice(0,40);
+    this.netHandler=()=>this.onNetworkChange();this.lastNetType=String(navigator.connection?.type||'');
     this.socket.on('media:response',this.boundResponse);this.socket.on('media:event',this.boundEvent);
   }
   request(method,data={}){
@@ -33,7 +37,7 @@ export class MediaRoomClient{
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{this.pending.delete(id);reject(new Error('SFU javobi kutilgan vaqtda kelmadi'))},12000);
       this.pending.set(id,{resolve,reject,timer});
-      this.socket.emit('media:request',{id,method,data});
+      this.socket.emit('media:request',{id,method,data,sid:this.sid});
     });
   }
   handleResponse(msg){
@@ -48,6 +52,7 @@ export class MediaRoomClient{
     else if(msg.event==='peerLeft')this.removePeerTile(msg.data?.peerId);
     else if(msg.event==='audioLevels'){const levels=msg.data?.levels||[];this.applyAudioLevels(levels);if(!levels.length)this.grid?.classList.remove('speaker-layout')}
     else if(msg.event==='audioFloor'){this.audioFloor=msg.data?.active?msg.data:null;this.onState({audioFloor:this.audioFloor})}
+    else if(msg.event==='roomClosed'){this.onState({transport:'room',state:'failed',recoveryFailed:true})}
     else if(msg.event==='roomState'){this.audioFloor=msg.data?.audioFloor||null;this.syncParticipantTiles(msg.data?.participants||[]);this.onState(msg.data||{});}
   }
   getPreferredConstraints(kind,{ignoreDevice=false}={}){
@@ -95,6 +100,7 @@ export class MediaRoomClient{
     if(this.lowBandwidthMode)await this.setReceiveQuality('240');else await this.setReceiveQuality(this.receiveQuality==='240'?'auto':this.receiveQuality);
     this.installAudioUnlock();
     document.addEventListener('visibilitychange',this.visibilityHandler);
+    window.addEventListener('online',this.netHandler);try{navigator.connection?.addEventListener?.('change',this.netHandler)}catch{}
     for(const p of joined.producers||[])await this.maybeConsume(p);
     clearInterval(this.stageRefreshTimer);
     this.stageRefreshTimer=setInterval(()=>{if(!this.closed&&!document.hidden)this.ensureInlineVideoStage()},1800);
@@ -102,23 +108,57 @@ export class MediaRoomClient{
     this.onState({connected:true,participants:joined.participants||[]});
     return joined;
   }
+  waitSignaling(ms=20000){
+    if(this.socket?.connected)return Promise.resolve(true);
+    return new Promise(resolve=>{const done=ok=>{clearTimeout(t);this.socket.off?.('connect',on);resolve(ok)},on=()=>done(true),t=setTimeout(()=>done(false),ms);this.socket.once?.('connect',on)});
+  }
   async recoverTransport(transport,label='media'){
     if(this.closed||!transport||transport.closed||this.transportRecoveryBusy.has(label))return false;
     this.transportRecoveryBusy.add(label);
     try{
-      for(let attempt=0;attempt<2;attempt++){
+      // ICE restart needs signaling: if Socket.IO is reconnecting, wait for it instead of burning attempts and
+      // falling back to a full rejoin. Then retry with backoff before giving up.
+      const waits=[0,800,1600,3200];
+      for(let attempt=0;attempt<waits.length;attempt++){
+        if(waits[attempt])await new Promise(resolve=>setTimeout(resolve,waits[attempt]));
         if(this.closed||transport.closed)return false;
+        if(!(await this.waitSignaling(20000)))continue;
         try{
           const x=await this.request('restartIce',{transportId:transport.id});
           if(!x?.iceParameters)throw new Error('ICE parametrlari olinmadi');
           await transport.restartIce({iceParameters:x.iceParameters});
           this.onState({transport:label,state:'recovering'});
           return true;
-        }catch(e){if(attempt===0)await new Promise(resolve=>setTimeout(resolve,700));}
+        }catch(e){if(/Avval media xonaga ulaning|Transport topilmadi/.test(String(e?.message||'')))break}
       }
       this.onState({transport:label,state:'failed',recoveryFailed:true});
       return false;
     }finally{this.transportRecoveryBusy.delete(label)}
+  }
+  // Network switched (Wi-Fi ↔ mobile, came back online): restart ICE right away instead of waiting ~30 s for
+  // consent failure. A restart on a healthy path is seamless, so this is safe to do on every real change.
+  onNetworkChange(){
+    if(this.closed||!this.sendTransport)return;
+    const type=String(navigator.connection?.type||''),changed=type!==this.lastNetType;this.lastNetType=type;
+    const unhealthy=[this.sendTransport,this.recvTransport].some(t=>t&&!t.closed&&t.connectionState!=='connected');
+    if(!changed&&!unhealthy&&navigator.onLine!==false)return;
+    clearTimeout(this.netTimer);
+    this.netTimer=setTimeout(()=>{if(this.closed||navigator.onLine===false)return;for(const [t,l] of [[this.sendTransport,'send'],[this.recvTransport,'recv']])if(t&&!t.closed)this.recoverTransport(t,l).catch(()=>{})},700);
+  }
+  // Socket.IO reconnected: re-bind this media session on the SFU and reconcile consumers with what exists now.
+  async resume(){
+    if(this.closed||!this.room)return false;
+    try{
+      const x=await this.request('resume',{ticket:this.joinPayload.mediaTicket});
+      const live=new Set((x.producers||[]).map(p=>String(p.producerId)));
+      for(const pid of [...this.consumers.keys()])if(!live.has(String(pid)))this.removeConsumer(pid);
+      for(const p of x.producers||[])if(!this.consumers.has(String(p.producerId))){this.canceledProducers?.delete(String(p.producerId));await this.maybeConsume(p).catch(()=>{})}
+      if(Array.isArray(x.participants))this.syncParticipantTiles(x.participants);
+      this.audioFloor=x.audioFloor||null;
+      for(const [t,l] of [[this.sendTransport,'send'],[this.recvTransport,'recv']])if(t&&!t.closed&&t.connectionState!=='connected'&&t.connectionState!=='new')this.recoverTransport(t,l).catch(()=>{});
+      this.ensureInlineVideoStage();this.onState({resumed:true});
+      return true;
+    }catch(e){return false}
   }
   scheduleTransportRecovery(transport,label,state){
     this.onState({transport:label,state});
@@ -705,11 +745,18 @@ export class MediaRoomClient{
     if(this.closed||!this.hasActiveMicrophone()){this.stopFeedbackMonitor();return false}
     const bins=new Uint8Array(analyser.frequencyBinCount),time=new Uint8Array(analyser.fftSize);
     this.feedbackToneTracker=createFeedbackToneTracker();
-    this.feedbackMonitorStatus='active';
+    this.feedbackMonitorStatus='active';this.micVoiceAt=Date.now();
     this.feedbackMonitorTimer=setInterval(()=>{
       if(this.closed||!this.hasActiveMicrophone())return;
       try{
         analyser.getByteFrequencyData(bins);analyser.getByteTimeDomainData(time);
+        // Forgotten open student microphones are the main source of background noise in a lecture:
+        // after 2 minutes without speech the microphone is paused (one tap turns it back on).
+        if(this.user?.role==='student'){
+          let e=0;for(let k=0;k<time.length;k+=4){const d=time[k]-128;e+=d*d}const rms=Math.sqrt(e/(time.length/4))/128;
+          const now=Date.now();if(rms>0.03)this.micVoiceAt=now;
+          else if(now-this.micVoiceAt>120000&&!this.micIdleBusy){this.micIdleBusy=true;this.toggleMic().then(()=>this.onState({micIdleMuted:true})).catch(()=>{}).finally(()=>{this.micIdleBusy=false;this.micVoiceAt=Date.now()})}
+        }
         const frame=inspectFeedbackFrame(bins,time,{sampleRate:analyser.context.sampleRate,fftSize:analyser.fftSize});
         if(this.feedbackToneTracker.observe(frame,Date.now())){
           this.feedbackLastFreq=frame.frequency;
@@ -788,7 +835,7 @@ export class MediaRoomClient{
       const settings=rawTrack.getSettings?.()||{};
       if(settings.echoCancellation===false)this.onState({aecUnavailable:true});
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;sendTrack=track;this.localMicRawTrack=rawTrack;
-      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,inRoom:Boolean(this.inRoom),aec:true,ns:true,agc:true,processed:prepared.processed}});
+      const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusMaxAverageBitrate:this.ultraLite?24000:(this.user?.role==='teacher'?40000:32000),opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,inRoom:Boolean(this.inRoom),aec:true,ns:true,agc:true,processed:prepared.processed}});
       this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));producer.on('trackended',()=>{if(this.producers.get('mic')===producer)this.closeProducer('mic').finally(()=>this.onState({mic:false,micInterrupted:true}))});this.startFeedbackMonitor(rawTrack).catch(()=>{});
       this.updateParticipantCardMic(this.room?.peerId,true);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
     }catch(e){
@@ -1242,7 +1289,8 @@ export class MediaRoomClient{
   async close(){
     if(this.closed)return;this.disablePiP();this.closed=true;
     if(this.audioUnlockHandler){document.removeEventListener('pointerdown',this.audioUnlockHandler);document.removeEventListener('keydown',this.audioUnlockHandler);this.audioUnlockHandler=null;this.audioUnlockInstalled=false}
-    try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{}})}catch{}
+    try{this.socket.emit('media:request',{id:'close-'+Date.now(),method:'leave',data:{},sid:this.sid})}catch{}
+    window.removeEventListener('online',this.netHandler);try{navigator.connection?.removeEventListener?.('change',this.netHandler)}catch{};clearTimeout(this.netTimer);
     this.socket.off('media:response',this.boundResponse);this.socket.off('media:event',this.boundEvent);document.removeEventListener('visibilitychange',this.visibilityHandler);
     clearInterval(this.stageRefreshTimer);this.stageRefreshTimer=null;
     this.stopFeedbackMonitor();clearTimeout(this.autoFeedbackResumeTimer);try{this.localMicRawTrack?.stop()}catch{};this.localMicRawTrack=null;clearTimeout(this.feedbackGuardTimer);clearTimeout(this.coordinatedFeedbackTimer);clearTimeout(this.feedbackAudioResumeTimer);clearTimeout(this.cameraRecoveryTimer);for(const timer of this.transportRecoveryTimers.values())clearTimeout(timer);this.transportRecoveryTimers.clear();try{this.micAudioChain?.rawTrack?.stop()}catch{};this.micAudioChain=null;
