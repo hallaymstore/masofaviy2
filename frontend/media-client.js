@@ -433,14 +433,19 @@ export class MediaRoomClient{
   }
   async selectDevice(kind,id){
     const key=kind==='audio'?'m2-preferred-mic':'m2-preferred-camera';if(id)localStorage.setItem(key,id);else localStorage.removeItem(key);
-    if(kind==='audio'&&this.producers.get('mic')){await this.closeProducer('mic');await this.startMicrophone()}
-    if(kind==='video'&&this.producers.get('camera')){await this.closeProducer('camera');await this.toggleCamera()}
+    const tag=kind==='audio'?'mic':'camera',p=this.producers.get(tag);
+    if(!p)return true;
+    // Re-acquire only a source that was live; a paused (muted / OFF) one stays off.
+    const wasLive=!p.paused;await this.closeProducer(tag);
+    if(wasLive){if(tag==='mic')await this.startMicrophone();else await this.toggleCamera()}
+    else this.onState(tag==='mic'?{mic:false}:{camera:false});
     return true;
   }
   async switchCamera(){
     this.facingMode=this.facingMode==='user'?'environment':'user';localStorage.setItem('m2-facing-mode',this.facingMode);
     localStorage.removeItem('m2-preferred-camera');
-    if(this.producers.get('camera')){await this.closeProducer('camera');await this.toggleCamera()}
+    const p=this.producers.get('camera');
+    if(p){const wasLive=!p.paused;await this.closeProducer('camera');if(wasLive)await this.toggleCamera();else this.onState({camera:false})}
     this.onState({facingMode:this.facingMode});return this.facingMode;
   }
   async setLowBandwidth(enabled){
@@ -741,7 +746,7 @@ export class MediaRoomClient{
       if(settings.echoCancellation===false)this.onState({aecUnavailable:true});
       const prepared=await this.prepareSpeechTrack(rawTrack),track=prepared.track;sendTrack=track;this.localMicRawTrack=rawTrack;
       const producer=await this.sendTransport.produce({track,codecOptions:{opusStereo:false,opusDtx:true,opusFec:true,opusMaxPlaybackRate:this.ultraLite?32000:48000,opusPtime:20},appData:{mediaTag:'mic',role:this.user.role,aec:true,ns:true,agc:true,processed:prepared.processed}});
-      this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));this.startFeedbackMonitor(rawTrack).catch(()=>{});
+      this.producers.set('mic',producer);producer.on('transportclose',()=>this.producers.delete('mic'));producer.on('trackended',()=>{if(this.producers.get('mic')===producer)this.closeProducer('mic').finally(()=>this.onState({mic:false,micInterrupted:true}))});this.startFeedbackMonitor(rawTrack).catch(()=>{});
       this.updateParticipantCardMic(this.room?.peerId,true);this.refreshRemoteAudioVolume();this.onState({mic:true,halfDuplex:this.proximityGuard,zeroFeedback:this.proximityGuard});return true;
     }catch(e){
       try{rawTrack?.stop()}catch{};if(sendTrack&&sendTrack!==rawTrack)try{sendTrack.stop()}catch{}
@@ -788,7 +793,7 @@ export class MediaRoomClient{
         :[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:2600000,scaleResolutionDownBy:1,maxFramerate:30}]);
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:this.ultraLite?300:(lite?650:900)},appData:{mediaTag:'camera',role:this.user.role,quality:broadcastToClass?'classroom-spotlight':'proctor-on-demand',proctorBroadcast:!broadcastToClass,classroomSpotlight:Boolean(broadcastToClass),proctorViewerUserId:broadcastToClass?'':String(viewerUserId||'')}});
       this.producers.set('camera',producer);this.proctorCameraBroadcast=true;this.attachLocalVideo(track);
-      producer.on('trackended',()=>this.closeProducer('camera'));producer.on('transportclose',()=>{this.producers.delete('camera');this.proctorCameraBroadcast=false});
+      producer.on('trackended',()=>this.closeProducer('camera').finally(()=>{this.proctorCameraBroadcast=false;this.onState({camera:false,proctorBroadcast:false})}));producer.on('transportclose',()=>{this.producers.delete('camera');this.proctorCameraBroadcast=false});
       this.onState({camera:true,proctorBroadcast:true});return true;
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
@@ -806,9 +811,11 @@ export class MediaRoomClient{
     }
     if(this.mediaBusy?.camera)return false;
     this.mediaBusy=this.mediaBusy||{};this.mediaBusy.camera=true;this.onState({cameraBusy:true});
+    let stream=null;
     try{
-      const stream=this.user?.role==='student'&&this.externalCameraTrack?.readyState==='live'?new MediaStream([this.externalCameraTrack.clone()]):await this.getMediaOnce('video'),track=stream.getVideoTracks()[0];
+      stream=this.user?.role==='student'&&this.externalCameraTrack?.readyState==='live'?new MediaStream([this.externalCameraTrack.clone()]):await this.getMediaOnce('video');const track=stream.getVideoTracks()[0];
       if(!track)throw new Error('Kamera trek topilmadi');
+      if(this.closed){stream.getTracks().forEach(t=>t.stop());return false}
       const teacher=this.user?.role==='teacher',lite=this.lowEnd||this.mediaProfile==='lecture-lite';
       const encodings=teacher&&!this.ultraLite
         ?[{maxBitrate:280000,scaleResolutionDownBy:4,maxFramerate:15},{maxBitrate:1100000,scaleResolutionDownBy:2,maxFramerate:24},{maxBitrate:3800000,scaleResolutionDownBy:1,maxFramerate:30}]
@@ -818,7 +825,8 @@ export class MediaRoomClient{
       const producer=await this.sendTransport.produce({track,encodings,codecOptions:{videoGoogleStartBitrate:teacher?1200:(this.ultraLite?300:(lite?650:1000))},appData:{mediaTag:'camera',role:this.user.role,quality:teacher?'1080p':'adaptive'}});
       this.producers.set('camera',producer);this.cameraLastError='';this.proctorCameraBroadcast=false;this.attachLocalVideo(track);clearTimeout(this.cameraRecoveryTimer);this.cameraRecoveryAttempts=0;producer.on('trackended',()=>this.handleUnexpectedCameraEnd(producer));producer.on('transportclose',()=>this.producers.delete('camera'));this.onState({camera:true});return true;
     }catch(e){
-      const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':(e?.message||'noma’lum xato');
+      try{if(!this.producers.get('camera'))stream?.getTracks().forEach(t=>t.stop())}catch{}
+      const msg=e?.name==='NotAllowedError'?'Brauzerda kamera ruxsatini yoqing':e?.name==='NotReadableError'?'kamera boshqa ilovada band (Zoom, Telegram yoki kamera ilovasini yoping)':(e?.message||'noma’lum xato');
       this.cameraLastError=msg;this.onError(new Error('Kamera ochilmadi: '+msg));this.onState({camera:false});this.ensureInlineVideoStage();return false;
     }finally{this.mediaBusy.camera=false;this.onState({cameraBusy:false})}
   }
@@ -847,8 +855,12 @@ export class MediaRoomClient{
   async toggleScreen(){
     const p=this.producers.get('screen');
     if(p){await this.closeProducer('screen');this.onState({screen:false});return false}
+    if(this.mediaBusy?.screen)return false;
+    this.mediaBusy=this.mediaBusy||{};this.mediaBusy.screen=true;
+    let stream=null;
     try{
-      const lite=this.lowEnd||this.mediaProfile==='lecture-lite',stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false}),track=stream.getVideoTracks()[0];
+      const lite=this.lowEnd||this.mediaProfile==='lecture-lite';stream=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920,max:1920},height:{ideal:1080,max:1080},frameRate:{ideal:this.ultraLite?15:30,max:this.ultraLite?20:30}},audio:false});const track=stream.getVideoTracks()[0];
+      if(this.closed){stream.getTracks().forEach(t=>t.stop());return false}
       try{track.contentHint='detail'}catch{}
       const producer=await this.sendTransport.produce({track,encodings:[{maxBitrate:this.ultraLite?900000:(lite?2800000:4500000),maxFramerate:this.ultraLite?20:30}],appData:{mediaTag:'screen',role:this.user.role,quality:'1080p'}});
       this.producers.set('screen',producer);
@@ -858,8 +870,9 @@ export class MediaRoomClient{
       this.grid?.classList.add('screen-layout');
       this.ensureInlineVideoStage();
       const cameraTile=this.tiles.get('local');if(cameraTile?.classList.contains('has-video'))cameraTile.classList.add('screen-camera-pip');
-      producer.on('trackended',()=>this.closeProducer('screen'));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
-    }catch(e){if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
+      producer.on('trackended',()=>this.closeProducer('screen').finally(()=>this.onState({screen:false})));producer.on('transportclose',()=>this.producers.delete('screen'));this.onState({screen:true});return true;
+    }catch(e){try{if(!this.producers.get('screen'))stream?.getTracks().forEach(t=>t.stop())}catch{};if(e.name!=='NotAllowedError')this.onError(new Error('Ekran ulashilmadi: '+e.message));return false}
+    finally{this.mediaBusy.screen=false}
   }
   async closeProducer(tag){
     const p=this.producers.get(tag);if(!p)return;

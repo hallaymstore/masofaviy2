@@ -20,7 +20,7 @@ const roleName={superadmin:'Bosh administrator',admin:'Administrator',tech:'Texn
 const can=p=>effectivePermissions.includes('*')||effectivePermissions.includes(p);
 const moduleOn=name=>branding?.modules?.[name]!==false;
 const csrf=()=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('m2_csrf='))?.slice('m2_csrf='.length)||'';
-const api=async(path,options={})=>{const r=await fetch('/api'+path,{...options,credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),...options.headers}});const data=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(data.message)}if(!r.ok){const message=data.message||data.error||('Server xatosi: HTTP '+r.status+' · '+path);console.error('API request failed',path,r.status,data);throw Error(message)}return data};
+const api=async(path,options={})=>{const {timeoutMs,...fetchOptions}=options;const ctl=timeoutMs&&typeof AbortController!=='undefined'?new AbortController():null,abortTimer=ctl?setTimeout(()=>ctl.abort(),timeoutMs):null;let r;try{r=await fetch('/api'+path,{...fetchOptions,...(ctl?{signal:ctl.signal}:{}),credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),...fetchOptions.headers}})}catch(e){if(e?.name==='AbortError')throw Object.assign(Error('Server javob bermadi. Internet aloqasini tekshiring.'),{status:0,timeout:true});throw e}finally{clearTimeout(abortTimer)}const data=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(data.message)}if(!r.ok){const message=data.message||data.error||('Server xatosi: HTTP '+r.status+' · '+path);console.error('API request failed',path,r.status,data);throw Object.assign(Error(message),{status:r.status})}return data};
 const toast=t=>{const e=$('#toast');if(!e)return;e.textContent=String(t||'Xatolik tafsiloti aniqlanmadi');e.classList.add('show');clearTimeout(toast._timer);toast._timer=setTimeout(()=>e.classList.remove('show'),6500)}; const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const applyBranding=()=>{
   const product=branding.productName||'HALLAYM EDU',institution=branding.institutionName||'Universitet',short=branding.shortName||institution;
@@ -41,11 +41,11 @@ async function loadBranding(){
 }
 const urlHost=value=>{try{return new URL(value).host}catch{return String(value||'').replace(/^https?:\/\//,'').replace(/\/$/,'')}};
 
-const iconPaths={search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>',star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9Z"/>',clipboard:'<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',layers:'<path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',grid:'<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',exam:'<path d="M12 3 4 6.5v5.2c0 4.4 3.3 8.3 8 9.3 4.7-1 8-4.9 8-9.3V6.5Z"/><path d="m9 12 2 2 4-4"/>',home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',chart:'<path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/>',building:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2M14 10h2M8 14h2M14 14h2M9 21v-4h6v4"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',video:'<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2z"/>',library:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',camera:'<path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9H3V9a2 2 0 0 1 2-2h3l1.5-3z"/><circle cx="12" cy="12" r="3"/>',refresh:'<path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',back:'<path d="m15 18-6-6 6-6"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',screen:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',message:'<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',phoneOff:'<path d="M3 3l18 18"/><path d="M16 16.7c-4.6 1.2-9.3-3.4-8-8L5.4 6.1 2 8c0 7.7 6.3 14 14 14l1.9-3.4z"/>',send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',play:'<path d="m9 7 8 5-8 5z"/>',heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',cap:'<path d="m2 10 10-5 10 5-10 5z"/><path d="M6 12.5V17c3.5 2 8.5 2 12 0v-4.5"/><path d="M22 10v6"/>',book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',external:'<path d="M14 3h7v7M10 14 21 3"/><path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"/>'};
+const iconPaths={hand:'<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11V4.5a1.5 1.5 0 0 1 3 0V11"/><path d="M14 11V6a1.5 1.5 0 0 1 3 0v7"/><path d="M8 13V9.5a1.5 1.5 0 0 0-3 0V14a7 7 0 0 0 7 7h1a6 6 0 0 0 6-6v-2"/>',more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>',star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9Z"/>',clipboard:'<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',layers:'<path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',grid:'<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',exam:'<path d="M12 3 4 6.5v5.2c0 4.4 3.3 8.3 8 9.3 4.7-1 8-4.9 8-9.3V6.5Z"/><path d="m9 12 2 2 4-4"/>',home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',chart:'<path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/>',building:'<path d="M4 21V7l8-4 8 4v14"/><path d="M8 10h2M14 10h2M8 14h2M14 14h2M9 21v-4h6v4"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',video:'<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-2v8l-4-2z"/>',library:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',camera:'<path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9H3V9a2 2 0 0 1 2-2h3l1.5-3z"/><circle cx="12" cy="12" r="3"/>',refresh:'<path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',back:'<path d="m15 18-6-6 6-6"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',screen:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',message:'<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',phoneOff:'<path d="M3 3l18 18"/><path d="M16 16.7c-4.6 1.2-9.3-3.4-8-8L5.4 6.1 2 8c0 7.7 6.3 14 14 14l1.9-3.4z"/>',send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',play:'<path d="m9 7 8 5-8 5z"/>',heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',cap:'<path d="m2 10 10-5 10 5-10 5z"/><path d="M6 12.5V17c3.5 2 8.5 2 12 0v-4.5"/><path d="M22 10v6"/>',book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/><path d="M4 6.5v13M8 8h8M8 12h6"/>',lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',external:'<path d="M14 3h7v7M10 14 21 3"/><path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"/>'};
 function icon(name,fallback='•'){if(!window.SVGSVGElement)return '<span class="fallback-icon" aria-hidden="true">'+esc(fallback)+'</span>';return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.home)+'</svg>'}
 function hydrateIcons(root=document){root.querySelectorAll?.('[data-ico]').forEach(function(el){el.innerHTML=icon(el.dataset.ico,el.dataset.fallback||'•')})}
 function resetPasswordVisibility(){const inp=$('#passwordInput'),b=$('#passwordToggle');if(inp)inp.type='password';if(b){b.setAttribute('aria-pressed','false');b.setAttribute('aria-label','Parolni ko‘rsatish')}}
-function logout(){if(activeVideoId)clearWatchPage();resetPasswordVisibility();fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
+function logout(){if(activeVideoId)clearWatchPage();if(activeLessonId||mediaRoomClient)leaveConference(false).catch(()=>{});resetPasswordVisibility();fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':csrf()}}).catch(()=>{});user=null;socket?.disconnect();$('#shell').classList.add('hidden');$('#login').classList.remove('hidden')}
 function configureRoleUI(){const role=user.role;document.documentElement.dataset.userRole=role;$('#roleLabel').textContent=roleName[role]||role;$('#headerName').textContent=user.fullName||user.login||'';const show={analytics:moduleOn('analytics')&&can('analytics.view'),structure:can('structure.manage')||['dean','department'].includes(role),users:can('users.manage'),reports:moduleOn('reports')&&can('reports.view'),live:moduleOn('live')&&(['teacher','student'].includes(role)||can('lessons.monitor')||can('lessons.support')||can('live.manage')),history:['teacher','admin','superadmin','rectorate','dean','department','tutor'].includes(role),videos:moduleOn('videos')&&(can('videos.view')||can('videos.manage')||can('videos.upload')),courses:['student','teacher','admin','superadmin','tech','rectorate','dean','department','tutor'].includes(role),grades:['student','teacher','admin','superadmin','rectorate','dean','department','tutor'].includes(role),finalExams:moduleOn('finalExams')&&['student','teacher','admin','superadmin'].includes(role),curriculum:moduleOn('curriculum')&&['student','teacher','admin','superadmin'].includes(role),library:moduleOn('library'),communications:moduleOn('communications')&&['student','teacher','admin','superadmin'].includes(role),settings:['admin','superadmin'].includes(role)};Object.entries(show).forEach(([page,ok])=>{all(`nav button[data-page="${page}"]`).forEach(b=>b.classList.toggle('hidden',!ok))});if($('#openLessonHistoryFromLive'))$('#openLessonHistoryFromLive').classList.toggle('hidden',!show.history);if($('#gradeNavLabel'))$('#gradeNavLabel').textContent=role==='student'?'Mening baholarim':'Elektron jurnal';$('#teacherCourseCreate')?.classList.toggle('hidden',role!=='teacher');$('#addCourse')?.classList.toggle('hidden',!['superadmin','admin','tech','rectorate','dean','department','tutor'].includes(role));$('#subjectCatalogAdd')?.classList.toggle('hidden',!['superadmin','admin','tech','rectorate','dean','department','tutor'].includes(role));$('#reviewGrades')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#myAcademic')?.classList.toggle('hidden',role!=='student');$('#manageAcademic')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addLibraryItem')?.classList.toggle('hidden',!['teacher','admin','superadmin'].includes(role));$('#addFinalExam')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#importCurriculum')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#dashboardAddSchedule')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleAdminActions')?.classList.toggle('hidden',!can('schedule.manage'));$('#scheduleFilters')?.classList.toggle('hidden',!can('schedule.manage'));$('#usersAdminActions')?.classList.toggle('hidden',!can('users.manage'));$('#addStructure')?.classList.toggle('hidden',!can('structure.manage'));$('#onlinePanel')?.classList.toggle('hidden',!can('lessons.monitor'));$('#monitoringPanel')?.classList.toggle('hidden',!['admin','superadmin'].includes(role));$('#addVideoLesson')?.classList.toggle('hidden',!(can('videos.manage')||can('videos.upload')));hydrateIcons();}
 function go(id,skipLoad=false){if(id!=='videoWatch'&&activeVideoId){clearWatchPage();if(location.hash.startsWith('#video='))history.replaceState({},'',location.pathname+location.search)}if(id!=='courses'&&id!=='editor'&&location.hash.startsWith('#course='))history.replaceState({},'',location.pathname+location.search);all('.page').forEach(x=>x.classList.toggle('active',x.id===id));all('nav button').forEach(x=>{const on=x.dataset.page===id;x.classList.toggle('active',on);if(on)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});document.documentElement.dataset.page=id;const activeBtn=document.querySelector('nav button[data-page="'+id+'"]');activeBtn?.closest('details')?.setAttribute('open','');$('#sidebar').classList.remove('open');$('#sidebarBackdrop')?.classList.remove('show');$('#menuBtn')?.setAttribute('aria-expanded','false');if(!skipLoad)({dashboard:loadDashboard,search:loadGlobalSearch,university:loadUniversity,analytics:loadAnalytics,structure:loadStructure,schedule:loadSchedules,users:loadUsers,live:loadLiveRooms,history:loadLessonHistory,videos:loadVideoLessons,courses:loadCourses,grades:loadGradePage,finalExams:loadFinalExams,curriculum:loadCurricula,library:loadLibrary,communications:loadCommunications,reports:loadReports,settings:loadInstitutionSettings,profile:loadProfile}[id]||(()=>{}))();hydrateIcons()}
 let deferredInstallPrompt=null;
@@ -707,22 +707,39 @@ async function loadLiveRooms(){
     hydrateIcons($('#liveRooms'));
   }catch(e){$('#liveRooms').innerHTML='<div class="empty"><b>Jonli xonalarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
+// Live lesson flow guards: every join/leave bumps conferenceSeq so stale async work bails out.
+let conferenceSeq=0,leavingConference=null,chatLessonId='',participantsTimer=null,participantsSeq=0,attendanceDirty=false,proctorSeq=0,proctorRestartTimer=null,proctorRestarts=0,lastAudioBlockedToast=0,lessonWarnedId='';
+const liveJoinInFlight=new Set();
+function setHandRaised(v){handRaised=Boolean(v);const b=$('#callRaiseHand');b?.classList.toggle('active-control',handRaised);b?.setAttribute('aria-pressed',String(handRaised));b?.setAttribute('title',handRaised?'Qo‘lni tushirish':'Qo‘l ko‘tarish')}
+function scheduleLessonParticipants(ms=600){clearTimeout(participantsTimer);participantsTimer=setTimeout(()=>loadLessonParticipants().catch(()=>{}),ms)}
+function cameraHint(e){return e?.name==='NotAllowedError'||e?.name==='SecurityError'?'kamera ruxsati berilmagan. Manzil satridagi qulf belgisi → Kamera → Ruxsat berish':e?.name==='NotReadableError'||e?.name==='AbortError'?'kamera boshqa ilovada band (Zoom, Telegram yoki kamera ilovasini yoping)':e?.name==='NotFoundError'||e?.name==='OverconstrainedError'?'kamera topilmadi':(e?.message||'ruxsat yo‘q')}
+function lessonChatVisible(){const p=$('#lessonChatPanel');if(!p||p.classList.contains('hidden')||document.hidden)return false;const r=p.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight}
+function scheduleProctorRestart(ms=1500){
+  clearTimeout(proctorRestartTimer);if(proctorRestarts>=3)return;
+  proctorRestartTimer=setTimeout(async()=>{
+    if(!activeLessonId||user?.role!=='student'||document.hidden||liveProctorTrack?.readyState==='live')return;
+    proctorRestarts++;if(await startLiveLessonProctoring()){proctorRestarts=0;toast('Proktor kamera qayta ulandi')}
+  },ms);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&activeLessonId&&user?.role==='student'&&liveProctorTrack?.readyState!=='live')scheduleProctorRestart(400)});
 async function startLiveRoom(id){
   try{const x=await api('/live/rooms/'+id+'/start',{method:'POST',body:'{}'});await openConference(x)}catch(e){toast(e.message)}
 }
 async function enterLiveRoom(id){
-  try{const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}'});await openConference(x)}catch(e){toast(e.message);go('live')}
+  id=String(id||'');if(!id||liveJoinInFlight.has(id))return;liveJoinInFlight.add(id);
+  try{const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}',timeoutMs:20000});await openConference(x)}catch(e){toast(e.message);if(!activeLessonId)go('live')}
+  finally{liveJoinInFlight.delete(id)}
 }
 
 function formatRemain(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
 function startLessonClock(){
-  clearInterval(lessonTimer);let warned=false;
+  clearInterval(lessonTimer);let warned=lessonWarnedId===activeLessonId;
   const tick=()=>{
     if(!activeLiveSession?.schedule)return;
     const end=String(activeLiveSession.schedule.end||'00:00').split(':').map(Number),now=new Date(),endDate=new Date(now);endDate.setHours(end[0]||0,end[1]||0,0,0);
     let sec=Math.floor((endDate-now)/1000);if(sec<0)sec=0;
     const el=$('#lessonTimeLeft');if(el){el.textContent=formatRemain(sec)+' qoldi';el.classList.toggle('warning',sec>0&&sec<=300)}
-    if(sec<=300&&sec>0&&!warned){warned=true;toast('Dars tugashiga 5 daqiqa qoldi')}
+    if(sec<=300&&sec>0&&!warned){warned=true;lessonWarnedId=activeLessonId;toast('Dars tugashiga 5 daqiqa qoldi')}
   };tick();lessonTimer=setInterval(tick,1000)
 }
 function startNetworkMonitor(){
@@ -776,12 +793,15 @@ async function rejoinActiveLesson(){
   if(!activeLessonId||autoRejoinInFlight)return false;
   const id=String(activeLessonId);autoRejoinInFlight=true;
   try{
-    const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}'});
-    await openConference(x);
+    const x=await api('/live/rooms/'+id+'/join',{method:'POST',body:'{}',timeoutMs:15000});
+    if(String(activeLessonId)!==id)return true; // user left or switched lesson meanwhile
+    const ok=await openConference(x);
+    if(ok===false)return false;
     autoRejoinAttempt=0;
     $('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');return true;
   }catch(e){
     console.warn('live rejoin failed',e?.message||e);
+    if([403,404,409].includes(e?.status)&&String(activeLessonId)===id){toast(e.message||'Dars yakunlangan');await leaveConference(true);return true}
     return false;
   }finally{autoRejoinInFlight=false}
 }
@@ -858,7 +878,7 @@ function renderLocalProctorStatus(faceState='unknown',detectorStatus='loading',c
   node.title='Lokal yuzni aniqlash; ko‘zning aniq ekranga qarayotganini tasdiqlamaydi. Video faqat alohida rozilik bilan darsga uzatiladi.';
 }
 async function startLiveLessonProctoring(){
-  await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStream=null;liveProctorTrack=null;
+  await liveProctorStop?.();const proctorToken=++proctorSeq;liveProctorStop=()=>{proctorSeq++};liveProctorStream=null;liveProctorTrack=null;
   if(user?.role!=='student'||!activeLessonId)return false;
   let stream=null,detector=null,timer=null,heartbeat=null,video=null,stopped=false,faceState='unknown',detectorStatus='loading',pageActive=!document.hidden,inFlight=false,modelErrors=0;
   const stable=createFaceStateFilter(2);
@@ -895,9 +915,10 @@ async function startLiveLessonProctoring(){
        }
      }
      if(!stream)throw cameraError||new Error('Kamera ochilmadi');
+     if(proctorToken!==proctorSeq||!activeLessonId){stream.getTracks().forEach(t=>t.stop());document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);return false}
     liveProctorStream=stream;liveProctorTrack=stream.getVideoTracks()[0]||null;if(!liveProctorTrack)throw new Error('Kamera trek topilmadi');
     mediaRoomClient?.setExternalCameraTrack?.(liveProctorTrack);
-    liveProctorTrack.addEventListener('ended',()=>{faceState='missing';detectorStatus='error';emit();toast('Dars proktoring kamerasi o‘chdi')},{once:true});
+    liveProctorTrack.addEventListener('ended',()=>{faceState='missing';detectorStatus='error';emit();toast('Dars proktoring kamerasi o‘chdi · qayta ulanmoqda');scheduleProctorRestart()},{once:true});
     video=$('#liveProctorLocalPreview')||document.createElement('video');video.srcObject=stream;video.muted=true;video.autoplay=true;video.playsInline=true;await video.play().catch(e=>console.warn('Local proctor playback retry:',e?.message||e));
     try{
       if('FaceDetector' in window){
@@ -946,7 +967,7 @@ async function startLiveLessonProctoring(){
     };
     return true;
   }catch(e){
-    faceState='missing';emit();heartbeat=setInterval(emit,5000);toast('Dars proktoring kamerasi ishlamadi: '+(e.message||'ruxsat yo‘q'));
+    faceState='missing';emit();heartbeat=setInterval(emit,5000);toast('Dars proktoring kamerasi ishlamadi: '+cameraHint(e));
     liveProctorStop=async()=>{clearInterval(heartbeat);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('blur',onBlur);window.removeEventListener('focus',onFocus);stream?.getTracks().forEach(t=>t.stop());liveProctorStream=null;liveProctorTrack=null};
     return false;
   }
@@ -955,13 +976,17 @@ async function openConference(payload){
   const join=payload.join,s=payload.schedule;if(!join||!s)return toast('Video xona ma’lumoti topilmadi');
   if(join.provider!=='mediasoup')return toast('Media provayder sozlamasi noto‘g‘ri');
   if(!window.MasofaviyMediaClientBundle?.MediaRoomClient)return toast('Mediasoup klient yuklanmagan. Ctrl+F5 qiling.');
-  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;handRaised=false;raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
+  if(activeLessonId&&activeLessonId!==String(s._id))await leaveConference(false); // leave A's socket room before joining B
+  const seq=++conferenceSeq;let ok=false;
+  if(chatLessonId!==String(s._id)){$('#messages')?.replaceChildren();chatLessonId=String(s._id)}
+  activeLessonId=String(s._id);activeLiveSession={schedule:s,join};lastLessonPayload=payload;chatUnread=0;setHandRaised(false);raisedHands.clear();raisedHandUsers.clear();updateRaisedHandAlert();
   go('lesson');$('#liveLessonTitle').textContent=s.title||'Jonli dars';$('#liveLessonMeta').textContent=(s.groupId?.name||'Guruh')+' · '+(s.teacherId?.fullName||'O‘qituvchi')+' · '+s.start+'–'+s.end+(user.role==='student'?' · Proktor kamera lokal nazoratda':' · Yuz-faollik nazorati');
   $('#endLiveLesson').classList.add('hidden');$('#lesson')?.classList.toggle('student-focus-live',user.role==='student');$('#teacherQuickControls')?.classList.toggle('hidden',user.role!=='teacher'&&!can('live.manage'));$('#chatUnreadBadge')?.classList.add('hidden');startLessonClock();startNetworkMonitor();
   const mount=$('#videoMount');mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Universitet SFU serveriga ulanmoqda…</b><small>'+(user.role==='student'?'Talaba · broadcast kamera OFF · proktor kamera majburiy':(ultraLiteUI?'Lite qurilma · adaptiv HD':'O‘qituvchi media tayyorlanmoqda'))+'</small></div>';
   try{
     if(mediaRoomClient)await mediaRoomClient.close().catch(()=>{});
-    mediaRoomClient=new window.MasofaviyMediaClientBundle.MediaRoomClient({
+    if(seq!==conferenceSeq)return false;
+    const client=mediaRoomClient=new window.MasofaviyMediaClientBundle.MediaRoomClient({
       socket,joinPayload:join,mount,user,lowEnd:lowEndUI,
       onTeacherPiPClick:({userId})=>{
         if(!activeLessonId||!userId)return;
@@ -977,7 +1002,8 @@ async function openConference(payload){
         if(state.proximityGuard!==undefined){const b=$('#echoGuard');b?.classList.toggle('active-control',state.proximityGuard);b?.setAttribute('aria-pressed',state.proximityGuard?'true':'false')}
         if(state.studentVideoChanged!==undefined)syncTeacherRailCamera(state.studentVideoChanged);
         if(state.autoHalfDuplex&&Date.now()-(window._lastAudioSafetyNotice||0)>20000){window._lastAudioSafetyNotice=Date.now();toast('Chiyillash aniqlandi: karnay xavfsizlik uchun vaqtincha o‘chirildi. Eshitish uchun mikrofonni OFF qiling yoki quloqchin ulang.')}
-        if(state.audioBlocked)toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing');
+        if(state.audioBlocked&&Date.now()-lastAudioBlockedToast>15000){lastAudioBlockedToast=Date.now();toast('Ovoz bloklangan bo‘lsa, sahifaga bir marta bosing')}
+        if(state.micInterrupted)toast('Mikrofon uzildi (quloqchin yoki qo‘ng‘iroq). Qayta yoqish uchun mikrofon tugmasini bosing.');
         if(state.aecUnavailable)toast('Qurilmangizda echo cancellation faol emas. Quloqchin ishlating va karnay ovozini pasaytiring.');
         if(state.videoQuality&&$('#videoQuality'))$('#videoQuality').value=state.videoQuality;
         if(state.participants){const n=Array.isArray(state.participants)?state.participants.length:Number(state.participants||0);if($('#participantCountBadge'))$('#participantCountBadge').textContent=String(n)}
@@ -998,9 +1024,11 @@ async function openConference(payload){
     });
     if(user.role==='student'){
       const proctorOk=await startLiveLessonProctoring();
-      if(!proctorOk)throw new Error('Jonli darsga kirish uchun kamera ruxsati va proktor kamera majburiy');
+      if(seq!==conferenceSeq)return false;
+      if(!proctorOk)throw Object.assign(new Error('Jonli darsga kirish uchun kamera ruxsati va proktor kamera majburiy'),{noRetry:true});
     }
-    await mediaRoomClient.connect();
+    await client.connect();
+    if(seq!==conferenceSeq||client.closed)return false;
     const isTeachingRole=user.role==='teacher';
     const isAdminPresenter=user.role==='superadmin'||(user.role==='admin'&&can('live.manage'));
     if(isTeachingRole||isAdminPresenter){
@@ -1017,15 +1045,26 @@ async function openConference(payload){
     showLessonSide(user.role==='student'?'chat':'participants',false);setLessonDrawer(false);
     if(user.role!=='student')await loadLessonParticipants();
     if(user.role==='student'&&mediaRoomClient.proximityGuard)toast('Echo himoyasi faol: mikrofon ON paytida karnay ovozi o‘chadi. Eshitish uchun mikrofonni OFF qiling; quloqchinda Yana → Yaqin qurilmalar orqali o‘chirishingiz mumkin.');
-    else toast('Mediasoup jonli darsga ulandingiz');
+    else toast('Jonli darsga ulandingiz');
+    ok=true;
   }catch(e){
+    if(seq!==conferenceSeq)return false;
     if(user.role==='student'){await liveProctorStop?.().catch?.(()=>{});liveProctorStop=()=>{}}
+    try{await mediaRoomClient?.close()}catch{};mediaRoomClient=null; // lets socket 'connect' trigger a fresh rejoin
+    ok=e?.noRetry?null:false;
     mount.innerHTML='<div class="video-placeholder"><span>'+icon('video','◉')+'</span><b>Darsga ulanib bo‘lmadi</b><small>'+esc(e.message)+'</small><button id="retryMediaRoom" class="primary">Qayta ulanish</button></div>';
-    $('#retryMediaRoom')?.addEventListener('click',()=>openConference(payload));
+    $('#retryMediaRoom')?.addEventListener('click',()=>rejoinActiveLesson()); // fresh join = fresh media ticket
   }
   hydrateIcons($('#lesson'));
+  return ok;
 }
-async function leaveConference(back=true){
+function leaveConference(back=true){
+  conferenceSeq++;
+  return leavingConference||(leavingConference=leaveConferenceNow(back).finally(()=>{leavingConference=null}));
+}
+async function leaveConferenceNow(back=true){
+  if(handRaised&&activeLessonId&&socket?.connected)socket.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:false});setHandRaised(false);
+  clearTimeout(participantsTimer);clearTimeout(proctorRestartTimer);proctorRestarts=0;attendanceDirty=false;autoRejoinAttempt=0;lastAutoQuality='';chatUnread=0;$('#chatUnreadBadge')?.classList.add('hidden');$('#lesson')?.classList.remove('student-focus-live');$('#connectionBanner')?.classList.add('hidden');$('#callRejoin')?.classList.add('hidden');
   await liveProctorStop?.();liveProctorStop=()=>{};liveProctorStates.clear();lessonRailRows=[];lessonActiveSpeakerUserIds.clear();$('#lessonStudentRailItems')?.replaceChildren();
   stopCaptions(true);clearInterval(lessonTimer);clearInterval(networkTimer);lessonTimer=null;networkTimer=null;if(autoRejoinTimer){clearTimeout(autoRejoinTimer);autoRejoinTimer=null}
   if(activeLessonId&&socket?.connected)socket.emit('lesson:leave',{lessonId:activeLessonId});
@@ -1051,6 +1090,7 @@ async function saveManualAttendance(){
   try{
     const out=await api('/live/rooms/'+activeLessonId+'/attendance',{method:'POST',body:JSON.stringify({records})});
     toast('Davomat saqlandi · '+out.saved+' talaba');
+    attendanceDirty=false;
     await loadLessonParticipants();
   }catch(e){toast(e.message)}
 }
@@ -1125,8 +1165,12 @@ function requestStudentOnStage(id){
 }
 async function loadLessonParticipants(){
   if(!activeLessonId||user?.role==='student')return;
+  const lessonId=activeLessonId,seq=++participantsSeq;
   try{
-    const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],audit=x.groupAudit||null;renderLessonStudentRail(rows,audit);const label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
+    const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],audit=x.groupAudit||null;
+    if(seq!==participantsSeq||lessonId!==activeLessonId)return; // a newer refresh or another lesson won
+    renderLessonStudentRail(rows,audit);
+    if(attendanceDirty){$('#attendanceSave')?.classList.add('needs-save');return} // keep the teacher's unsaved marksconst label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
     const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length,face:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return p.cameraReady&&p.faceState==='present'}).length,attentionLow:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60}).length};
     const summary='<div class="attendance-summary">'+
@@ -1156,7 +1200,7 @@ async function loadLessonParticipants(){
         '</div>';
     }).join('')||'<div class="empty">Guruhda talaba topilmadi</div>';
     const m=x.session?.lastAttendanceCheckpointMinute||0;$('#attendanceCheckpointInfo').textContent=m?('Oxirgi avtomatik nazorat: '+m+'-daqiqa'):'Birinchi avtomatik davomat: 10-daqiqada';
-    $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true)});
+    $('#attendanceMarkAll')?.addEventListener('click',()=>{all('#lessonParticipants [data-attendance-check]').forEach(x=>x.checked=true);attendanceDirty=true;$('#attendanceSave')?.classList.add('needs-save')});
     $('#attendanceSave')?.addEventListener('click',saveManualAttendance);
     const spotlightUser=id=>requestStudentOnStage(id);
     const inspectUser=id=>{if(!id)return;if(user.role==='teacher'||can('live.manage')||can('lessons.monitor'))requestStudentOnStage(id);else mediaRoomClient?.focusUserForClass?.(String(id))};
@@ -1166,8 +1210,9 @@ async function loadLessonParticipants(){
       row.onclick=e=>{if(e.target.closest('input,select,button,label'))return;inspectUser(row.dataset.focusUser)};
       row.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('input,select,button,label')){e.preventDefault();inspectUser(row.dataset.focusUser)}};
     });
-  }catch(e){$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
+  }catch(e){if(seq===participantsSeq&&lessonId===activeLessonId)$('#lessonParticipants').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
 }
+$('#lessonParticipants')?.addEventListener('change',e=>{if(e.target.matches?.('[data-attendance-check],[data-attendance-status]')){attendanceDirty=true;$('#attendanceSave')?.classList.add('needs-save')}});
 function setLessonDrawer(open){
   $('#lessonDrawer')?.classList.toggle('open',Boolean(open));
   $('#lessonDrawerBackdrop')?.classList.toggle('show',Boolean(open));
@@ -1756,7 +1801,7 @@ $('#exportAnalytics').onclick=function(){if(!analyticsCache)return toast('Avval 
 async function loadAudit(){try{const rows=await api('/audit');$('#auditList').innerHTML=rows.map(x=>`<div><b>${esc(x.action)} · ${esc(x.entity)}</b><br><small>${new Date(x.createdAt).toLocaleString('uz-UZ')} · ${esc(x.ip)}</small></div>`).join('')||'<p>Harakatlar tarixi bo‘sh.</p>'}catch(e){$('#auditList').textContent=e.message}}
 
 $('#callViewMode')?.addEventListener('click',()=>{if(!mediaRoomClient||user?.role==='student')return;const next=mediaRoomClient.viewMode==='gallery'?'speaker':'gallery';mediaRoomClient.setViewMode(next);toast(next==='gallery'?'Gallery view':'Speaker view')});
-$('#callRaiseHand')?.addEventListener('click',()=>{if(!activeLessonId)return;handRaised=!handRaised;socket?.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:handRaised});$('#callRaiseHand')?.classList.toggle('active-control',handRaised)});
+$('#callRaiseHand')?.addEventListener('click',()=>{if(!activeLessonId)return;setHandRaised(!handRaised);socket?.emit('lesson:raise-hand',{lessonId:activeLessonId,raised:handRaised});toast(handRaised?'Qo‘lingiz ko‘tarildi · o‘qituvchi ko‘radi':'Qo‘lingiz tushirildi')});
 $('#callReaction')?.addEventListener('click',()=>$('#reactionPopover')?.classList.toggle('hidden'));
 $('#callMore')?.addEventListener('click',()=>{
   $('#liveMorePanel')?.classList.toggle('hidden');
@@ -1784,8 +1829,9 @@ function connectSocket(){
   socket.on('disconnect',function(){$('#onlineBadge').textContent='● Ulanish yo‘q';$('#connectionBanner')?.classList.remove('hidden');if(activeLessonId){autoRejoinAttempt=Math.max(1,autoRejoinAttempt);autoRejoinLesson(false)}});
   socket.on('presence:count',function(x){$('#onlineBadge').textContent='● '+(x.online||0)+' onlayn'});
   socket.on('lesson:error',function(x){toast(x.message||'Darsga kirib bo‘lmadi')});
-  socket.on('lesson:presence',function(x){if(activeLessonId)loadLessonParticipants();if(x.userId===user?._id||x.fullName===user?.fullName)toast(x.status==='late'?'Darsga kirdingiz · kechikish qayd etildi':'Darsga kirdingiz · davomat qayd etildi')});
-  socket.on('attendance:checkpoint',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){loadLessonParticipants();toast('Avtomatik davomat: '+x.checkpointMinute+'-daqiqa')}});
+  socket.on('lesson:presence',function(x){if(!activeLessonId)return;scheduleLessonParticipants();if(x?.state==='left'){const id=String(x.userId||'');raisedHands.delete(id);raisedHandUsers.delete(id);updateRaisedHandAlert();return}if(String(x?.userId||'')===String(user?._id||''))toast(x.status==='late'?'Darsga kirdingiz · kechikish qayd etildi':'Darsga kirdingiz · davomat qayd etildi')});
+  socket.on('media:reconnect-required',function(){if(activeLessonId)autoRejoinLesson(true)});
+  socket.on('attendance:checkpoint',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){scheduleLessonParticipants(200);toast('Avtomatik davomat: '+x.checkpointMinute+'-daqiqa')}});
   socket.on('attendance:manual-saved',function(x){if(activeLessonId&&String(x.scheduleId)===String(activeLessonId)){loadLessonParticipants();if(user.role!=='teacher')toast('Davomat o‘qituvchi tomonidan yangilandi')}});
   socket.on('mic:permission-request',function(x){
     if(!activeLessonId||user.role!=='teacher')return;
@@ -1862,16 +1908,17 @@ function connectSocket(){
     const id=String(x.userId||'');
     if(x.raised){raisedHands.add(id);raisedHandUsers.set(id,{userId:id,fullName:x.fullName||x.login||'Talaba',login:x.login||''})}
     else{raisedHands.delete(id);raisedHandUsers.delete(id)}
+    if(id===String(user?._id||''))setHandRaised(x.raised);
     updateRaisedHandAlert();
-    if(user.role==='teacher'||can('live.manage'))toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi ✋':' qo‘lini tushirdi'));
-    loadLessonParticipants();
+    if((user.role==='teacher'||can('live.manage'))&&id!==String(user?._id||''))toast((x.fullName||'Talaba')+(x.raised?' qo‘l ko‘tardi':' qo‘lini tushirdi'));
+    scheduleLessonParticipants();
   });
   socket.on('lesson:reaction',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))showReaction(x)});
   socket.on('lesson:spotlight',function(x){if(activeLessonId&&String(x.lessonId)===String(activeLessonId))mediaRoomClient?.focusUserForClass?.(String(x.userId||''))});
   socket.on('lesson:force-mute',async function(x){if(activeLessonId){await mediaRoomClient?.muteSelfIfNeeded();toast((x.by||'O‘qituvchi')+' mikrofonni o‘chirdi')}});
   socket.on('lesson:force-camera-off',async function(x){if(activeLessonId){await mediaRoomClient?.cameraOffIfNeeded();toast((x.by||'O‘qituvchi')+' kamerani o‘chirdi')}});
-  socket.on('live:changed',async function(x){if(x?.status==='ended'&&activeLessonId&&String(x.scheduleId)===String(activeLessonId)){toast('Dars vaqti tugadi · xona avtomatik yopildi');await leaveConference(true);return}if($('#live')?.classList.contains('active'))loadLiveRooms()});
-  socket.on('lesson:auto-ended',async function(x){if(activeLessonId&&String(x?.scheduleId)===String(activeLessonId)){toast('Dars vaqti tugadi');await leaveConference(true)}});
+  socket.on('live:changed',async function(x){if(x?.status==='ended'&&activeLessonId&&String(x.scheduleId)===String(activeLessonId)){if(leavingConference)return;toast('Dars yakunlandi · xona yopildi');await leaveConference(true);return}if($('#live')?.classList.contains('active'))loadLiveRooms()});
+  socket.on('lesson:auto-ended',async function(x){if(activeLessonId&&String(x?.scheduleId)===String(activeLessonId)){if(leavingConference)return;toast('Dars vaqti tugadi · xona yopildi');await leaveConference(true)}});
   socket.on('lesson:started',async function(x){
     if(user?.role!=='student'||!x?.scheduleId)return;
     toast('Dars boshlandi: '+(x.title||'Jonli dars')+' · avtomatik ulanmoqda');
@@ -1883,9 +1930,9 @@ function connectSocket(){
     if(activeLessonId===String(x.scheduleId))return;
     try{await enterLiveRoom(String(x.scheduleId))}catch{}
   });
-  socket.on('lesson:chat',function(m){$('#messages').insertAdjacentHTML('beforeend','<p><b>'+esc(m.fullName)+'</b><br>'+esc(m.text)+'</p>');$('#messages').scrollTop=$('#messages').scrollHeight;if(!$('#lessonChatPanel')?.classList.contains('hidden'))return;chatUnread++;const b=$('#chatUnreadBadge');if(b){b.textContent=String(chatUnread);b.classList.remove('hidden')}});
+  socket.on('lesson:chat',function(m){if(!activeLessonId||(m?.lessonId&&String(m.lessonId)!==String(activeLessonId)))return;const box=$('#messages');if(!box)return;const mine=String(m.userId||'')===String(user?._id||'');const when=m.at?new Date(m.at):new Date();const time=String(when.getHours()).padStart(2,'0')+':'+String(when.getMinutes()).padStart(2,'0');const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;box.insertAdjacentHTML('beforeend','<p class="chat-msg'+(mine?' mine':'')+'"><b>'+esc(mine?'Siz':m.fullName)+'</b><br>'+esc(m.text)+'<time>'+time+'</time></p>');if(nearBottom||mine)box.scrollTop=box.scrollHeight;if(mine||lessonChatVisible())return;chatUnread++;const b=$('#chatUnreadBadge');if(b){b.textContent=String(chatUnread);b.classList.remove('hidden')}});
   socket.on('lesson:caption',function(m){if(activeLessonId&&String(m.lessonId)===String(activeLessonId)&&String(m.userId)!==String(user?._id)){const current=$('#captionLang')?.value;const sel=$('#captionLang');if(sel&&m.lang)sel.dataset.remoteLang=m.lang;showCaption(m.fullName,normalizeMathCaption(m.text,m.lang||current||'uz-UZ'))}});
-  $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');socket.emit('lesson:chat',{lessonId:activeLessonId,text:input.value});input.value=''};
+  $('#chatForm').onsubmit=function(e){e.preventDefault();if(!activeLessonId)return toast('Avval jadvaldan darsga kiring');const input=e.target.querySelector('input');const text=String(input.value||'').trim();if(!text)return;if(!socket?.connected)return toast('Aloqa tiklanmoqda · xabar yuborilmadi');socket.emit('lesson:chat',{lessonId:activeLessonId,text});input.value=''};
 }
 window.addEventListener('popstate',async()=>{if(!user)return;
   const deep=location.hash.startsWith('#video=')?decodeURIComponent(location.hash.slice(7)):'';

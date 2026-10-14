@@ -991,3 +991,67 @@ html.hx #shell>main :is(#courseDetail,#courseworkGradesBoard,#courseworkJournalB
 html.hx #shell>main #courseDetail :is(.course-topic-kind,.topic-move-label){font-size:11.5px!important;letter-spacing:0!important;text-transform:none!important}
 html.hx #shell>main #courseDetail .course-topic-number{width:32px;height:32px;display:inline-grid!important;place-items:center;border-radius:10px 10px 10px 3px!important;background:var(--hx-ink)!important;color:#fff!important;font-family:var(--hx-display);font-weight:700;font-size:14px!important}
 html.hx #shell>main #courseDetail .course-topic-kind{padding:2px 8px!important;border-radius:999px!important;background:var(--hx-brand-soft)!important;color:var(--hx-brand-strong)!important}
+
+/* ==========================================================================
+   LIVE CLASSROOM CONTROL DOCK (2026-10-14)
+   One icon + one label per control, clear ON / OFF states, no glyph
+   fallbacks or "OFF" stickers from older layers. Mobile keeps the 52px
+   dock height that mobile-ui-compact.css budgets for the video stage.
+   ========================================================================== */
+html.hx #lesson .conference-controls.zoom-dock{background:#0b1030!important;border-top:1px solid rgba(255,255,255,.08)!important;border-radius:0 0 18px 18px!important;box-shadow:none!important}
+html.hx #lesson .conference-controls .zoom-primary{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:stretch!important;gap:8px!important;overflow:visible!important}
+html.hx #lesson .conference-controls .zoom-control{
+ position:relative!important;flex:0 1 76px!important;min-width:0!important;width:auto!important;
+ display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;
+ height:58px!important;min-height:58px!important;max-height:58px!important;padding:6px 4px!important;margin:0!important;
+ border:0!important;border-radius:16px!important;background:rgba(255,255,255,.07)!important;color:#e9ecfa!important;
+ font:600 12px/1.1 var(--hx-font)!important;letter-spacing:0!important;box-shadow:none!important;transition:background-color .15s,color .15s,transform .1s}
+html.hx #lesson .conference-controls .zoom-control:hover{background:rgba(255,255,255,.13)!important}
+html.hx #lesson .conference-controls .zoom-control:active{transform:scale(.96)}
+html.hx #lesson .conference-controls .zoom-control>span:first-child,
+html.hx #lesson .conference-controls .zoom-control [data-ico]{position:relative!important;display:grid!important;place-items:center!important;width:24px!important;height:24px!important;min-width:24px!important;font-size:0!important;line-height:1!important;color:currentColor!important;opacity:1!important;visibility:visible!important}
+html.hx #lesson .conference-controls .zoom-control [data-ico]::before{content:none!important;display:none!important}
+html.hx #lesson .conference-controls .zoom-control [data-ico]>svg,html.hx #lesson .conference-controls .zoom-control .ui-icon{display:block!important;width:22px!important;height:22px!important}
+html.hx #lesson .conference-controls .zoom-control>span:last-child:not(:first-child){display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px!important;font-weight:600!important;opacity:.92}
+html.hx #lesson #callMic::after,html.hx #lesson #callCamera::after{content:none!important;display:none!important}
+/* ON = live: bright; OFF = muted: coral tint + slash through the icon */
+html.hx #lesson .conference-controls :is(#callMic,#callCamera).active-control{background:rgba(255,255,255,.16)!important;color:#fff!important}
+html.hx #lesson .conference-controls :is(#callMic,#callCamera).is-off{background:rgba(229,72,59,.18)!important;color:#ffb3aa!important}
+html.hx #lesson .conference-controls :is(#callMic,#callCamera).is-off [data-ico]::after{content:""!important;position:absolute;left:50%;top:50%;width:27px;height:2.5px;border-radius:2px;background:currentColor;box-shadow:0 0 0 2px #2a1430;transform:translate(-50%,-50%) rotate(-45deg)}
+html.hx #lesson .conference-controls #callRaiseHand.active-control,html.hx #lesson .conference-controls #callMore.active-control,html.hx #lesson .conference-controls #callChat.active-control{background:var(--hx-saffron)!important;color:var(--hx-ink)!important}
+html.hx #lesson .conference-controls #callHangup{background:var(--hx-coral)!important;color:#fff!important;flex-basis:84px!important}
+html.hx #lesson .conference-controls #callHangup:hover{background:#cf3a2e!important}
+html.hx #lesson .conference-controls .control-badge{position:absolute!important;top:4px!important;right:10px!important;min-width:18px;height:18px;padding:0 5px;border-radius:999px;display:grid;place-items:center;background:var(--hx-saffron)!important;color:var(--hx-ink)!important;font:700 11px/1 var(--hx-font)!important;border:2px solid #0b1030}
+html.hx #lesson .conference-controls .control-badge.hidden{display:none!important}
+html.hx #lesson .conference-controls button.is-busy::before{inset:4px!important;border-radius:13px!important;border-color:rgba(255,255,255,.18)!important;border-top-color:#fff!important}
+html.hx #lesson .zoom-status{gap:8px!important;color:#c8cdea!important}
+html.hx #lesson .zoom-status>span{padding:3px 10px!important;border-radius:999px!important;background:rgba(255,255,255,.07)!important;font:600 12px/1.4 var(--hx-font)!important;font-variant-numeric:tabular-nums}
+html.hx #lesson .network-quality.good{color:#8de8c4!important}
+html.hx #lesson .network-quality.mid{color:#ffd27a!important}
+html.hx #lesson .network-quality.bad{color:#ffb3aa!important}
+html.hx #lesson .lesson-time-left.warning{background:rgba(255,182,39,.2)!important;color:#ffd27a!important}
+/* "Yana" sheet */
+html.hx #lesson #liveMorePanel{background:#121937!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:20px!important;box-shadow:0 24px 60px rgba(0,0,0,.5)!important;padding:10px!important}
+html.hx #lesson #liveMorePanel .more-grid{gap:6px!important}
+html.hx #lesson #liveMorePanel .more-grid>:is(button,label){min-height:64px!important;border-radius:14px!important;background:rgba(255,255,255,.06)!important;border:0!important;color:#e9ecfa!important;font:600 12px/1.2 var(--hx-font)!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:5px!important;padding:8px 4px!important;text-align:center}
+html.hx #lesson #liveMorePanel .more-grid>button:hover{background:rgba(255,255,255,.12)!important}
+html.hx #lesson #liveMorePanel .more-grid>button.active-control{background:var(--hx-saffron)!important;color:var(--hx-ink)!important}
+html.hx #lesson #liveMorePanel .more-grid>button>span:first-child{font-size:18px!important;line-height:1!important}
+html.hx #lesson #liveMorePanel select{background:#0b1030!important;color:#fff!important;border:1px solid rgba(255,255,255,.15)!important;border-radius:9px!important}
+/* Chat */
+html.hx #lesson #messages .chat-msg{max-width:88%;margin:0 0 8px!important;padding:8px 12px 6px!important;border-radius:4px 14px 14px 14px;background:var(--hx-sunken);color:var(--hx-text);font-size:14px;line-height:1.4;word-wrap:break-word}
+html.hx #lesson #messages .chat-msg b{font-size:12.5px;color:var(--hx-brand)}
+html.hx #lesson #messages .chat-msg time{display:block;margin-top:2px;font-size:11px;color:var(--hx-muted);text-align:right}
+html.hx #lesson #messages .chat-msg.mine{margin-left:auto!important;border-radius:14px 4px 14px 14px;background:var(--hx-brand-soft)}
+html.hx #lesson #attendanceSave.needs-save{box-shadow:0 0 0 3px rgba(255,182,39,.55)!important}
+@media (max-width:900px){
+ html.hx #lesson .conference-controls.zoom-dock{border-radius:0 0 14px 14px!important}
+ html.hx #lesson .conference-controls .zoom-primary{gap:4px!important;justify-content:space-between!important}
+ html.hx #lesson .conference-controls .zoom-control{flex:1 1 0!important;height:44px!important;min-height:44px!important;max-height:44px!important;gap:2px!important;padding:3px 2px!important;border-radius:12px!important}
+ html.hx #lesson .conference-controls .zoom-control>span:first-child,html.hx #lesson .conference-controls .zoom-control [data-ico]{width:20px!important;height:20px!important;min-width:20px!important}
+ html.hx #lesson .conference-controls .zoom-control [data-ico]>svg,html.hx #lesson .conference-controls .zoom-control .ui-icon{width:19px!important;height:19px!important}
+ html.hx #lesson .conference-controls .zoom-control>span:last-child:not(:first-child){font-size:10px!important}
+ html.hx #lesson .conference-controls :is(#callMic,#callCamera).is-off [data-ico]::after{width:23px}
+ html.hx #lesson .conference-controls #callHangup{flex:1.15 1 0!important}
+ html.hx #lesson .conference-controls .control-badge{top:1px!important;right:4px!important;min-width:16px;height:16px;font-size:10px!important}
+}

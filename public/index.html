@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/telegram-design.css?v=20261013-rc5">
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/hallaym-ui.css?v=20261014-hx1">
+  <link rel="stylesheet" href="/hallaym-ui.css?v=20261014-hx2">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -307,12 +307,12 @@
           <section id="lessonStudentRail" class="lesson-student-rail" aria-label="Guruh ishtirokchilari"><div class="rail-title"><span>👥 Ishtirokchilar <b id="lessonStudentRailCount">0</b><small id="lessonRailGroup" class="rail-group-name"></small></span><button id="railOpenParticipants" type="button">Ro‘yxat va davomat ↗</button></div><div id="lessonStudentRailItems" class="lesson-student-rail-items" role="list"><span class="rail-loading">Ishtirokchilar yuklanmoqda…</span></div></section>
           <div class="conference-controls zoom-dock">
             <div class="zoom-primary">
-              <button id="callMic" class="zoom-control"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
-              <button id="callCamera" class="zoom-control"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
+              <button id="callMic" class="zoom-control" aria-pressed="false"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
+              <button id="callCamera" class="zoom-control" aria-pressed="false"><span data-ico="camera" data-fallback="▣"></span><span>Kamera</span></button>
               <button id="callChat" class="zoom-control"><span data-ico="message" data-fallback="✉"></span><span>Chat</span><i id="chatUnreadBadge" class="control-badge hidden">0</i></button>
-              <button id="callRaiseHand" class="zoom-control"><span>✋</span><span>Qo‘l</span></button>
+              <button id="callRaiseHand" class="zoom-control" aria-pressed="false"><span data-ico="hand" data-fallback="✋"></span><span>Qo‘l</span></button>
               <button id="callParticipants" class="zoom-control" type="button" title="Qatnashuvchilar va davomat"><span data-ico="users" data-fallback="☷"></span><span>Talabalar</span></button>
-              <button id="callMore" class="zoom-control"><span>•••</span><span>Yana</span></button>
+              <button id="callMore" class="zoom-control" aria-controls="liveMorePanel"><span data-ico="more" data-fallback="•••"></span><span>Yana</span></button>
               <button id="callHangup" class="zoom-control danger"><span data-ico="phoneOff" data-fallback="×"></span><span>Chiqish</span></button>
             </div>
             <div class="zoom-status">
@@ -505,5 +505,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261013-rc5"></script><script type="module" src="/app.js?v=20261014-hx1"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261013-rc5"></script><script type="module" src="/app.js?v=20261014-hx2"></script>
 </body></html>

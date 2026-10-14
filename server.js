@@ -1588,7 +1588,7 @@ socket.on('lesson:caption',({lessonId,text,lang,final})=>{
     io.to('lesson:'+lessonId).emit('lesson:caption',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,text:clean,lang:language,final:Boolean(final),at:Date.now()});
   }
 });
-socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
+socket.on('lesson:chat', ({lessonId,text})=>{ const clean=String(text||'').trim().slice(0,1000); if(clean&&socket.rooms.has('lesson:'+lessonId)) io.to('lesson:'+lessonId).emit('lesson:chat',{id:crypto.randomUUID(),lessonId:String(lessonId),userId:socket.user._id,fullName:socket.user.fullName,text:clean,at:new Date().toISOString()}); });
 socket.on('lesson:raise-hand',({lessonId,raised=true})=>{
   if(!lessonId||!socket.rooms.has('lesson:'+lessonId))return;
   io.to('lesson:'+lessonId).emit('lesson:raise-hand',{lessonId,userId:String(socket.user._id),fullName:socket.user.fullName,login:socket.user.login,raised:Boolean(raised),at:Date.now()});
@@ -1652,6 +1652,8 @@ socket.on('disconnect', async()=>{
     }else if(currentBroadcast===String(socket.user._id))liveProctorBroadcastByLesson.delete(String(activeLesson));
     const payload={lessonId:String(activeLesson),userId:String(socket.user._id),fullName:socket.user.fullName,cameraReady:false,faceState:'missing',at:new Date().toISOString()};
     for(const s of lessonRoomSockets(activeLesson))if(s.user?.role==='teacher'||hasPermission(s.user,'live.manage')||hasPermission(s.user,'lessons.monitor'))s.emit('lesson:proctor-state',payload);
+    // Tell the room this participant dropped, so raised hands and presence do not go stale.
+    io.to('lesson:'+activeLesson).emit('lesson:presence',{userId:socket.user._id,fullName:socket.user.fullName,state:'left'});
   }
   const oldNodeId=clientNodeMap.get(socket.id),oldRoom=clientRoomMap.get(socket.id);
   const oldNode=oldNodeId?sfuNodes.get(oldNodeId):null;
