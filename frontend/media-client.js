@@ -378,12 +378,35 @@ export class MediaRoomClient{
     return {target,teacher};
   }
   clearFullscreenLayout(){
-    this.grid?.classList.remove('fullscreen-video-grid');
+    clearTimeout(this.fsHideTimer);this.grid?.classList.remove('fullscreen-video-grid','fs-ui-visible');
     for(const t of this.tiles.values())t.classList.remove('cinema-primary','fullscreen-teacher-pip');
+  }
+  ensureFullscreenBar(){
+    // Minimal overlay inside the fullscreen element: lesson title, live state, time left, exit.
+    if(!this.grid)return null;
+    let bar=qs('.ms-fs-bar',this.grid);
+    if(!bar){
+      bar=el('div',{className:'ms-fs-bar'});
+      const info=el('div',{className:'ms-fs-info'}),live=el('span',{className:'ms-fs-live'}),title=el('b',{className:'ms-fs-title'}),time=el('span',{className:'ms-fs-time'});
+      live.textContent='Jonli';info.append(live,title,time);
+      const exit=el('button',{className:'ms-fs-exit',type:'button',title:'To‘liq ekrandan chiqish'});exit.setAttribute('aria-label','To‘liq ekrandan chiqish');
+      exit.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/></svg>';
+      exit.addEventListener('click',e=>{e.stopPropagation();this.exitPrimaryFullscreen().catch(()=>{})});
+      bar.append(info,exit);this.grid.append(bar);
+      const wake=()=>{
+        if(!this.grid?.classList.contains('fullscreen-video-grid'))return;
+        const t=document.getElementById('lessonTimeLeft')?.textContent||'';const tn=qs('.ms-fs-time',this.grid);if(tn)tn.textContent=t&&t!=='--:--'?t:'';
+        this.grid.classList.add('fs-ui-visible');clearTimeout(this.fsHideTimer);this.fsHideTimer=setTimeout(()=>this.grid?.classList.remove('fs-ui-visible'),3200);
+      };
+      this.grid.addEventListener('pointermove',wake,{passive:true});this.grid.addEventListener('pointerdown',wake,{passive:true});this.fsWake=wake;
+    }
+    const tt=qs('.ms-fs-title',bar);if(tt)tt.textContent=document.getElementById('liveLessonTitle')?.textContent||'Jonli dars';
+    this.fsWake?.();return bar;
   }
   async enterPrimaryFullscreen(){
     const layout=this.prepareFullscreenLayout();
     if(!layout)throw new Error('Asosiy video topilmadi');
+    this.ensureFullscreenBar();
     const {target}=layout,video=qs('video',target),host=this.grid||this.mount;
     try{
       if(host?.requestFullscreen){
