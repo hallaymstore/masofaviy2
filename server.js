@@ -25,6 +25,7 @@ import { recordPresenceJoin,recordPresenceLeave,recordProctorObservation } from 
 import { summarizeLiveLessonGroup } from './lesson-roster.js';
 import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecoveryCodes,hashRecoveryCode,consumeRecoveryCode,otpauthUri } from './auth-security.js';
 import { installCompliance } from './compliance.js';
+import { installUnits } from './units.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -97,14 +98,16 @@ app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,fil
 
 const permissionsByRole = {
   superadmin: ['*'],
-  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage'],
+  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage','units.manage'],
   tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage'],
   rectorate: ['reports.view','lessons.monitor','analytics.view','videos.view','schedule.manage'],
   dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view','videos.view'],
   department: ['department.view','teachers.manage','schedule.manage','reports.view','analytics.view','lessons.monitor','videos.view'],
   teacher: ['lessons.manage','attendance.manage','assignments.manage','grades.manage','chat.use','analytics.self','live.host','videos.upload','videos.view'],
   student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view'],
-  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view','schedule.manage']
+  tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view','schedule.manage'],
+  // Non-teaching employee of a university unit (registrar, accounting, HR, IT…). Rights come from unit membership.
+  staff: ['units.workspace']
 };
 
 const userSchema = new mongoose.Schema({
@@ -398,6 +401,7 @@ installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermis
 const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
 installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission,checkVideoAccess});
 installCompliance(app,{mongoose,User,auth,audit});
+const unitsApi=installUnits(app,{mongoose,User,Structure,auth,audit,hasPermission});
 installBrandingUploads(app,{mongoose,auth,InstitutionSettings,audit});
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, service:'HALLAYM EDU', time:new Date().toISOString(), faceDetectionAssets:fs.existsSync(path.resolve('public/vendor/face-detection/face_detection.js'))&&fs.existsSync(path.resolve('public/vendor/face-detection/face_detection_solution_wasm_bin.wasm')) }));
@@ -642,6 +646,7 @@ app.get('/api/dashboard', auth, async (req,res)=> {
     let present=0,late=0;if(ids.length){const a=await Attendance.find({createdAt:{$gte:todayBounds.start,$lt:todayBounds.end},lessonId:{$in:ids}}).populate('userId','role').lean();const students=a.filter(x=>x.userId?.role==='student');present=students.filter(x=>['present','late'].includes(x.status)).length;late=students.filter(x=>x.status==='late').length}
     return res.json({role:req.user.role,stats:[{label:'Mening darslarim',value:rows.length},{label:'Bugungi dars',value:today.length},{label:'Bugun qatnashdi',value:present},{label:'Kechikdi',value:late},{label:'Guruhlar',value:new Set(rows.map(x=>String(x.groupId?._id||x.groupId))).size}],today});
   }
+  if(req.user.role==='staff'){const w=await unitsApi.workspaceSummary(req.user);return res.json({role:'staff',stats:w.stats,today:[]})}
   if(req.user.role==='student'){
     const gid=await resolveUserGroupId(req.user),rows=gid?await scheduleQuery({groupId:gid}).lean():[],today=rows.filter(x=>x.weekday===day),days=30,bounds=rangeBounds(days),lessonIds=rows.map(x=>String(x._id)),expected=rows.reduce((sum,x)=>sum+weekdayOccurrences(days,x.weekday),0);
     const attendance=lessonIds.length?await Attendance.find({userId:req.user._id,createdAt:{$gte:bounds.start,$lt:bounds.end},lessonId:{$in:lessonIds}}).lean():[],seen=new Set(),unique=attendance.filter(x=>{const k=x.lessonId+':'+(x.dateKey||'');if(seen.has(k))return false;seen.add(k);return true}),present=unique.filter(x=>['present','late'].includes(x.status)).length,rate=expected?Math.min(100,Math.round(present/expected*100)):0,late=unique.filter(x=>x.status==='late').length;
