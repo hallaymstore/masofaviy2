@@ -144,7 +144,7 @@ test('API: announcements, documents and events respect audience',async()=>{
 test('units are wired into the platform: menu, pages, staff role, dashboard, offline cache',async()=>{
  const {readFileSync}=await import('node:fs');const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
  const html=read('public/index.html'),app=read('public/app.js'),sw=read('public/sw.js'),server=read('server.js');
- for(const t of ['data-page="units"','data-page="workspace"','data-page="myRequests"','id="unitsRoot"','id="workspaceRoot"','id="myRequestsRoot"','<span>Masofaviy ta’lim</span>'])assert.ok(html.includes(t),t);
+ for(const t of ['data-page="units"','data-page="workspace"','data-page="myRequests"','id="unitsRoot"','id="workspaceRoot"','id="myRequestsRoot"','<span>O‘quv jarayoni</span>'])assert.ok(html.includes(t),t);
  assert.ok(app.includes("import {createUnitsUi} from './units-ui.js';"));
  assert.ok(app.includes("units:()=>unitsUi().renderUnits()"));
  assert.ok(app.includes("staff:'Xodim'"));

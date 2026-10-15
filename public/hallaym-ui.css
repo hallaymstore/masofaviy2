@@ -1735,3 +1735,76 @@ html.hx #shell .ux-root :is(.ux-tabs,.ux-chips) button.on,html.hx #shell .ux-roo
 html.hx #shell .ux-root :is(.ux-tabs button:not(.on),.ux-crumbs button,.ux-del,.ux-link):hover{background:var(--hx-sunken)!important;border-color:transparent!important}
 html.hx #shell .ux-root .ux-hero .ux-children button:hover{background:rgba(255,255,255,.24)!important}
 html.hx #shell .ux-root :is(.ux-ucard,.ux-req,.ux-app,.ux-learn-links button):hover{background:var(--hx-surface)!important;border-color:var(--hx-brand)!important}
+
+/* ===================== Forms of study (kunduzgi / kechki / sirtqi / masofaviy) ===================== */
+.ef-badge,.em-badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:999px;white-space:nowrap;background:var(--hx-sunken);color:var(--hx-text-2);margin-right:4px}
+.ef-kunduzgi{background:#fff3d6;color:#8a5a00}.ef-kechki{background:#e7e9ff;color:#3b3fb3}.ef-sirtqi{background:#e6f6ee;color:#1f7a4a}.ef-masofaviy{background:#e3f1ff;color:#0b4fd8}
+.em-offline{background:#f1ecff;color:#6b46c1}.em-online{background:#e3f1ff;color:#0b4fd8}.em-hybrid{background:#fff0e6;color:#b4500b}
+html.hx[data-theme="dark"] :is(.ef-badge,.em-badge){background:var(--hx-sunken)!important;color:var(--hx-text)!important}
+.lesson-meta .em-badge,.lesson-meta .ef-badge{margin:0}
+.structure-edu{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.ef-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px}
+.ef-card{display:grid!important;gap:8px;padding:16px!important;border-radius:var(--hx-r-lg)!important;background:var(--hx-surface)!important;border:1.5px solid var(--hx-line)!important;box-shadow:var(--hx-shadow);text-align:left!important;white-space:normal!important}
+.ef-card.sel{border-color:var(--hx-brand)!important;box-shadow:0 0 0 3px var(--hx-brand-soft)}
+.ef-card .ef-ico{font-size:28px}.ef-card>b{font:800 18px var(--hx-display,inherit)}
+.ef-nums{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--hx-muted)}.ef-nums i{font-style:normal;font-weight:800;color:var(--hx-text);font-size:15px}
+.ef-rate small{color:var(--hx-muted);font-size:12px}
+.ef-bar{height:8px;border-radius:9px;background:var(--hx-sunken);overflow:hidden;margin:4px 0}
+.ef-bar i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,var(--hx-green),#5bd08f);transition:width .5s}
+.ef-modes{display:flex;flex-wrap:wrap;gap:4px}
+.ef-table{overflow-x:auto;border-radius:var(--hx-r);border:1px solid var(--hx-line);background:var(--hx-surface)}
+.ef-table table{width:100%;border-collapse:collapse;font-size:13.5px}
+.ef-table th{text-align:left;padding:10px 12px;background:var(--hx-sunken);font-size:12px;color:var(--hx-muted);white-space:nowrap}
+.ef-table td{padding:10px 12px;border-top:1px solid var(--hx-line);vertical-align:top}
+.ef-table tr.ls-done td{opacity:.6}.ef-table tr.ls-now td{background:var(--hx-saffron-soft)}
+html.hx[data-theme="dark"] .ef-table tr.ls-now td{background:rgba(255,182,39,.12)}
+.ef-now{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--hx-coral);color:#fff}
+.ef-sess{display:grid;gap:2px;padding:12px 14px;border-radius:14px;background:var(--hx-surface);border:1px solid var(--hx-line);border-left:4px solid var(--hx-line-strong)}
+.ef-sess span{font-size:13.5px}.ef-sess small{color:var(--hx-muted);font-size:12px}
+.ef-s-active{border-left-color:var(--hx-green)}.ef-s-upcoming{border-left-color:var(--hx-saffron)}
+.ef-forms{margin-bottom:12px}
+.ef-bells{max-width:520px;padding:14px;border-radius:var(--hx-r);background:var(--hx-surface);border:1px solid var(--hx-line)}
+.ef-bell{display:flex;align-items:center;gap:8px}.ef-bell b{min-width:64px;font-size:13.5px}.ef-bell input{max-width:130px}
+.ef-srow{grid-template-columns:minmax(0,1fr) 150px 150px auto!important}@media (max-width:560px){.ef-srow{grid-template-columns:1fr 1fr auto!important}.ef-srow>input[data-k=name]{grid-column:1/-1}}
+/* attendance sheet */
+.ef-att-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;font-size:13.5px;color:var(--hx-muted)}
+.ef-att-tabs{margin-bottom:12px}
+.ef-att-sum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ef-att-sum span{font-size:12.5px;padding:5px 10px;border-radius:999px;background:var(--hx-sunken)}
+.ef-att-sum .ok{background:var(--hx-green-soft);color:var(--hx-green-ink)}.ef-att-sum .late{background:var(--hx-saffron-soft);color:var(--hx-saffron-ink)}.ef-att-sum .abs{background:var(--hx-coral-soft);color:var(--hx-coral)}
+.ef-roster{display:grid;gap:4px;margin:10px 0;max-height:min(52vh,520px);overflow:auto}
+.ef-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--hx-sunken)}
+.ef-n{width:24px;text-align:right;color:var(--hx-muted);font-size:12px;flex:none}
+.ef-name{flex:1;min-width:0;font-size:14px;font-weight:600}
+.ef-qr,.ef-on{font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:var(--hx-brand-soft);color:var(--hx-brand)}
+.ef-seg{display:flex;gap:3px;flex:none}
+.ef-seg button{padding:6px 9px!important;border-radius:8px!important;font-size:12px;font-weight:700;background:var(--hx-surface)!important;border:1px solid var(--hx-line)!important}
+.ef-seg .s-present.on{background:var(--hx-green)!important;color:#fff!important;border-color:var(--hx-green)!important}
+.ef-seg .s-late.on{background:var(--hx-saffron)!important;color:var(--hx-ink)!important;border-color:var(--hx-saffron)!important}
+.ef-seg .s-absent.on{background:var(--hx-coral)!important;color:#fff!important;border-color:var(--hx-coral)!important}
+.ef-seg .s-excused.on{background:#8b5cf6!important;color:#fff!important;border-color:#8b5cf6!important}
+.ef-save{position:sticky;bottom:0;padding-top:8px;background:var(--hx-surface)}
+.ef-save .ux-btn{width:100%}
+.ef-qr-start p{color:var(--hx-text-2);line-height:1.5}
+.ef-qr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center;background:var(--hx-surface)}
+.ef-qr-img{background:#fff;border-radius:16px;padding:10px;aspect-ratio:1;display:grid;place-items:center}
+.ef-qr-img svg{width:100%;height:auto}
+.ef-qr-fallback{color:#58607e;text-align:center;font-size:13px}
+.ef-qr-side{display:grid;gap:8px}
+.ef-code{font:800 clamp(38px,6vw,64px)/1 ui-monospace,monospace;letter-spacing:.06em;color:var(--hx-text)}
+.ef-count{font-size:14px}.ef-count b{font-size:22px}
+.ef-recent{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:13px;color:var(--hx-text-2)}
+.ef-qr:fullscreen,.ef-qr.ef-big{position:fixed;inset:0;z-index:3000;padding:4vw;grid-template-columns:1fr 1fr;background:#fff;color:#0f1537}
+.ef-qr:fullscreen .ef-code,.ef-qr.ef-big .ef-code{font-size:9vw;color:#0f1537}
+/* student check-in */
+.ef-checkin-host{margin-bottom:14px}
+.ef-checkin{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--hx-r-lg);background:linear-gradient(135deg,var(--hx-ink),var(--hx-ink-2));color:#fff;box-shadow:var(--hx-shadow)}
+.ef-ci-ico{font-size:28px}
+.ef-checkin>div{flex:1;min-width:200px;display:grid;gap:2px}.ef-checkin small{color:#c9cfea;font-size:12.5px}
+.ef-checkin input{width:150px;height:46px;border-radius:12px;border:0;padding:0 12px;font:800 22px ui-monospace,monospace;letter-spacing:.08em;text-align:center;color:#0f1537;background:#fff}
+@media (max-width:640px){.ef-qr{grid-template-columns:1fr}.ef-seg button{padding:6px 6px!important;font-size:11px}.ef-checkin input{flex:1}}
+html.hx #shell #eduCheckin .ux-btn:hover{background:var(--hx-brand)!important;border-color:var(--hx-brand)!important;color:#fff!important}
+.ef-bulk{position:sticky;top:64px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;margin-bottom:10px;border-radius:14px;background:var(--hx-ink);color:#fff;box-shadow:var(--hx-shadow)}
+.ef-bulk[hidden]{display:none!important}.ef-bulk b{margin-right:auto}
+.ef-bulk select{height:36px;border-radius:10px;border:0;padding:0 10px;font:600 13px var(--hx-font,inherit)}
+.ef-table input[type=checkbox]{width:18px;height:18px;accent-color:var(--hx-brand)}

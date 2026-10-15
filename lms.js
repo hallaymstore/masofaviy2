@@ -106,7 +106,7 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     let filter={active:true};if(req.user.role==='student'){const groupId=await resolveUserGroupId(req.user);if(!groupId)return res.json([]);filter.groupId=groupId}
     else if(req.user.role==='teacher')filter.teacherId=req.user._id;
     else if(!['superadmin','admin','tech','rectorate','dean','department','tutor'].includes(req.user.role))return res.status(403).json({message:'Ruxsat yo‘q'});
-    let rows=await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId parentId').sort({title:1}).lean();
+    let rows=await Course.find(filter).populate('teacherId','fullName login').populate('groupId','name externalId parentId educationForm').sort({title:1}).lean();
     if(['dean','department','tutor'].includes(req.user.role)){const allowed=[];for(const row of rows)if(await groupOversight(req.user,row.groupId?._id||row.groupId))allowed.push(row);rows=allowed}
     res.json(rows);
   }));

@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/telegram-design.css?v=20261013-rc5">
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/hallaym-ui.css?v=20261015-hx14">
+  <link rel="stylesheet" href="/hallaym-ui.css?v=20261015-hx15">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -84,8 +84,9 @@
         <button data-page="units"><span data-ico="grid" data-fallback="▦"></span>Bo‘limlar va xizmatlar</button>
         <button data-page="workspace"><span data-ico="clipboard" data-fallback="▤"></span>Ish joyim</button>
         <button data-page="myRequests"><span data-ico="layers" data-fallback="▤"></span>Murojaatlarim</button>
+        <button data-page="eduForms" class="hidden"><span data-ico="chart" data-fallback="◫"></span>Ta’lim shakllari</button>
       </details>
-      <details class="nav-group" open><summary><span>Masofaviy ta’lim</span><i>⌄</i></summary>
+      <details class="nav-group" open><summary><span>O‘quv jarayoni</span><i>⌄</i></summary>
         <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
         <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
         <button data-page="history" class="hidden"><span data-ico="clock" data-fallback="▣"></span>O‘tilgan darslar</button>
@@ -201,6 +202,7 @@
 <div id="courseworkJournalPane" class="coursework-pane" role="tabpanel" hidden><div id="courseworkJournalBoard" class="coursework-journal"></div></div></section>
     <section id="dashboard" class="page active">
       <div class="page-head"><div><h1 id="dashboardTitle">Boshqaruv markazi</h1><p id="dashboardSubtitle">Bugun nimalar bo‘layotganini shu yerdan ko‘rasiz</p></div><button class="primary" id="dashboardAddSchedule" data-go="schedule">+ Dars qo‘shish</button></div>
+      <div id="eduCheckin" class="ef-checkin-host" hidden></div>
       <div class="edu-banner"><span data-ico="book" data-fallback="📘"></span><div><b>Bugungi yo‘riqnoma</b><p id="dashboardGuide">Avval guruhlar va akkauntlarni tayyorlang. Keyin jadvalni qo‘shasiz.</p></div></div>
       <div id="stats" class="stats"></div>
       <div id="dashboardHealth" class="health-strip hidden"></div>
@@ -305,6 +307,10 @@
       </div>
     </section>
 
+    <section id="eduForms" class="page">
+      <div class="page-head"><div><h1>Ta’lim shakllari</h1><p>Kunduzgi, kechki, sirtqi va masofaviy ta’lim: guruhlar, bugungi darslar, davomat, sirtqi sessiyalar va para vaqtlari</p></div></div>
+      <div id="eduFormsRoot" class="ux-root"></div>
+    </section>
     <section id="units" class="page">
       <div class="page-head"><div><h1>Universitet bo‘limlari</h1><p>Rahbariyat, fakultetlar, kafedralar, bo‘limlar, markazlar va xizmatlar: onlayn arizalar, e’lonlar, hujjatlar va tadbirlar bir joyda</p></div></div>
       <div id="unitsRoot" class="ux-root"></div>
@@ -529,5 +535,5 @@
 </dialog>
 <div id="toast"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc8"></script><script type="module" src="/app.js?v=20261015-hx14"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc8"></script><script type="module" src="/app.js?v=20261015-hx15"></script>
 </body></html>
