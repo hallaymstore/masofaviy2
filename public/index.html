@@ -21,6 +21,7 @@
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/hallaym-ui.css?v=20261015-hx15">
+  <link rel="stylesheet" href="/inclusion.css?v=20261016-inc1">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -85,6 +86,7 @@
         <button data-page="workspace"><span data-ico="clipboard" data-fallback="▤"></span>Ish joyim</button>
         <button data-page="myRequests"><span data-ico="layers" data-fallback="▤"></span>Murojaatlarim</button>
         <button data-page="eduForms" class="hidden"><span data-ico="chart" data-fallback="◫"></span>Ta’lim shakllari</button>
+        <button data-page="inclusion" class="hidden"><span data-ico="users" data-fallback="♿"></span>Inklyuziv ta’lim</button>
       </details>
       <details class="nav-group" open><summary><span>O‘quv jarayoni</span><i>⌄</i></summary>
         <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
@@ -112,6 +114,7 @@
       </details>
       <details class="nav-group"><summary><span>Akkaunt</span><i>⌄</i></summary>
         <button data-page="profile"><span data-ico="user" data-fallback="◎"></span>Shaxsiy profil</button>
+        <button data-page="accessibility"><span data-ico="gear" data-fallback="♿"></span>Qulaylik (inklyuziv)</button>
         <button data-page="lesson" class="hidden"><span data-ico="camera" data-fallback="◉"></span>Dars xonasi</button>
       </details>
     </nav>
@@ -314,6 +317,14 @@
     <section id="units" class="page">
       <div class="page-head"><div><h1>Universitet bo‘limlari</h1><p>Rahbariyat, fakultetlar, kafedralar, bo‘limlar, markazlar va xizmatlar: onlayn arizalar, e’lonlar, hujjatlar va tadbirlar bir joyda</p></div></div>
       <div id="unitsRoot" class="ux-root"></div>
+    </section>
+    <section id="accessibility" class="page">
+      <div class="page-head"><div><span class="page-kicker">Inklyuziv ta’lim</span><h1>Qulaylik sozlamalari</h1><p>Shrift, kontrast, ovozli yordamchi, audio kitoblar va bildirishnomalar. Sozlamalar akkauntingizga saqlanadi va har bir qurilmada ishlaydi.</p></div></div>
+      <div id="accessibilityBoard"></div>
+    </section>
+    <section id="inclusion" class="page">
+      <div class="page-head"><div><span class="page-kicker">Imkoniyati cheklangan talabalar</span><h1>Inklyuziv ta’lim</h1><p>Ehtiyojlarni belgilash va tasdiqlash, imtihonda qo‘shimcha vaqt va o‘qituvchilar uchun tavsiyalar</p></div></div>
+      <div id="inclusionBoard"></div>
     </section>
     <section id="workspace" class="page">
       <div class="page-head"><div><h1>Ish joyim</h1><p>Bo‘limingizga kelgan murojaatlar, vazifalaringiz, tasdiq kutayotgan e’lonlar va yaqin tadbirlar</p></div></div>
@@ -533,7 +544,7 @@
     <div class="modal-actions"><button id="faceDemoRetry" class="secondary hidden" type="button">Kamerani qayta ochish</button></div>
   </div>
 </dialog>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc8"></script><script type="module" src="/app.js?v=20261015-hx15"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc8"></script><script type="module" src="/app.js?v=20261016-inc1"></script>
 </body></html>

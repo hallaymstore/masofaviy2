@@ -1,6 +1,6 @@
-const CACHE='m2-v123-edu-forms';
-const CORE=['/','/styles.css?v=20261008-21','/premium-ui.css?v=20261013-lock7','/app.js?v=20261015-hx15','/media-client.bundle.js?v=20261014-rc8','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/vendor/qrcode.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css?v=20261012-compact1','/telegram-design.css?v=20261013-rc5','/hallaym-ui.css?v=20261015-hx15','/terms.html','/privacy.html','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg'];
-const STATIC_PATHS=new Set(['/styles.css','/premium-ui.css','/app.js','/media-client.bundle.js','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/vendor/qrcode.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css','/telegram-design.css','/hallaym-ui.css','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg','/terms.html','/privacy.html']);
+const CACHE='m2-v124-inclusion';
+const CORE=['/','/styles.css?v=20261008-21','/premium-ui.css?v=20261013-lock7','/app.js?v=20261016-inc1','/media-client.bundle.js?v=20261014-rc8','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/inclusion-ui.js','/voice-commands.js','/audio-reader.js','/inclusion-rules.js','/inclusion.css?v=20261016-inc1','/vendor/qrcode.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css?v=20261012-compact1','/telegram-design.css?v=20261013-rc5','/hallaym-ui.css?v=20261015-hx15','/terms.html','/privacy.html','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg'];
+const STATIC_PATHS=new Set(['/styles.css','/premium-ui.css','/app.js','/media-client.bundle.js','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/inclusion-ui.js','/voice-commands.js','/audio-reader.js','/inclusion-rules.js','/inclusion.css','/vendor/qrcode.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css','/telegram-design.css','/hallaym-ui.css','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg','/terms.html','/privacy.html']);
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>{e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))]))});
 self.addEventListener('fetch',e=>{
@@ -16,4 +16,25 @@ self.addEventListener('fetch',e=>{
     if(r.ok&&Number(r.headers.get('content-length')||0)<2*1024*1024){const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy))}
     return r;
   }).catch(()=>caches.match(e.request)));
+});
+
+// Web Push (lesson started, new message…). When the app is open and focused the page speaks it instead of a system banner.
+self.addEventListener('push',e=>{
+  let d={};try{d=e.data?e.data.json():{}}catch{d={title:'HALLAYM EDU',body:e.data?e.data.text():''}}
+  const title=d.title||'HALLAYM EDU',opts={body:d.body||'',tag:d.tag||undefined,renotify:Boolean(d.tag),icon:'/api/brand-icon.svg',badge:'/api/brand-icon.svg',data:{url:d.url||'/'},vibrate:[200,100,200],requireInteraction:/^lesson-/.test(d.tag||'')};
+  e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    const focused=list.find(c=>c.focused&&c.visibilityState==='visible');
+    list.forEach(c=>c.postMessage({type:'push',title,body:opts.body,url:opts.data.url}));
+    if(focused)return;
+    return self.registration.showNotification(title,opts);
+  }));
+});
+self.addEventListener('notificationclick',e=>{
+  e.notification.close();
+  const url=new URL(e.notification.data?.url||'/',self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    const c=list.find(x=>new URL(x.url).origin===self.location.origin);
+    if(c){c.navigate?.(url);return c.focus()}
+    return self.clients.openWindow(url);
+  }));
 });

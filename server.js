@@ -27,6 +27,7 @@ import { generateTotpSecret,verifyTotp,encryptSecret,decryptSecret,generateRecov
 import { installCompliance } from './compliance.js';
 import { installUnits } from './units.js';
 import { installAcademicForms } from './academic-forms.js';
+import { installInclusion } from './inclusion.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -121,8 +122,11 @@ const userSchema = new mongoose.Schema({
   sessionVersion:{type:Number,default:0,min:0},
   totpEnabled:{type:Boolean,default:false},totpSecretEncrypted:{type:String,select:false},totpPendingSecretEncrypted:{type:String,select:false},totpRecoveryHashes:{type:[String],select:false,default:[]},
   identityVerifiedAt:Date,identityVerifiedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},identityVerificationMode:{type:String,enum:['in_person']},identityDocumentType:{type:String,trim:true,maxlength:80},identityDocumentLast4:{type:String,trim:true,maxlength:4},identityVerificationNote:{type:String,trim:true,maxlength:300},
-  lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 }
+  lastLoginAt: Date, lastSeenAt: Date, lastLoginIp: String, loginCount: { type: Number, default: 0 }, statusNote: { type: String, trim: true, maxlength: 300 },
+  // Inclusive education: needs keys only (no diagnoses), staff verification, exam extra time and the user's accessibility preferences.
+  inclusion:{needs:[String],status:{type:String,enum:['none','pending','verified','rejected'],default:'none'},extraTimePct:{type:Number,min:0,max:100,default:0},notes:{type:String,trim:true,maxlength:500},selfNote:{type:String,trim:true,maxlength:500},consentAt:Date,requestedAt:Date,verifiedAt:Date,verifiedBy:{type:mongoose.Schema.Types.ObjectId,ref:'User'},prefs:{type:mongoose.Schema.Types.Mixed,default:undefined}}
 }, { timestamps: true });
+userSchema.index({'inclusion.status':1});
 userSchema.index({externalId:1},{unique:true,sparse:true});
 const structureSchema = new mongoose.Schema({ type: { type: String, enum: ['faculty','department','group'], required: true }, name: { type: String, required: true }, externalId: { type: String, trim: true }, code: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Structure' }, active: { type: Boolean, default: true },
   // Groups: form of study (kunduzgi/kechki/sirtqi/masofaviy), shift, language, degree, course year, sirtqi sessions.
@@ -272,7 +276,8 @@ const rangeBounds = days => ({start:localDayBounds(Math.max(1,days)-1).start,end
 const timeToMinutes = value => { const m=String(value||'').match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : 0; };
 const escapeRegex = value => String(value||'').replace(/[.*+?^$()|[\]\\]/g, match => '\\' + match);
 
-const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash;delete x.totpSecretEncrypted;delete x.totpPendingSecretEncrypted;delete x.totpRecoveryHashes;return x; };
+// Staff notes on the inclusive-education profile are read only through /api/inclusion/people and the admin user editor.
+const sanitizeUser = user => { const x = user?.toObject ? user.toObject() : { ...(user || {}) }; delete x.passwordHash;delete x.totpSecretEncrypted;delete x.totpPendingSecretEncrypted;delete x.totpRecoveryHashes;if(x.inclusion){x.inclusion={...x.inclusion};delete x.inclusion.notes;delete x.inclusion.verifiedBy}return x; };
 const hasPermission = (user, permission) => { const base = permissionsByRole[user?.role] || []; return (base.includes('*') || base.includes(permission) || user?.permissions?.includes(permission)) && !user?.deniedPermissions?.includes(permission); };
 const rolePermissions = user => [...new Set([...(permissionsByRole[user?.role]||[]), ...(user?.permissions||[])])].filter(p=>!user?.deniedPermissions?.includes(p));
 const canAssignRole = (actorRole,targetRole) => actorRole==='superadmin' ? Boolean(permissionsByRole[targetRole]) : actorRole==='admin' ? Boolean(permissionsByRole[targetRole])&&targetRole!=='superadmin' : actorRole==='tech' ? Boolean(permissionsByRole[targetRole])&&!['superadmin','admin'].includes(targetRole) : false;
@@ -406,6 +411,7 @@ installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveS
 installCompliance(app,{mongoose,User,auth,audit});
 const unitsApi=installUnits(app,{mongoose,User,Structure,auth,audit,hasPermission});
 const eduApi=installAcademicForms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveScope,GLOBAL_SCOPE_ROLES,localDateKey,localWeekday,localMinuteOfDay,timeToMinutes,LATE_AFTER_MINUTES});
+const inclusionApi=installInclusion(app,{mongoose,User,Structure,Schedule,auth,audit,resolveScope,GLOBAL_SCOPE_ROLES});
 // Lesson delivery mode: offline (classroom) lessons have no live room; online/hybrid keep the live room.
 app.use('/api/schedules',(req,_res,next)=>{if(req.method==='POST'&&req.body&&['offline','online','hybrid'].includes(req.body.mode))req.body.liveEnabled=req.body.mode!=='offline';next()});
 installBrandingUploads(app,{mongoose,auth,InstitutionSettings,audit});
@@ -424,7 +430,14 @@ app.get('/api/manifest.webmanifest',async(_req,res)=>{
     background_color:'#071a38',
     theme_color:b.primaryColor||'#0b4fd8',
     lang:'uz',
-    icons:[{src:b.appIconUrl||'/api/brand-icon.svg',sizes:'any',type:b.appIconUrl?'image/png':'image/svg+xml',purpose:'any maskable'}]
+    icons:[{src:b.appIconUrl||'/api/brand-icon.svg',sizes:'any',type:b.appIconUrl?'image/png':'image/svg+xml',purpose:'any maskable'}],
+    // Long-press the installed app icon (Android, Windows, macOS): one tap opens the voice assistant or a section.
+    shortcuts:[
+      {name:'Ovozli yordamchi',short_name:'Ovozli',description:'Platformani ovoz bilan boshqarish',url:'/?voice=1',icons:[{src:'/api/brand-icon.svg',sizes:'any',type:'image/svg+xml'}]},
+      {name:'Bugungi darslar',short_name:'Darslar',url:'/?go=live',icons:[{src:'/api/brand-icon.svg',sizes:'any',type:'image/svg+xml'}]},
+      {name:'Audio kutubxona',short_name:'Kutubxona',url:'/?go=library',icons:[{src:'/api/brand-icon.svg',sizes:'any',type:'image/svg+xml'}]},
+      {name:'Qulaylik sozlamalari',short_name:'Qulaylik',url:'/?go=accessibility',icons:[{src:'/api/brand-icon.svg',sizes:'any',type:'image/svg+xml'}]}
+    ]
   }));
 });
 app.get('/api/brand-icon.svg',async(_req,res)=>{
@@ -775,11 +788,12 @@ app.post('/api/users', auth, can('users.manage'), async(req,res)=>{
   if(role==='student'&&!group)return res.status(400).json({message:'Talaba uchun guruh majburiy'});
   const courseYear=Number(req.body.courseYear)||undefined,direction=String(req.body.direction||'').trim();
   const user=await User.create({login,fullName,externalId,role,email:String(req.body.email||'').trim(),phone:String(req.body.phone||'').trim(),citizenshipCountry,direction,courseYear,facultyId:faculty?._id,faculty:faculty?(faculty.externalId||faculty.code||faculty.name):'',departmentId:department?._id,department:department?(department.externalId||department.code||department.name):'',groupId:group?._id,group:group?(group.externalId||group.code||group.name):'',passwordHash:await bcrypt.hash(password,11),mustChangePassword:true});
+  if(req.body.inclusion&&typeof req.body.inclusion==='object'){try{inclusionApi.applyStaffProfile(user,req.body.inclusion,req.user);await user.save();audit(req,'INCLUSION_PROFILE_SET','User',user.id,{needs:user.inclusion?.needs,status:user.inclusion?.status,at:'enrolment'})}catch(e){return res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password,warning:'Akkaunt yaratildi, lekin inklyuziv profil saqlanmadi: '+e.message})}}
   audit(req,'CREATE','User',user.id,{role:user.role});
   res.status(201).json({user:{id:user.id,login:user.login,fullName:user.fullName,role:user.role},temporaryPassword:password});
 });
 
-app.get('/api/users/:id', auth, async(req,res)=>{ if(String(req.user._id)!==String(req.params.id)&&!hasPermission(req.user,'users.manage'))return res.status(403).json({message:'Bu profilni ko‘rish uchun ruxsat yo‘q'}); const u=await User.findById(req.params.id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); if(!u)return res.status(404).json({message:'Foydalanuvchi topilmadi'});res.json({user:u}); });
+app.get('/api/users/:id', auth, async(req,res)=>{ if(String(req.user._id)!==String(req.params.id)&&!hasPermission(req.user,'users.manage'))return res.status(403).json({message:'Bu profilni ko‘rish uchun ruxsat yo‘q'}); const u=await User.findById(req.params.id).select('-passwordHash').populate('facultyId','name externalId').populate('departmentId','name externalId').populate('groupId','name externalId code').lean(); if(!u)return res.status(404).json({message:'Foydalanuvchi topilmadi'});if(u.inclusion&&!hasPermission(req.user,'users.manage'))delete u.inclusion.notes;res.json({user:u}); });
 app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   const target=await User.findById(req.params.id);
   if(!target)return res.status(404).json({message:'Foydalanuvchi topilmadi'});
@@ -808,6 +822,7 @@ app.patch('/api/users/:id', auth, can('users.manage'), async(req,res)=>{
   target.facultyId=faculty?._id||undefined;target.faculty=faculty?(faculty.externalId||faculty.code||faculty.name):'';
   target.departmentId=department?._id||undefined;target.department=department?(department.externalId||department.code||department.name):'';
   target.groupId=group?._id||undefined;target.group=group?(group.externalId||group.code||group.name):'';
+  if(req.body.inclusion&&typeof req.body.inclusion==='object'){try{inclusionApi.applyStaffProfile(target,req.body.inclusion,req.user)}catch(e){return res.status(400).json({message:e.message})}}
   await target.save();
   audit(req,'USER_UPDATE','User',target.id,{role:target.role,facultyId:target.faculty,departmentId:target.department,groupId:target.group});
   res.json({user:sanitizeUser(target)});
@@ -1196,6 +1211,7 @@ app.post('/api/live/rooms/:scheduleId/start', auth, async(req,res)=>{
     if(String(gid||'')!==String(lesson.groupId))continue;
     studentSocket.emit('lesson:started',{scheduleId:String(lesson._id),title:lesson.title,subject:lesson.subject||'',teacherName:populatedLesson?.teacherId?.fullName||req.user.fullName,groupName:populatedLesson?.groupId?.name||'',startedAt:session.startedAt});
   }
+  inclusionApi.notifyGroup(lesson.groupId,{title:'Dars boshlandi',body:(lesson.title||'Jonli dars')+' · '+(populatedLesson?.teacherId?.fullName||req.user.fullName||'O‘qituvchi')+'. Kirish uchun bosing.',url:'/?go=live&lesson='+encodeURIComponent(String(lesson._id)),tag:'lesson-'+String(lesson._id),ttl:1800}).catch(()=>{});
   res.json({...(await roomPayload(lesson,session)),join:mediaJoinPayload(req.user,roomName,lesson)});
 });
 app.post('/api/live/rooms/:scheduleId/join', auth, async(req,res)=>{

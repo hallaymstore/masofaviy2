@@ -13,6 +13,7 @@ import { installMonitoringExport } from './monitoring-export.js';
 import { installCoursework } from './coursework.js';
 import { installCourseTopics } from './course-topics.js';
 import { normalizeGradeScale } from './coursework-rules.js';
+import { examMinutes } from './inclusion-rules.js';
 export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId}) {
   const id=mongoose.Schema.Types.ObjectId;
   const subjectCatalogSchema=new mongoose.Schema({code:{type:String,required:true,trim:true,uppercase:true},title:{type:String,required:true,trim:true,maxlength:180},description:{type:String,trim:true,maxlength:1000},active:{type:Boolean,default:true},createdBy:{type:id,ref:'User'}},{timestamps:true});
@@ -218,12 +219,12 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
     }
     const count=await Attempt.countDocuments({quizId:quiz._id,studentId:req.user._id});if(count>=quiz.maxAttempts)return res.status(409).json({message:'Urinishlar tugagan'});
     if(quiz.proctorRequired&&req.body.consent!==true)return res.status(400).json({message:'Kamera va imtihon oynasini kuzatish haqida xabardor bo‘lib rozilik bering'});
-    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id,{videoId:req.body.videoId||''});res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,proctorPolicy:quiz.proctorRequired?{requireFullscreen:true,terminateOnPageLeave:true,maxFaceMissing:2,maxFaceTurns:2,maxWindowBlur:2,blockClipboard:true,detectScreenshotKey:true,requireCamera:true,requireMicrophone:true}:null,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
+    const row=await Attempt.create({quizId:quiz._id,studentId:req.user._id,proctorConsentAt:quiz.proctorRequired?new Date():undefined});audit(req,'QUIZ_START','QuizAttempt',row.id,{videoId:req.body.videoId||''});res.status(201).json({attemptId:row.id,startedAt:row.startedAt,durationMinutes:examMinutes(quiz.durationMinutes,req.user.inclusion),baseDurationMinutes:quiz.durationMinutes,proctorRequired:quiz.proctorRequired,proctorPolicy:quiz.proctorRequired?{requireFullscreen:true,terminateOnPageLeave:true,maxFaceMissing:2,maxFaceTurns:2,maxWindowBlur:2,blockClipboard:true,detectScreenshotKey:true,requireCamera:true,requireMicrophone:true}:null,questions:quiz.questions.map(q=>({id:q.id,prompt:q.prompt,options:q.options}))});
   }));
   app.post('/api/lms/attempts/:id/proctor-events',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const type=String(req.body.type||'');
     if(!PROCTOR_EVENT_TYPES.includes(type))throw new Error('Hodisa turi noto‘g‘ri');const row=await Attempt.findOne({_id:req.params.id,studentId:req.user._id,submittedAt:null,proctorConsentAt:{$exists:true}});if(!row)return res.status(403).json({message:'Faol nazorat sessiyasi yo‘q'});
-    const quiz=await Quiz.findById(row.quizId).select('durationMinutes');if(!quiz||Date.now()-row.startedAt.getTime()>(quiz.durationMinutes*60+30)*1000)return res.status(409).json({message:'Imtihon tugagan'});
+    const quiz=await Quiz.findById(row.quizId).select('durationMinutes');if(!quiz||Date.now()-row.startedAt.getTime()>(examMinutes(quiz.durationMinutes,req.user.inclusion)*60+30)*1000)return res.status(409).json({message:'Imtihon tugagan'});
     if(row.proctorEvents.length>=200)return res.status(429).json({message:'Hodisa chegarasi tugadi'});
     const critical=new Set(['face_missing','face_turned','window_blur','clipboard_attempt']);const debounceMs=critical.has(type)?1200:3500;
     const last=row.proctorEvents.at(-1);if(last?.type===type&&Date.now()-last.at.getTime()<debounceMs)return res.json({ok:true});
@@ -245,9 +246,9 @@ export function installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth
   app.post('/api/lms/attempts/:id/submit',auth,wrap(async(req,res)=>{
     checkId(req.params.id);const row=await Attempt.findById(req.params.id);if(!row||String(row.studentId)!==String(req.user._id))return res.status(404).json({message:'Urinish topilmadi'});
     if(row.autoTerminated||row.terminatedAt)return res.status(409).json({message:'Test avtoproktoring tomonidan yakunlangan: '+String(row.terminationReason||'qoidabuzarlik'),terminated:true,reason:row.terminationReason});if(row.submittedAt)return res.status(409).json({message:'Test allaqachon yakunlangan'});const quiz=await Quiz.findById(row.quizId);if(!quiz)throw new Error('Test topilmadi');
-    if(Date.now()-row.startedAt.getTime()>(quiz.durationMinutes*60+30)*1000)return res.status(409).json({message:'Test vaqti tugagan; urinish baholanmaydi'});
+    if(Date.now()-row.startedAt.getTime()>(examMinutes(quiz.durationMinutes,req.user.inclusion)*60+30)*1000)return res.status(409).json({message:'Test vaqti tugagan; urinish baholanmaydi'});
     if(quiz.proctorRequired){const ready=proctorSubmissionReady(row.proctorEvents||[]);if(!ready.ok)return res.status(409).json({message:'Nazorat uchun kamera va mikrofon tayyorligi tasdiqlanmagan. Qurilmalarni yoqing va qayta urinib ko‘ring.',proctorSummary:ready.summary});row.proctorSummary={...ready.summary,generatedAt:new Date()};if(ready.summary.reviewPriority==='high')row.reviewDecision='needs_review'}
     const answers=req.body.answers;if(!Array.isArray(answers)||answers.length!==quiz.questions.length||answers.some((x,i)=>!Number.isInteger(x)||x<0||x>=quiz.questions[i].options.length))throw new Error('Javoblar noto‘g‘ri');
-    row.answers=answers;row.score=quiz.questions.reduce((n,q,i)=>n+Number(q.correctIndex===answers[i]),0)/quiz.questions.length*100;row.submittedAt=new Date();if(quiz.proctorRequired&&!row.proctorSummary?.generatedAt)row.proctorSummary={...summarizeProctorEvents(row.proctorEvents||[]),generatedAt:new Date()};await row.save();audit(req,'QUIZ_SUBMIT','QuizAttempt',row.id,{score:row.score,late:row.submittedAt-row.startedAt>quiz.durationMinutes*60000,proctorRisk:row.proctorSummary?.riskScore,reviewPriority:row.proctorSummary?.reviewPriority});res.json({score:row.score,submittedAt:row.submittedAt,proctorSummary:row.proctorSummary});
+    row.answers=answers;row.score=quiz.questions.reduce((n,q,i)=>n+Number(q.correctIndex===answers[i]),0)/quiz.questions.length*100;row.submittedAt=new Date();if(quiz.proctorRequired&&!row.proctorSummary?.generatedAt)row.proctorSummary={...summarizeProctorEvents(row.proctorEvents||[]),generatedAt:new Date()};await row.save();audit(req,'QUIZ_SUBMIT','QuizAttempt',row.id,{score:row.score,late:row.submittedAt-row.startedAt>examMinutes(quiz.durationMinutes,req.user.inclusion)*60000,proctorRisk:row.proctorSummary?.riskScore,reviewPriority:row.proctorSummary?.reviewPriority});res.json({score:row.score,submittedAt:row.submittedAt,proctorSummary:row.proctorSummary});
   }));
 }
