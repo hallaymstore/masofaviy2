@@ -26,7 +26,7 @@ test('proctor-only camera is not reported as a live video stream',()=>{
 });
 test('camera handling prevents repeated requests and reuses already enabled student broadcast',()=>{
  const app=text('public/app.js'),client=text('frontend/media-client.js'),css=text('public/live-participant-rail.css');
- for(const token of ['studentCameraRequests=new Map()','focusAvailableStudentVideo?.(id)','studentCameraState?.(id)','studentCameraRequests.get(key)','studentCameraRequests.delete','const alreadyLive=Boolean(cameraOn','const permitted=alreadyLive||confirm','syncTeacherRailCamera','rail-live-video'])
+ for(const token of ['studentCameraRequests=new Map()','focusAvailableStudentVideo?.(id)','studentCameraState?.(id)','studentCameraRequests.get(key)','studentCameraRequests.delete','const alreadyLive=Boolean(cameraOn','const permitted=alreadyLive||await askConfirmation','syncTeacherRailCamera','rail-live-video'])
    assert.ok(app.includes(token),token);
  assert.ok(client.includes("this.maxStudentVideos=this.user?.role==='student'?0:(this.ultraLite?1:(this.lowEnd?3:8))"));
  assert.ok(css.includes('.student-rail-card.live-video .rail-live-video'));

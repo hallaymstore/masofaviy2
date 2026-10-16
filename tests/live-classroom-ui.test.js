@@ -17,7 +17,7 @@ test('student is asked before the local proctor camera becomes a broadcast',()=>
   const start=app.indexOf("socket.on('lesson:proctor-camera-request'");
   const end=app.indexOf("socket.on('lesson:proctor-camera-stop'",start);
   const code=app.slice(start,end);
-  assert.ok(code.includes('confirm('));
+  assert.ok(code.includes('await askConfirmation('));
   assert.ok(code.indexOf('if(permitted)')<code.indexOf('startCameraFromExternalTrack'));
   assert.ok(code.includes("camera-result"));
 });

@@ -5,7 +5,7 @@ const H=()=>window.HxA11y;
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 export const PRESETS=[
   {key:'lowvision',icon:'👓',title:'Zaif ko‘rish',hint:'Katta matn, yuqori kontrast, katta kursor',set:{textScale:150,font:'readable',contrast:'yellow',lineHeight:'wide',strongFocus:true,highlightLinks:true,bigCursor:true}},
-  {key:'blind',icon:'🦯',title:'Ko‘rmaydigan',hint:'Ekran o‘qish dasturi, ovozli xabarlar, klaviatura',set:{strongFocus:true,reduceMotion:true,announceChat:true,clickToRead:true,voiceAssistant:true}},
+  {key:'blind',icon:'🦯',title:'Ko‘rmaydigan',hint:'Ekran o‘qish dasturi, ovozli xabarlar, klaviatura',set:{strongFocus:true,reduceMotion:true,announceChat:true,clickToRead:true,voiceAssistant:true,voiceHandsFree:true}},
   {key:'deaf',icon:'🧏',title:'Eshitish qiyin',hint:'Subtitr doim, katta subtitr, dars matni',set:{captionsAlways:true,captionSize:2,strongFocus:true}},
   {key:'dyslexia',icon:'📖',title:'Disleksiya',hint:'Maxsus shrift, keng oraliq, o‘qish chizg‘ichi',set:{font:'dyslexic',lineHeight:'wide',letterSpacing:'wide',readingRuler:true,clickToRead:true}},
   {key:'motor',icon:'🖐',title:'Harakat cheklangan',hint:'Katta tugmalar va kursor, klaviatura fokus',set:{textScale:125,bigCursor:true,strongFocus:true,reduceMotion:true}},
@@ -121,7 +121,8 @@ export function createA11y({api,toast=()=>{}}={}){
       '<section class="hxa-sec"><h3>O‘qish yordami</h3>'+
         '<div class="hxa-actions"><button type="button" class="hxa-btn primary hx-plain" data-act="read"'+(ttsOk?'':' disabled')+'>🔊 Sahifani o‘qish</button><button type="button" class="hxa-btn hx-plain" data-act="stop"'+(ttsOk?'':' disabled')+'>⏹ To‘xtatish</button></div>'+
         '<div class="hxa-row"><span>O‘zbekcha ovoz<small>'+esc(window.HxSpeech?.engineLabel?.()||'Brauzer ovozi')+'</small></span><div class="hxa-seg" role="group" aria-label="Ovoz"><button type="button" class="hx-plain" data-gender="female" aria-pressed="'+(window.HxSpeech?.gender?.()!=='male')+'">Madina</button><button type="button" class="hx-plain" data-gender="male" aria-pressed="'+(window.HxSpeech?.gender?.()==='male')+'">Sardor</button></div></div>'+
-        sw('voiceAssistant','Ovozli yordamchi','Ko‘rmaydiganlar uchun: buyruqlar (Alt+V), ovozli kirish, xabarlarni o‘qish')+
+        sw('voiceAssistant','Ovozli yordamchi','O‘zbekcha sahifa, tugma, maydon va kitob boshqaruvi (Alt+V)')+
+        sw('voiceHandsFree','Doimiy tinglash','Yordamchi yoqilganda buyruqdan keyin ham tinglash davom etadi')+
         sw('clickToRead','Bosilgan matnni ovoz chiqarib o‘qish','Matn ustiga bosing; tugmalar fokusda o‘qiladi')+
         '<div class="hxa-row"><span>O‘qish tezligi<small>'+p.ttsRate+'×</small></span><input class="hxa-range" type="range" min="0.5" max="2" step="0.1" value="'+p.ttsRate+'" data-range="ttsRate" aria-label="O‘qish tezligi"></div>'+
         (voices.length?'<div class="hxa-row"><span>Ovoz</span><select class="hxa-select" data-voice aria-label="Ovoz"><option value="">Avtomatik</option>'+voices.map(v=>'<option value="'+esc(v.voiceURI)+'"'+(cur===v.voiceURI?' selected':'')+'>'+esc(v.name+' ('+v.lang+')')+'</option>').join('')+'</select></div>':'')+
@@ -185,5 +186,5 @@ export function createA11y({api,toast=()=>{}}={}){
   const toastEl=document.getElementById('toast');if(toastEl){toastEl.setAttribute('role','status');toastEl.setAttribute('aria-live','polite')}
   mountTriggers();syncRuler();
   H()?.onChange(()=>syncRuler());
-  return {open,close,speak,stopSpeech,announce,readPage,syncFromServer,mountTriggers,prefs,signedOut:()=>{loggedIn=false}};
+  return {open,close,speak,stopSpeech,announce,readPage,syncFromServer,mountTriggers,prefs,updatePrefs:change,signedOut:()=>{loggedIn=false;clearTimeout(saveTimer)}};
 }

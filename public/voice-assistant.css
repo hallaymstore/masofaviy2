@@ -1,0 +1,15 @@
+#vaDock.va-widget{position:fixed;right:18px;bottom:86px;z-index:1100;width:min(360px,calc(100vw - 24px));color:var(--ink,#17233b);font-size:14px;text-align:left;line-height:1.5}
+#vaDock [hidden]{display:none!important}#vaDock button{min-height:44px;font:inherit;cursor:pointer}#vaDock input{font:inherit}
+#vaDock .va-toggle{display:flex;align-items:center;gap:10px;width:auto;margin-left:auto;padding:12px 16px;border:2px solid var(--brand,#1254b8);border-radius:28px;background:var(--card,#fff);color:inherit;box-shadow:0 4px 22px #07112630}
+#vaDock .va-light{width:9px;height:9px;display:inline-block;border-radius:50%;background:#717c8d}#vaDock[data-state="listening"] .va-light{background:#149449;box-shadow:0 0 0 4px #14944920}
+#vaDock .va-panel{margin-top:8px;padding:16px;background:var(--card,#fff);border:2px solid var(--brand,#1254b8);border-radius:18px;box-shadow:0 8px 36px #07112630;max-height:min(540px,65dvh);overflow:auto;overscroll-behavior:contain}
+#vaDock .va-title{display:flex;align-items:center;justify-content:space-between;gap:8px}#vaDock h2{font-size:17px;margin:0}#vaDock .va-title button{padding:4px 14px}
+#vaDock p{margin:8px 0}#vaStatus{font-weight:650}#vaDock .va-heard{font-size:12px;overflow-wrap:anywhere;opacity:.8}#vaDock .va-buttons{display:flex;flex-wrap:wrap;gap:6px}
+#vaDock .va-buttons button,#vaDock .va-entry button,#vaDock .va-title button{border:1px solid #8c9ab0;border-radius:10px;padding:8px 10px;background:var(--card,#fff);color:inherit}
+#vaDock #vaStart{background:var(--brand,#1254b8);color:#fff;border-color:transparent}#vaDock .va-hands{display:flex;align-items:center;gap:8px;margin:10px 0}#vaDock .va-hands input{width:20px;height:20px;margin:0}
+#vaDock #vaForm>label{display:block;font-size:12px;margin-bottom:4px}#vaDock .va-entry{display:flex;gap:6px}#vaDock .va-entry input{min-width:0;width:100%;padding:9px;border:1px solid #8c9ab0;border-radius:9px;background:var(--card,#fff);color:inherit}
+#vaDock .va-hint{font-size:12px}#vaDock #vaChoices{padding-left:0;list-style:none;margin:8px 0 0}#vaDock #vaChoices button{width:100%;text-align:left;border:0;border-top:1px solid #8c9ab060;background:transparent;color:inherit;padding:8px;overflow-wrap:anywhere}
+dialog[open]>#vaDock.va-widget,.hxa-panel>#vaDock.va-widget{position:relative;inset:auto;width:100%;margin:12px 0 0;padding:0 8px;box-sizing:border-box}dialog[open]>#vaDock .va-panel,.hxa-panel>#vaDock .va-panel{max-height:32dvh}
+.a11y-contrast #vaDock .va-panel,.a11y-contrast #vaDock .va-toggle{background:Canvas;color:CanvasText;border-color:CanvasText}
+.va-confirm{width:min(540px,calc(100vw - 28px));max-height:90dvh;overflow:auto;padding:24px;border:2px solid var(--brand,#1254b8);border-radius:16px;background:var(--card,#fff);color:var(--ink,#17233b)}.va-confirm::backdrop{background:#07112699}.va-confirm>button{min-height:44px;margin:6px;padding:10px 16px}
+@media(max-width:600px){#vaDock.va-widget{right:12px;bottom:calc(76px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 24px))}#vaDock .va-panel{padding:12px;max-height:52dvh}#vaDock .va-toggle{font-size:13px;padding:10px 14px}}

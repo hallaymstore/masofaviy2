@@ -1,3 +1,4 @@
+import {askConfirmation} from './accessible-confirm.js';
 // HALLAYM EDU — Virtual laboratoriya.
 // Interactive experiments for a technical university: each lab has parameters, a live simulation canvas (1280×720,
 // shareable into a live lesson), instrument readings, a measurement journal with chart, CSV export and a printable report.
@@ -341,8 +342,8 @@ export function mountVirtualLab(root,{toast=()=>{},canShare=()=>false,share=null
     t.innerHTML=journal.length?'<table><thead><tr><th>№</th>'+lab.columns.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+journal.map((r,i)=>'<tr><td>'+(i+1)+'</td>'+r.map(v=>'<td>'+esc(typeof v==='number'?fmt(v,4):v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>':'<p class="vl-empty">Hali o‘lchov yozilmagan. Parametrlarni sozlab, «O‘lchashni jurnalga yozish» tugmasini bosing.</p>';
     drawChart(chart,journal,lab.chart);
   }
-  function journalAction(a){
-    if(a==='clear'){if(journal.length&&confirm('Jurnal tozalansinmi?')){journal=[];try{localStorage.removeItem(jKey(lab.id))}catch{}renderJournal()}}
+  async function journalAction(a){
+    if(a==='clear'){if(journal.length&&await askConfirmation('Jurnal tozalansinmi?')){journal=[];try{localStorage.removeItem(jKey(lab.id))}catch{}renderJournal()}}
     if(a==='undo'){journal.pop();try{localStorage.setItem(jKey(lab.id),JSON.stringify(journal))}catch{}renderJournal()}
     if(a==='csv'){if(!journal.length)return toast('Jurnal bo‘sh');const csv='﻿'+['№',...lab.columns].join(';')+'\n'+journal.map((r,i)=>[i+1,...r].join(';')).join('\n');const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));l.download='lab-'+lab.id+'.csv';l.click();setTimeout(()=>URL.revokeObjectURL(l.href),2000)}
     if(a==='pdf')report();
