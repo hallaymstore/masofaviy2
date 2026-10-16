@@ -4,7 +4,7 @@
   'use strict';
   var KEY='hx-a11y',root=document.documentElement;
   var DEF={textScale:100,lineHeight:'normal',letterSpacing:'normal',font:'default',contrast:'none',colorFilter:'none',reduceMotion:false,highlightLinks:false,
-    bigCursor:false,readingRuler:false,strongFocus:false,clickToRead:false,ttsRate:1,captionsAlways:false,captionSize:0,announceChat:false,simpleLayout:false,preset:''};
+    bigCursor:false,readingRuler:false,strongFocus:false,clickToRead:false,ttsRate:1,captionsAlways:false,captionSize:0,announceChat:false,simpleLayout:false,voiceAssistant:false,preset:''};
   var MATRIX={ // daltonization (colour-vision correction), not simulation
     protanopia:'1 0 0 0 0 0.479 0.477 0.044 0 0 0.597 -0.689 1.091 0 0 0 0 0 1 0',
     deuteranopia:'1.437 -0.631 0.195 0 0 0 1 0 0 0 -0.184 0.186 0.998 0 0 0 0 0 1 0',

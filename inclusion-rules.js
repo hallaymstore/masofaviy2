@@ -79,7 +79,7 @@ export function ownView(profile,todayKey){
 // ---- personal accessibility preferences (stored per user, applied on every device) ----
 export const PREF_DEFAULTS={textScale:100,lineHeight:'normal',letterSpacing:'normal',font:'default',contrast:'none',colorFilter:'none',
   reduceMotion:false,highlightLinks:false,bigCursor:false,readingRuler:false,strongFocus:false,clickToRead:false,ttsRate:1,
-  captionsAlways:false,captionSize:0,announceChat:false,simpleLayout:false,preset:''};
+  captionsAlways:false,captionSize:0,announceChat:false,simpleLayout:false,voiceAssistant:false,preset:''};
 const PICK={lineHeight:['normal','wide','wider'],letterSpacing:['normal','wide','wider'],font:['default','readable','dyslexic'],
   contrast:['none','high','dark','yellow'],colorFilter:['none','grayscale','lowsat','protanopia','deuteranopia','tritanopia'],
   preset:['','lowvision','blind','deaf','dyslexia','motor','focus','epilepsy']};
@@ -87,7 +87,7 @@ export function cleanPrefs(input){
   const src=input&&typeof input==='object'?input:{},out={...PREF_DEFAULTS};
   out.textScale=Math.max(100,Math.min(200,Math.round((Number(src.textScale)||100)/5)*5));
   for(const [k,list] of Object.entries(PICK))if(list.includes(src[k]))out[k]=src[k];
-  for(const k of ['reduceMotion','highlightLinks','bigCursor','readingRuler','strongFocus','clickToRead','captionsAlways','announceChat','simpleLayout'])out[k]=src[k]===true;
+  for(const k of ['reduceMotion','highlightLinks','bigCursor','readingRuler','strongFocus','clickToRead','captionsAlways','announceChat','simpleLayout','voiceAssistant'])out[k]=src[k]===true;
   out.ttsRate=Math.max(0.5,Math.min(2,Math.round((Number(src.ttsRate)||1)*10)/10));
   out.captionSize=[0,1,2].includes(Number(src.captionSize))?Number(src.captionSize):0;
   return out;

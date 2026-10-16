@@ -28,6 +28,8 @@ import { installCompliance } from './compliance.js';
 import { installUnits } from './units.js';
 import { installAcademicForms } from './academic-forms.js';
 import { installInclusion } from './inclusion.js';
+import { installTts } from './tts.js';
+import { installMyBooks } from './my-books.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -96,11 +98,17 @@ app.use('/api',(req,res,next)=>{
   next();
 });
 app.use('/vendor/face-detection',express.static('node_modules/@mediapipe/face_detection',{maxAge:'1y',immutable:true,index:false}));
+app.use('/vendor/pdfjs',express.static('node_modules/pdfjs-dist/legacy/build',{maxAge:'1d',index:false}));
+app.use('/vendor/pdfjs/cmaps',express.static('node_modules/pdfjs-dist/cmaps',{maxAge:'1d',index:false}));
+app.use('/vendor/pdfjs/standard_fonts',express.static('node_modules/pdfjs-dist/standard_fonts',{maxAge:'1d',index:false}));
+app.use('/vendor/pdfjs/wasm',express.static('node_modules/pdfjs-dist/wasm',{maxAge:'1d',index:false}));
+app.use('/vendor/tesseract',express.static('node_modules/tesseract.js/dist',{maxAge:'1d',index:false}));
+app.use('/vendor/tesseract-core',express.static('node_modules/tesseract.js-core',{maxAge:'1d',index:false}));
 app.use(express.static('public', { maxAge: '1d', etag: true, setHeaders:(res,file)=>{ if(/\.(?:html|js|css|webmanifest)$/i.test(file)) res.setHeader('Cache-Control','no-cache'); } }));
 
 const permissionsByRole = {
   superadmin: ['*'],
-  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage','units.manage','inclusion.manage'],
+  admin: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.monitor','permissions.manage','analytics.view','attendance.manage','live.manage','videos.manage','units.manage','inclusion.manage','library.manage'],
   tech: ['structure.manage','users.manage','users.control','schedule.manage','reports.view','lessons.support','analytics.view','attendance.manage','live.manage','videos.manage'],
   rectorate: ['reports.view','lessons.monitor','analytics.view','videos.view','schedule.manage'],
   dean: ['faculty.view','groups.manage','schedule.manage','reports.view','lessons.monitor','analytics.view','videos.view'],
@@ -109,7 +117,8 @@ const permissionsByRole = {
   student: ['schedule.view','lessons.join','assignments.submit','grades.view','chat.use','analytics.self','videos.view'],
   tutor: ['groups.view','attendance.view','students.support','reports.view','analytics.view','lessons.monitor','videos.view','schedule.manage'],
   // Non-teaching employee of a university unit (registrar, accounting, HR, IT…). Rights come from unit membership.
-  staff: ['units.workspace']
+  staff: ['units.workspace'],
+  librarian: ['library.manage']
 };
 
 const userSchema = new mongoose.Schema({
@@ -404,6 +413,8 @@ app.use('/api',async(req,res,next)=>{
 // Inclusive education: accommodations (extra test time, deadlines, captions, interpreters) are applied platform-wide.
 const inclusionApi=installInclusion(app,{mongoose,User,Structure,Schedule,auth,audit,hasPermission,resolveScope:(u,q)=>resolveScope(u,q),resolveUserGroupId:u=>resolveUserGroupId(u),GLOBAL_SCOPE_ROLES,
   localDateKey:d=>localDateKey(d),localWeekday:d=>localWeekday(d),scheduleAccess:(u,l)=>scheduleAccess(u,l)});
+installTts(app,{auth});
+installMyBooks(app,{mongoose,User,auth,audit,resolveScope:(u,q)=>resolveScope(u,q),GLOBAL_SCOPE_ROLES});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId,accommodationFor:inclusionApi.accommodationFor});
 const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
 installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission,checkVideoAccess});
