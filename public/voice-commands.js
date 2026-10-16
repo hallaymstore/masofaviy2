@@ -94,7 +94,7 @@ export function matchCommand(raw){
   const activate=text.match(/^(.+?)\s+(?:tugmasini\s+)?(?:bos|tanla|och)(?:\s+(?:ber|bering))?$/);if(activate)return {action:'activate',arg:activate[1],text};
   return null;
 }
-export const helpLines=()=>['«Kutubxonani ochib ber», «Jadvalimga o‘t», «Baholarim» — sahifaga o‘tish','«Orqaga qayt», «Bosh sahifa», «Yop» — qaytish','«Tugmalarni ayt», «Birinchi tugmani bos» — sahifani boshqarish','«Maydonlarni ayt», «Ikkinchi maydon», «Yoz …», «Yubor» — formani to‘ldirish','«Kitobni o‘qi», «To‘xta», «Davom et», «Keyingi» — tinglash','«Tizimdan chiq» — tasdiq bilan chiqish'];
+export const helpLines=()=>['«Kutubxonani ochib ber», «Jadvalimga o‘t», «Baholarim» — sahifaga o‘tish','«1-mavzuga kir», «HTML haqidagi videoni och», «Shu mavzuning topshirig‘ini och» — ichki materiallar','«Sahifani tushuntir», «Mavzularni sanab ber» — sahifa mazmuni','«Orqaga qayt», «Bosh sahifa», «Yop» — qaytish','«Tugmalarni ayt», «Birinchi tugmani bos» — sahifani boshqarish','«Maydonlarni ayt», «Ikkinchi maydon», «Yoz …», «Yubor» — formani to‘ldirish','«Kitobni o‘qi», «To‘xta», «Davom et», «Keyingi» — tinglash','«Tizimdan chiq» — tasdiq bilan chiqish'];
 export function spokenToLogin(raw){const symbols={tire:'-',defis:'-',chiziqcha:'-',nuqta:'.',tochka:'.',kuchukcha:'@',sobaka:'@'};return normalize(raw).split(' ').map(w=>symbols[w]??digits[w]??w).join('').replace(/[^a-z0-9._@-]/g,'')}
 export const spokenToDigits=raw=>spokenToLogin(raw).replace(/\D/g,'');
 export const spellOut=value=>[...String(value||'')].map(ch=>({'-':'tire','.':'nuqta','_':'pastki chiziq','@':'kuchukcha'}[ch]||ch.toUpperCase())).join(', ');

@@ -37,7 +37,7 @@ const toast=t=>{const e=$('#toast');if(!e)return;e.textContent=String(t||'Xatoli
 const a11y=createA11y({api,toast}); // accessibility panel: available on the login screen and every page
 const myBooksUi=createMyBooksUi({api,toast,esc,csrf,currentUser:()=>user,announce:text=>{toast(text);a11y.announce(text)}});
 const libraryManagerUi=createLibraryManagerUi({api,toast,esc,csrf});
-const voiceAssistant=createVoiceAssistant({go,currentUser:()=>user,logout,a11y,myBooks:myBooksUi});
+const voiceAssistant=createVoiceAssistant({go,currentUser:()=>user,logout,a11y,myBooks:myBooksUi,api,enterLive:id=>enterLiveRoom(id),openSearchHit:hit=>openGlobalSearchResult(hit)});
 const applyBranding=()=>{
   const product=branding.productName||'HALLAYM EDU',institution=branding.institutionName||'Universitet',short=branding.shortName||institution;
   document.title=product+(institution?' · '+institution:'');

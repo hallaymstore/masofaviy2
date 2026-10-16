@@ -52,9 +52,11 @@ export function createMyBooksUi({api,toast,esc,csrf,currentUser,announce=t=>toas
       await render();document.querySelector('[data-listen="'+x.book.id+'"]')?.focus();
     }catch(e){toast(e.message)}finally{input.value='';add.disabled=false;add.removeAttribute('aria-busy')}
   }
-  function listen(id){
+  // fromStart: the voice assistant asked «davom ettiraymi yoki boshidan?» and the student chose the beginning.
+  function listen(id,{fromStart=false}={}){
     const b=books.find(x=>x.id===id);if(!b)return;
-    openAudioReader({title:b.title,url:'/api/my-books/'+encodeURIComponent(id)+'/file',storageKey:String(currentUser()._id)+':personal:'+id,start:{page:b.progress?.page||0,idx:b.progress?.idx||0,lang:b.lang,finished:Boolean(b.progress?.finished),at:b.progress?.at},announce,
+    if(fromStart)try{localStorage.removeItem('m2-ar:'+String(currentUser()._id)+':personal:'+id)}catch{}
+    openAudioReader({title:b.title,url:'/api/my-books/'+encodeURIComponent(id)+'/file',storageKey:String(currentUser()._id)+':personal:'+id,start:fromStart?{page:0,idx:0,lang:b.lang,finished:false,at:new Date().toISOString()}:{page:b.progress?.page||0,idx:b.progress?.idx||0,lang:b.lang,finished:Boolean(b.progress?.finished),at:b.progress?.at},announce,
       onProgress:(page,idx,pages,finished,meta)=>{
         b.progress={page,idx,pages,finished:Boolean(finished),at:new Date().toISOString()};b.lang=meta.lang;
         updateProgress(b);
