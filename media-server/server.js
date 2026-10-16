@@ -165,7 +165,7 @@ async function createTransport(peer,direction){
     appData:{peerId:peer.id,direction}
   });
   if(direction==='send'){
-    const incoming=peer.user?.role==='teacher'?Math.max(MAX_INCOMING_BITRATE,TEACHER_MAX_INCOMING_BITRATE):Math.max(MAX_INCOMING_BITRATE,STUDENT_MAX_INCOMING_BITRATE);
+    const incoming=['teacher','interpreter'].includes(peer.user?.role)?Math.max(MAX_INCOMING_BITRATE,TEACHER_MAX_INCOMING_BITRATE):Math.max(MAX_INCOMING_BITRATE,STUDENT_MAX_INCOMING_BITRATE);
     try{await t.setMaxIncomingBitrate(incoming)}catch{}
   }
   peer.transports.set(t.id,t);
@@ -241,7 +241,7 @@ async function handleRequest(ws,msg){
       const consumer=await t.consume({producerId:found.producer.id,rtpCapabilities:data.rtpCapabilities,paused:true,appData:{meta:serializeProducer(found.producer,found.owner)}});
       peer.consumers.set(consumer.id,consumer);
       // Bandwidth goes first to what the lesson depends on: screen/board, then the teacher camera, then student cameras.
-      try{const tag=found.producer.appData?.mediaTag,role=found.owner.user?.role;await consumer.setPriority(consumer.kind==='audio'?255:(tag==='screen'?230:(role==='teacher'?200:40)))}catch{}
+      try{const tag=found.producer.appData?.mediaTag,role=found.owner.user?.role;await consumer.setPriority(consumer.kind==='audio'?255:(tag==='screen'?230:(role==='teacher'?200:(role==='interpreter'?210:40))))}catch{}
       if(consumer.kind==='video'&&consumer.type==='simulcast')try{
         const q=String(data.quality||'auto'),map={240:[0,0],360:[0,2],480:[1,0],720:[1,2],1080:[2,2]};
         const pair=map[q]||(peer.room.profile==='lecture-lite'&&found.owner.user?.role==='teacher'&&found.producer.appData?.mediaTag==='camera'?[1,1]:[2,2]);

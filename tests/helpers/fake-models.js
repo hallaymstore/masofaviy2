@@ -38,7 +38,7 @@ function applyUpdate(doc,u,insert=false){
       if(op==='$set')doc[k]=v;
       else if(op==='$setOnInsert'){if(insert)doc[k]=v}
       else if(op==='$inc')doc[k]=(doc[k]||0)+v;
-      else if(op==='$push')(doc[k]||=[]).push(v);
+      else if(op==='$push'){if(v&&typeof v==='object'&&Array.isArray(v.$each))(doc[k]||=[]).push(...clone(v.$each));else (doc[k]||=[]).push(v)}
       else if(op==='$addToSet'){doc[k]||=[];if(!doc[k].some(x=>eq(x,v)))doc[k].push(v)}
       else if(op==='$pull')doc[k]=(doc[k]||[]).filter(x=>!eq(x,v));
       else throw new Error('fake: unsupported update '+op);

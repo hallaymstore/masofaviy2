@@ -4,7 +4,8 @@ import {pipeline} from 'node:stream/promises';
 import {checkResourceHeader,validateOfficePackage} from './resource-upload.js';
 import {journalPeriod,buildJournal,journalCsv} from './coursework-rules.js';
 import {personalGradePeriod,buildPersonalGradebook} from './personal-grades.js';
-export function installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId}){
+import {personalDue} from './inclusion-rules.js';
+export function installCoursework(app,{mongoose,User,Structure,Schedule,Course,Assignment,Submission,auth,audit,resolveUserGroupId,accommodationFor=async()=>null}){
  const oid=mongoose.Schema.Types.ObjectId;
  const fileSchema=new mongoose.Schema({assignmentId:{type:oid,required:true,index:true},courseId:{type:oid,required:true},submissionId:{type:oid,default:null},uploadedBy:{type:oid,required:true},fileId:{type:oid,unique:true,required:true},name:{type:String,required:true},mimeType:String,size:Number,kind:String},{timestamps:true});
  fileSchema.index({assignmentId:1,uploadedBy:1});
@@ -73,7 +74,7 @@ export function installCoursework(app,{mongoose,User,Structure,Schedule,Course,A
   const student=req.user.role==='student';
   if(!student&&!['teacher','admin','superadmin'].includes(req.user.role))throw fail('Yuklash huquqi yo‘q',403);
   const {a,c}=await assignment(req,req.params.id,!student);
-  if(student&&a.dueAt&&new Date()>new Date(a.dueAt))throw fail('Muddat tugagan',409);
+  if(student&&a.dueAt&&new Date()>personalDue(a.dueAt,(await accommodationFor(req.user._id))?.deadlineExtraDays))throw fail('Muddat tugagan',409);
   if(!/^multipart\/form-data\s*;/i.test(req.headers['content-type']||''))throw fail('multipart/form-data kerak',415);
   const old=student?await Submission.findOne({assignmentId:a._id,studentId:req.user._id}):null;
   if(old?.gradedAt)throw fail('Baholangan javobni o‘zgartirib bo‘lmaydi',409);

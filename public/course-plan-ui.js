@@ -44,7 +44,8 @@ export function coursePlanHtml(course,structure,{editor=false,student=false,esc}
    return '<div data-search-item="'+id+'" class="course-topic-item"><div class="course-topic-item-copy"><span class="course-topic-kind">'+e(kind)+'</span><strong>'+title+'</strong>'+
      (type==='assignment'&&item.instructions?'<p>'+e(item.instructions)+'</p>':'')+
      (item.description?'<p>'+e(item.description)+'</p>':'')+
-     (type==='assignment'&&item.dueAt?'<small>Muddat: '+e(new Date(item.dueAt).toLocaleString('uz-UZ'))+'</small>':'')+
+     (type==='assignment'&&item.dueAt?'<small>Muddat: '+e(new Date(item.dueAt).toLocaleString('uz-UZ'))+(item.personalDueAt?' · <b class="in-ext">siz uchun '+e(new Date(item.personalDueAt).toLocaleString('uz-UZ'))+' gacha</b>':'')+'</small>':'')+
+     (type==='quiz'&&item.personalDurationMinutes?'<small class="in-ext">⏱ Siz uchun '+e(item.personalDurationMinutes)+' daqiqa (qo‘shimcha vaqt)</small>':'')+
      (type==='resource'&&item.size?'<small>'+e(Math.round(item.size/1024))+' KB</small>':'')+
      '</div><div class="course-topic-item-actions">'+action+select+'</div></div>';
  };

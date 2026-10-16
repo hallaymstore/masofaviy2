@@ -22,7 +22,7 @@ export function createCourseworkUi({api,esc,csrf,toast,modal}){
   const assignments=x.assignments||[];
   const editor=isManager(role),teacherView=editor||['rectorate','dean','department','tutor'].includes(role);
   container.innerHTML='<h3>📚 Vazifalar · fayllar · baholar</h3><p class="muted">Fayllar faqat o‘z faningiz/guruhingiz doirasida. Har bir topshiriqqa 8 tagacha fayl (100 MB gacha).</p><p id="courseworkStatus" role="status"></p>'+
-    (assignments.length?assignments.map(a=>'<details class="coursework-task"><summary><b>'+esc(a.title)+'</b><span>'+esc(a.maxScore||100)+' ball · '+esc(date(a.dueAt))+'</span></summary><p>'+esc(a.instructions)+'</p><div id="coursework-'+esc(a._id)+'">Fayllar va javoblar yuklanmoqda…</div></details>').join(''):'<p>Hali vazifa kiritilmagan.</p>');
+    (assignments.length?assignments.map(a=>'<details class="coursework-task"><summary><b>'+esc(a.title)+'</b><span>'+esc(a.maxScore||100)+' ball · '+esc(date(a.dueAt))+(a.personalDueAt?' · siz uchun '+esc(date(a.personalDueAt)):'')+'</span></summary><p>'+esc(a.instructions)+'</p><div id="coursework-'+esc(a._id)+'">Fayllar va javoblar yuklanmoqda…</div></details>').join(''):'<p>Hali vazifa kiritilmagan.</p>');
   for(const a of assignments){
    const panel=$('#coursework-'+CSS.escape(String(a._id)));
    if(!panel)continue;

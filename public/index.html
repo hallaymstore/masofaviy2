@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f1537">
   <meta name="color-scheme" content="light dark">
+  <script src="/a11y-boot.js?v=20261016-a11y1"></script>
   <meta name="description" content="Oliy ta’lim uchun yengil, nazorat va statistika markazli masofaviy ta’lim platformasi">
   <link rel="manifest" href="/api/manifest.webmanifest">
   <link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
@@ -20,7 +21,8 @@
   <link rel="stylesheet" href="/telegram-design.css?v=20261013-rc5">
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/hallaym-ui.css?v=20261015-hx15">
+  <link rel="stylesheet" href="/hallaym-ui.css?v=20261016-a11y1">
+  <link rel="stylesheet" href="/a11y.css?v=20261016-a11y1">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -95,6 +97,7 @@
         <button data-page="grades" class="hidden"><span data-ico="star" data-fallback="★"></span><span id="gradeNavLabel">Mening baholarim</span></button>
         <button data-page="library"><span data-ico="library" data-fallback="▤"></span>Elektron kutubxona</button>
         <button data-page="lab"><span data-ico="flask" data-fallback="⚗"></span>Virtual laboratoriya</button>
+        <button data-page="inclusion"><span data-ico="access" data-fallback="♿"></span>Inklyuziv ta’lim</button>
 
       </details>
       <details class="nav-group"><summary><span>Nazorat</span><i>⌄</i></summary>
@@ -307,6 +310,11 @@
       </div>
     </section>
 
+    <section id="inclusion" class="page">
+      <div class="page-head"><div><h1>Inklyuziv ta’lim</h1><p>Imkoniyati cheklangan talabalar uchun moslashtirishlar, surdotarjimon, dars matnlari va qulaylik sozlamalari</p></div></div>
+      <div id="inclusionRoot" class="ux-root in-root"></div>
+    </section>
+
     <section id="eduForms" class="page">
       <div class="page-head"><div><h1>Ta’lim shakllari</h1><p>Kunduzgi, kechki, sirtqi va masofaviy ta’lim: guruhlar, bugungi darslar, davomat, sirtqi sessiyalar va para vaqtlari</p></div></div>
       <div id="eduFormsRoot" class="ux-root"></div>
@@ -331,6 +339,7 @@
 
     <section id="lesson" class="page">
       <div class="page-head"><div><h1 id="liveLessonTitle">Jonli dars xonasi</h1><p id="liveLessonMeta">Guruh video konferensiyasi</p></div><div class="head-actions"><button id="backToLive" class="secondary"><span data-ico="back" data-fallback="←"></span>Guruh darslari</button><button id="endLiveLesson" class="danger hidden">Darsni yakunlash</button></div></div>
+      <div id="lessonInclusionBanner" class="hxa-needs hidden" role="note" aria-label="Inklyuziv ta’lim eslatmasi"></div>
       <div class="conference-shell">
         <div class="conference-main">
           <div class="video-stage"><div id="raisedHandAlert" class="raised-hand-alert hidden"><button id="raisedHandOpen" type="button">✋ <b id="raisedHandAlertText">Qo‘l ko‘tarildi</b></button><button id="raisedHandSpotlight" class="raised-hand-approve" type="button">Ekranga chiqarish</button></div><div id="liveStudentProctorStatus" class="live-proctor-status hidden" role="status" aria-live="polite"><video id="liveProctorLocalPreview" autoplay muted playsinline aria-label="Mahalliy proktor kamera"></video><span id="liveProctorStatusText">◌ Yuz nazorati yuklanmoqda…</span></div><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
@@ -365,7 +374,8 @@
                 <label class="more-select"><span>Subtitr tili</span><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select></label>
                 <button id="captionMath"><span>∑</span><span>Matematika</span></button>
                 <button id="captionSize"><span>A+</span><span>Subtitr o‘lchami</span></button>
-                <button id="accessibilityMode"><span>◐</span><span>Qulaylik</span></button>
+                <button id="callTranscript"><span>📝</span><span>Dars matni</span></button>
+                <button id="accessibilityMode"><span>♿</span><span>Qulaylik</span></button>
                 <button id="callPiP"><span>▣</span><span>PiP</span></button>
                 <button id="callFullscreen"><span>⛶</span><span>O‘qituvchi / ekran full</span></button><button id="callZoomReset"><span>↔</span><span>Zoomni tiklash</span></button>
               </div>
@@ -389,7 +399,7 @@
             <div class="participants-head"><div><b>Qatnashuvchilar</b><small id="attendanceCheckpointInfo">Birinchi avtomatik davomat: 10-daqiqada</small></div></div>
             <div id="lessonParticipants" class="participant-list"></div>
           </section>
-          <section id="lessonChatPanel" class="chat hidden"><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button aria-label="Yuborish"><span data-ico="send" data-fallback="➤"></span></button></form></section>
+          <section id="lessonChatPanel" class="chat hidden"><section id="lessonTranscript" class="lesson-transcript hidden" aria-label="Dars matni"><header><b>📝 Dars matni</b><button type="button" id="lessonTranscriptDownload" class="ghost hx-plain" title="Matnni yuklab olish">⤓ TXT</button><button type="button" id="lessonTranscriptClose" class="ghost hx-plain" aria-label="Dars matnini yopish">×</button></header><div id="lessonTranscriptLines" class="hxa-cap-history" aria-live="off"></div></section><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button aria-label="Yuborish"><span data-ico="send" data-fallback="➤"></span></button></form></section>
         </aside>
       </div>
     </section>
@@ -533,7 +543,7 @@
     <div class="modal-actions"><button id="faceDemoRetry" class="secondary hidden" type="button">Kamerani qayta ochish</button></div>
   </div>
 </dialog>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261014-rc8"></script><script type="module" src="/app.js?v=20261015-hx15"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261016-a11y1"></script><script type="module" src="/app.js?v=20261016-a11y1"></script>
 </body></html>

@@ -218,7 +218,7 @@ export class MediaRoomClient{
   }
   ensureTile(peerId,user={},local=false){
     if(this.tiles.has(peerId))return this.tiles.get(peerId);
-    const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||'',userId:user._id||user.id||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-student',user.role==='student');
+    const tile=el('div',{className:'ms-tile',dataset:{peerId,role:user.role||'',userId:user._id||user.id||''}});tile.classList.toggle('role-teacher',user.role==='teacher');tile.classList.toggle('role-interpreter',user.role==='interpreter');tile.classList.toggle('role-student',user.role==='student');
     const video=el('video',{autoplay:true,playsInline:true,muted:local});video.className='ms-video';
     const avatar=el('div',{className:'ms-avatar'});avatar.textContent=(user.fullName||user.login||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
     const label=el('div',{className:'ms-label'});label.innerHTML='<b></b><span></span>';qs('b',label).textContent=user.fullName||user.login||'Ishtirokchi';qs('span',label).textContent=this.participantRoleLabel(user.role);
@@ -243,7 +243,7 @@ export class MediaRoomClient{
     return this.tiles.get(id)||null;
   }
   participantRoleLabel(role=''){
-    return role==='teacher'?'O‘qituvchi':role==='student'?'Talaba':role||'Ishtirokchi';
+    return role==='teacher'?'O‘qituvchi':role==='student'?'Talaba':role==='interpreter'?'🤟 Surdotarjimon':role||'Ishtirokchi';
   }
   participantInitials(user={}){
     return String(user.fullName||user.login||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'?';
