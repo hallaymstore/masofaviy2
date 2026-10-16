@@ -5,7 +5,7 @@ const H=()=>window.HxA11y;
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 export const PRESETS=[
   {key:'lowvision',icon:'👓',title:'Zaif ko‘rish',hint:'Katta matn, yuqori kontrast, katta kursor',set:{textScale:150,font:'readable',contrast:'yellow',lineHeight:'wide',strongFocus:true,highlightLinks:true,bigCursor:true}},
-  {key:'blind',icon:'🦯',title:'Ko‘rmaydigan',hint:'Ekran o‘qish dasturi, ovozli xabarlar, klaviatura',set:{strongFocus:true,reduceMotion:true,announceChat:true,clickToRead:true}},
+  {key:'blind',icon:'🦯',title:'Ko‘rmaydigan',hint:'Ekran o‘qish dasturi, ovozli xabarlar, klaviatura',set:{strongFocus:true,reduceMotion:true,announceChat:true,clickToRead:true,voiceAssistant:true}},
   {key:'deaf',icon:'🧏',title:'Eshitish qiyin',hint:'Subtitr doim, katta subtitr, dars matni',set:{captionsAlways:true,captionSize:2,strongFocus:true}},
   {key:'dyslexia',icon:'📖',title:'Disleksiya',hint:'Maxsus shrift, keng oraliq, o‘qish chizg‘ichi',set:{font:'dyslexic',lineHeight:'wide',letterSpacing:'wide',readingRuler:true,clickToRead:true}},
   {key:'motor',icon:'🖐',title:'Harakat cheklangan',hint:'Katta tugmalar va kursor, klaviatura fokus',set:{textScale:125,bigCursor:true,strongFocus:true,reduceMotion:true}},
@@ -40,9 +40,12 @@ export function createA11y({api,toast=()=>{}}={}){
     return null;
   }
   function chunks(text){const out=[];let buf='';for(const part of String(text).replace(/\s+/g,' ').split(/(?<=[.!?;:])\s+/)){if((buf+' '+part).length>220&&buf){out.push(buf);buf=part}else buf=buf?buf+' '+part:part}if(buf)out.push(buf);return out.flatMap(c=>c.length>260?c.match(/.{1,240}(\s|$)/g)||[c]:[c])}
-  function stopSpeech(){try{synth?.cancel()}catch{}readingEl?.classList.remove('hxa-reading');readingEl=null}
+  function stopSpeech(){try{window.HxSpeech?.stop()}catch{}try{synth?.cancel()}catch{}readingEl?.classList.remove('hxa-reading');readingEl=null}
   function speak(text,{el=null,interrupt=true}={}){
     const clean=String(text||'').replace(/\s+/g,' ').trim();if(!clean)return false;
+    // The platform speech engine (public/speech.js) speaks Uzbek with the server Madina/Sardor voices when configured.
+    const S=window.HxSpeech;
+    if(S){if(!interrupt&&S.isSpeaking())return false;if(interrupt)stopSpeech();if(el){readingEl=el;el.classList.add('hxa-reading')}const done=()=>{if(readingEl===el){el?.classList.remove('hxa-reading');readingEl=null}};S.speak(clean,{owner:'a11y',lang:'uz',rate:Number(prefs().ttsRate)||1,onend:done,oncancel:done,onerror:e=>{done();announce(e.message)}});return true}
     if(!synth){toast('Bu brauzer matnni ovoz chiqarib o‘qimaydi. Chrome yoki Edge ishlating');return false}
     if(interrupt)stopSpeech();if(el){readingEl=el;el.classList.add('hxa-reading')}
     const parts=chunks(clean),rate=Number(prefs().ttsRate)||1;
@@ -58,11 +61,11 @@ export function createA11y({api,toast=()=>{}}={}){
   }
   const READABLE='p,h1,h2,h3,h4,h5,li,td,th,dt,dd,label,small,blockquote,figcaption,.ux-empty,.ux-body>div';
   document.addEventListener('click',e=>{
-    if(!prefs().clickToRead||e.target.closest('.hxa-panel,a,button,input,select,textarea,summary,[role="button"],video,canvas'))return;
+    if(!prefs().clickToRead||e.target.closest('.ar-dialog,.hxa-panel,a,button,input,select,textarea,summary,[role="button"],video,canvas'))return;
     const el=e.target.closest(READABLE);if(el&&el.closest('#main,#login,.ux-sheet'))speak(visibleText(el),{el});
   },true);
   document.addEventListener('focusin',e=>{
-    if(!prefs().clickToRead||e.target.closest('.hxa-panel'))return;const t=e.target;if(!t.matches?.('button,a[href],input,select,textarea,summary,[role="button"],[tabindex]'))return;
+    if(!prefs().clickToRead||e.target.closest('.ar-dialog,.hxa-panel,#vaDock,#vaGate'))return;const t=e.target;if(!t.matches?.('button,a[href],input,select,textarea,summary,[role="button"],[tabindex]'))return;
     const label=t.getAttribute('aria-label')||t.labels?.[0]?.textContent||t.getAttribute('title')||t.textContent||t.placeholder||'';if(label.trim())speak(label.trim().slice(0,200));
   });
 
@@ -103,8 +106,8 @@ export function createA11y({api,toast=()=>{}}={}){
   const seg=(key,opts,label)=>'<div class="hxa-row"><span>'+esc(label)+'</span><div class="hxa-seg" role="group" aria-label="'+esc(label)+'">'+opts.map(([v,t])=>'<button type="button" class="hx-plain" data-set="'+key+'" data-val="'+esc(v)+'" aria-pressed="'+(String(prefs()[key])===String(v))+'">'+esc(t)+'</button>').join('')+'</div></div>';
   function renderPanel(){
     if(!panel)return;const p=prefs(),body=panel.querySelector('.hxa-body'),scroll=body?.scrollTop||0;
-    const ttsOk=Boolean(synth),voices=voiceList.filter(v=>/^(uz|tr|kk|az|ru|en)/i.test(v.lang||'')),cur=savedVoice();
-    const uzVoice=voiceList.some(v=>/^uz/i.test(v.lang||''));
+    const ttsOk=Boolean(window.HxSpeech||synth),voices=voiceList.filter(v=>/^(uz|ru|en)/i.test(v.lang||'')),cur=savedVoice();
+    const uzVoice=window.HxSpeech?.hasUzbekVoice()||voiceList.some(v=>/^uz/i.test(v.lang||''));
     panel.querySelector('.hxa-body').innerHTML=
       '<section class="hxa-sec"><h3>Tayyor profillar</h3><div class="hxa-presets">'+PRESETS.map(x=>'<button type="button" class="hxa-preset hx-plain" data-preset="'+x.key+'" aria-pressed="'+(p.preset===x.key)+'"><i aria-hidden="true">'+x.icon+'</i><span><b>'+esc(x.title)+'</b><small>'+esc(x.hint)+'</small></span></button>').join('')+'</div></section>'+
       '<section class="hxa-sec"><h3>Matn</h3>'+
@@ -117,10 +120,12 @@ export function createA11y({api,toast=()=>{}}={}){
         '<div class="hxa-row"><span>Rangni ajrata olmaslik<small>Rangni tuzatuvchi filtr</small></span><select class="hxa-select" data-select="colorFilter" aria-label="Rang filtri">'+FILTERS.map(([v,t])=>'<option value="'+v+'"'+(p.colorFilter===v?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></div></section>'+
       '<section class="hxa-sec"><h3>O‘qish yordami</h3>'+
         '<div class="hxa-actions"><button type="button" class="hxa-btn primary hx-plain" data-act="read"'+(ttsOk?'':' disabled')+'>🔊 Sahifani o‘qish</button><button type="button" class="hxa-btn hx-plain" data-act="stop"'+(ttsOk?'':' disabled')+'>⏹ To‘xtatish</button></div>'+
+        '<div class="hxa-row"><span>O‘zbekcha ovoz<small>'+esc(window.HxSpeech?.engineLabel?.()||'Brauzer ovozi')+'</small></span><div class="hxa-seg" role="group" aria-label="Ovoz"><button type="button" class="hx-plain" data-gender="female" aria-pressed="'+(window.HxSpeech?.gender?.()!=='male')+'">Madina</button><button type="button" class="hx-plain" data-gender="male" aria-pressed="'+(window.HxSpeech?.gender?.()==='male')+'">Sardor</button></div></div>'+
+        sw('voiceAssistant','Ovozli yordamchi','Ko‘rmaydiganlar uchun: buyruqlar (Alt+V), ovozli kirish, xabarlarni o‘qish')+
         sw('clickToRead','Bosilgan matnni ovoz chiqarib o‘qish','Matn ustiga bosing; tugmalar fokusda o‘qiladi')+
         '<div class="hxa-row"><span>O‘qish tezligi<small>'+p.ttsRate+'×</small></span><input class="hxa-range" type="range" min="0.5" max="2" step="0.1" value="'+p.ttsRate+'" data-range="ttsRate" aria-label="O‘qish tezligi"></div>'+
         (voices.length?'<div class="hxa-row"><span>Ovoz</span><select class="hxa-select" data-voice aria-label="Ovoz"><option value="">Avtomatik</option>'+voices.map(v=>'<option value="'+esc(v.voiceURI)+'"'+(cur===v.voiceURI?' selected':'')+'>'+esc(v.name+' ('+v.lang+')')+'</option>').join('')+'</select></div>':'')+
-        (ttsOk&&!uzVoice?'<p class="hxa-note">Qurilmada o‘zbekcha ovoz topilmadi — lotin matni turkcha yoki boshqa yaqin ovoz bilan o‘qiladi. Windows’da Edge brauzeri o‘zbekcha onlayn ovozlarni beradi.</p>':'')+
+        (ttsOk&&!uzVoice?'<p class="hxa-note">O‘zbekcha ovoz uchun tizimga kiring va internetni tekshiring. Madina/Sardor server orqali ishlaydi.</p>':'')+
         sw('readingRuler','O‘qish chizg‘ichi','Sichqoncha turgan qatordan boshqa joy xiralashadi')+
       '</section>'+
       '<section class="hxa-sec"><h3>Boshqaruv va harakat</h3>'+sw('strongFocus','Kuchli fokus ramkasi','Klaviatura bilan ishlash uchun')+sw('bigCursor','Katta kursor')+sw('highlightLinks','Havola va tugmalarni ajratish')+sw('reduceMotion','Animatsiyalarni o‘chirish','Miltillash, konfetti va harakatlar yo‘q')+'</section>'+
@@ -137,6 +142,7 @@ export function createA11y({api,toast=()=>{}}={}){
     if(b.dataset.toggle){const k=b.dataset.toggle;change({[k]:!prefs()[k]});announce((b.getAttribute('aria-checked')==='true'?'O‘chirildi':'Yoqildi'));return}
     if(b.dataset.set){const raw=b.dataset.val,v=/^\d+$/.test(raw)?Number(raw):raw;change({[b.dataset.set]:v});return}
     if(b.dataset.size!==undefined){const d=Number(b.dataset.size),cur=prefs().textScale,i=SIZES.indexOf(cur);const next=d===0?100:SIZES[Math.max(0,Math.min(SIZES.length-1,(i<0?0:i)+d))];change({textScale:next});announce('Matn o‘lchami '+next+' foiz');return}
+    if(b.dataset.gender){window.HxSpeech?.setGender(b.dataset.gender);renderPanel();speak(b.dataset.gender==='male'?'Assalomu alaykum, men Sardorman.':'Assalomu alaykum, men Madinaman.');return}
     if(b.dataset.act==='read')readPage();
     if(b.dataset.act==='stop')stopSpeech();
     if(b.dataset.act==='reset'){H()?.set({...H().defaults});syncRuler();queueSave();renderPanel();announce('Sozlamalar asl holatiga qaytdi')}
