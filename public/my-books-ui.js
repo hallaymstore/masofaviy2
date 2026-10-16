@@ -1,3 +1,4 @@
+import {askConfirmation} from './accessible-confirm.js';
 // HALLAYM EDU — «Mening kitoblarim» page: personal audio-book shelf (upload PDF/TXT, listen at once with the Uzbek voice,
 // continue where you stopped) and the one-time family upload link. Built for screen readers and the voice assistant:
 // every book is one big «Tinglash» button, results are announced.
@@ -64,7 +65,7 @@ export function createMyBooksUi({api,toast,esc,csrf,currentUser,announce=t=>toas
       }});
   }
   async function remove(id){
-    const b=books.find(x=>x.id===id);if(!b||!confirm('«'+b.title+'» javondan o‘chirilsinmi?'))return;
+    const b=books.find(x=>x.id===id);if(!b||!await askConfirmation('«'+b.title+'» javondan o‘chirilsinmi?'))return;
     try{await api('/my-books/'+encodeURIComponent(id),{method:'DELETE'});announce('Kitob o‘chirildi');render()}catch(e){toast(e.message)}
   }
   async function familyLink(){

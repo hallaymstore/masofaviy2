@@ -1,178 +1,320 @@
-// HALLAYM EDU — voice assistant for blind and motor-impaired students. It speaks Uzbek through the platform speech engine
-// (server Madina/Sardor voices after login), understands Uzbek (Latin/Cyrillic) and Russian commands, guides the login by
-// voice (the password is typed, never dictated by default), reads pages and books and announces every notification.
-// Turned on by the «Ovozli yordamchi» switch / «Ko‘rmaydigan» preset in the accessibility panel, or the ?voice=1 app shortcut.
-import {matchCommand,helpLines,spokenToLogin,spokenToDigits,spellOut,normalize} from './voice-commands.js';
-import {speak as engineSpeak,stop as engineStop,isSpeaking,lastSpoken} from './speech.js';
-import {reader} from './audio-reader.js';
+// One microphone controller and one command dispatcher for voice, keyboard and widget input.
+import {matchCommand,helpLines,PAGES,hasWakeWord,normalize,spokenToLogin} from './voice-commands.js';
+import {createRecognition} from './voice-recognition.js';
+import {actions,fields,findControl,indexedActions,controlLabel,controlScope,isVisible,writeField,isSensitiveAction} from './voice-controls.js';
+import * as speechEngine from './speech.js';
+import {reader,openAudioReader} from './audio-reader.js';
 
-const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
-const DEVICE='hx-voice-device',HANDS='hx-va-handsfree';
-const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch{}};
-const SR=typeof window!=='undefined'?(window.SpeechRecognition||window.webkitSpeechRecognition):null;
+const $=s=>document.querySelector(s);
+const STATES={idle:'Tayyor',starting:'Mikrofon ulanmoqda…',listening:'Tinglayapman — buyruq ayting',waiting:'Javob o‘qilmoqda…',paused:'Mikrofon to‘xtatilgan',blocked:'Mikrofonni tekshiring',unsupported:'Yozma buyruqdan foydalaning',retrying:'Qayta ulanmoqda…'};
 
-export function createVoiceAssistant({go,currentUser,logout,a11y,myBooks}){
+export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBooks,speech=speechEngine,recognitionFactory}={}){
   const prefs=()=>window.HxA11y?.get?.()||{};
-  const enabled=()=>Boolean(prefs().voiceAssistant)||ls(DEVICE)==='1';
-  const rate=()=>Number(prefs().ttsRate)||1;
-  const say=text=>new Promise(res=>{if(!engineSpeak(text,{lang:'uz',rate:rate(),onend:res,oncancel:res,onerror:e=>{a11y?.announce?.(e.message);res()}}))res()});
-  const history=[];let pendingConfirm=null,loginActive=false,handsFree=false,recognizing=null,pageQueue=null;
+  const enabled=()=>prefs().voiceAssistant===true;
+  const handsFree=()=>prefs().voiceHandsFree!==false;
+  const update=patch=>a11y?.updatePrefs?a11y.updatePrefs(patch,{preset:true}):window.HxA11y?.set?.({...prefs(),...patch});
+  let dock,expanded=false,state='idle',error='',busy=false,oneShot=false,stoppedForLogout=false,speaking=0,externalSpeech=false,externalTimer;
+  let pending=null,focused=null,actionList=[],fieldList=[],lastInput='',lastAt=0,voiceNavigation=false,restoring=false,trail=[],trailIndex=-1;
+  let wasEnabled=false,lastHandsFree=handsFree(),navSerial=0;
+  const notifications=[];
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const recognition=createRecognition({factory:recognitionFactory||(SR?()=>new SR():undefined),
+    canListen:()=>enabled()&&!stoppedForLogout&&document.visibilityState==='visible',
+    onState:value=>{state=value;render()},
+    onError:message=>{error=message;render();a11y?.announce?.(message)},
+    onResult:alternatives=>{void receive(alternatives)}
+  });
 
-  // ---------- earcons ----------
-  let actx=null;
-  function beep(freq=880,ms=110){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=freq;g.gain.value=0.08;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+ms/1000)}catch{}}
-
-  // ---------- dock ----------
-  function setDock(state){const d=$('#vaDock');if(!d)return;d.dataset.state=state;const b=$('#vaBtn');if(b){b.setAttribute('aria-pressed',String(state==='listening'));b.querySelector('b').textContent=state==='listening'?'Tinglayapman…':'Ovozli buyruq'}}
-  function mountDock(){
-    if(!$('#vaDock')){
-      const d=document.createElement('div');d.id='vaDock';d.className='va-dock';d.dataset.state='idle';
-      d.innerHTML='<button id="vaBtn" type="button" class="hx-plain" aria-pressed="false" aria-describedby="vaHint"><span aria-hidden="true">🎙</span><b>Ovozli buyruq</b></button><span id="vaHint" class="sr-only">Alt+V — buyruq aytish. «Yordam» deng — buyruqlar ro‘yxati.</span>';
-      document.body.append(d);$('#vaBtn').onclick=()=>commandOnce();
+  function render(){
+    if(!dock)return;
+    dock.dataset.state=state;dock.dataset.enabled=String(enabled());
+    dock.querySelector('#vaPanel').hidden=!expanded;
+    const toggle=dock.querySelector('#vaToggle');toggle.setAttribute('aria-expanded',String(expanded));
+    toggle.querySelector('b').textContent=enabled()?'Ovozli yordamchi':'Ovozli boshqaruv';
+    dock.querySelector('#vaStatus').textContent=error||(!enabled()?'Yordamchini yoqing yoki buyruqni yozing.':STATES[state]||STATES.idle);
+    dock.querySelector('#vaStart').textContent=recognition.isWanted()?'Mikrofonni to‘xtatish':'Mikrofonni boshlash';
+    dock.querySelector('#vaStart').setAttribute('aria-pressed',String(recognition.isWanted()));
+    dock.querySelector('#vaDisable').hidden=!enabled();
+    dock.querySelector('#vaHands').checked=handsFree();
+  }
+  function syncMic(){
+    const wanted=enabled()&&!stoppedForLogout&&(handsFree()||oneShot);
+    if(!wanted){if(recognition.isWanted())recognition.stop();render();return}
+    recognition.suspend(document.visibilityState!=='visible'||speaking>0||externalSpeech);
+    // A permission/network error requires an explicit retry, never a render-driven loop.
+  }
+  function startMic(){
+    stoppedForLogout=false;error='';
+    if(!enabled())update({voiceAssistant:true});
+    oneShot=!handsFree();syncMic();recognition.start();render();
+  }
+  function pauseMic(){oneShot=false;recognition.stop();update({voiceHandsFree:false});render()}
+  async function say(text){
+    if(!text)return;
+    speaking++;syncMic();
+    a11y?.announce?.(text);
+    try{await new Promise(resolve=>{
+      let done=false;const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve()}};
+      const timer=setTimeout(finish,45000);
+      try{const result=speech.speak(text,{owner:'assistant',lang:'uz',rate:Number(prefs().ttsRate)||1,onend:finish,oncancel:finish,onerror:e=>{error=e?.message||'Ovoz ijro etilmadi.';render();finish()}});if(result===false)finish()}catch{finish()}
+    })}finally{speaking--;syncMic()}
+  }
+  function mount(){
+    dock=document.createElement('aside');dock.id='vaDock';dock.className='va-widget';dock.setAttribute('aria-label','O‘zbekcha ovozli yordamchi');
+    dock.innerHTML='<button id="vaToggle" type="button" class="va-toggle hx-plain" aria-expanded="false" aria-controls="vaPanel"><span aria-hidden="true">🎙</span><b>Ovozli boshqaruv</b><span class="va-light" aria-hidden="true"></span></button>'+
+      '<section id="vaPanel" class="va-panel" hidden><div class="va-title"><h2>O‘zbekcha yordamchi</h2><button id="vaMin" type="button" aria-label="Yordamchi panelini yig‘ish">−</button></div>'+
+      '<p id="vaStatus" role="status" aria-live="polite" aria-atomic="true"></p><p id="vaHeard" class="va-heard"></p>'+
+      '<div class="va-buttons"><button id="vaStart" type="button">Mikrofonni boshlash</button><button id="vaHelp" type="button">Buyruqlar</button><button id="vaDisable" type="button">Yordamchini o‘chirish</button></div>'+
+      '<label class="va-hands"><input id="vaHands" type="checkbox"> Doimiy tinglash</label>'+
+      '<form id="vaForm"><label for="vaCommand">Buyruqni yozish</label><div class="va-entry"><input id="vaCommand" type="text" autocomplete="off" placeholder="Masalan: kutubxonani ochib ber"><button type="submit">Bajarish</button></div></form>'+
+      '<p class="va-hint">«Sahifalar», «Tugmalarni ayt», «Maydonlar», «Orqaga qayt». Kitob tinglayotganda: «Yordamchi, to‘xta». Alt+V — mikrofon. Birinchi marta brauzerda mikrofonga ruxsat bering.</p>'+
+      '<ol id="vaChoices" aria-label="Sahifadagi amallar"></ol></section>';
+    document.body.append(dock);
+    dock.querySelector('#vaToggle').onclick=()=>{expanded=!expanded;render()};
+    dock.querySelector('#vaMin').onclick=()=>{expanded=false;render();dock.querySelector('#vaToggle').focus()};
+    dock.querySelector('#vaStart').onclick=()=>recognition.isWanted()?pauseMic():startMic();
+    dock.querySelector('#vaDisable').onclick=()=>{speech.stop();pending=null;update({voiceAssistant:false});recognition.stop();render()};
+    dock.querySelector('#vaHands').onchange=e=>{update({voiceHandsFree:e.target.checked});if(e.target.checked)startMic();else pauseMic()};
+    dock.querySelector('#vaHelp').onclick=()=>{void receive(['yordam'],{typed:true})};
+    dock.querySelector('#vaForm').onsubmit=e=>{e.preventDefault();const input=dock.querySelector('#vaCommand'),text=input.value.trim();if(text){input.value='';void receive([text],{typed:true})}};
+    render();
+  }
+  function allowedPages(){
+    if(!currentUser())return [];
+    return PAGES.filter(p=>['accessibility','profile'].includes(p.page)||[...document.querySelectorAll('nav [data-page="'+p.page+'"]')].some(b=>!b.hidden&&!b.classList.contains('hidden')&&!b.closest('[hidden],.hidden')));
+  }
+  const pageName=()=>$('#main>.page.active h1')?.textContent?.trim()||$('#main>.page.active h2')?.textContent?.trim()||(currentUser()?'Bosh sahifa':'Kirish');
+  async function navigate(page){
+    if(page==='accessibility'){a11y?.open?.();return say('Qulaylik sozlamalari ochildi. «Maydonlar» yoki «tugmalar» deng.')}
+    if(!currentUser())return startLogin();
+    if(!allowedPages().some(p=>p.page===page))return say('Bu bo‘lim sizning rolingizda mavjud emas. «Sahifalar» deng.');
+    if(reader.current?.isOpen?.())reader.current.close();
+    if($('.hxa-panel'))a11y?.close?.();
+    if($('dialog[open]'))return say('Avval ochiq oynani «yop» buyrug‘i bilan yoping.');
+    voiceNavigation=true;
+    try{await go(page);await say(pageName()+' ochildi. «Tugmalarni ayt» yoki «sahifani o‘qi» deng.')}finally{voiceNavigation=false}
+  }
+  function remember(page){
+    focused=null;pending=null;actionList=[];fieldList=[];showChoices([]);
+    if(restoring)return;
+    if(trail[trailIndex]===page)return;
+    trail=trail.slice(0,trailIndex+1);trail.push(page);trailIndex=trail.length-1;
+  }
+  async function travel(step){
+    if($('dialog[open],.hxa-panel'))return close();
+    const next=trailIndex+step;
+    if(next<0||next>=trail.length)return say(step<0?'Oldingi sahifa yo‘q.':'Keyingi sahifa yo‘q.');
+    const page=trail[next];
+    if(!allowedPages().some(p=>p.page===page)&&!['editor','lesson','videoWatch'].includes(page))return say('Bu sahifa endi mavjud emas.');
+    // Editors and lessons have their own back action; reloading them loses their context.
+    if(['editor','lesson','videoWatch'].includes(page))return say('Bu oynaga sahifadagi ochish tugmasi orqali kiring.');
+    restoring=true;trailIndex=next;
+    try{return await navigate(page)}finally{restoring=false}
+  }
+  async function close(){
+    if(reader.current?.isOpen?.()){reader.current.close();return say('Kitob yopildi.')}
+    if($('.hxa-panel')){a11y?.close?.();return say('Qulaylik paneli yopildi.')}
+    const dialog=[...document.querySelectorAll('dialog[open]')].at(-1);
+    if(dialog){const button=actions(dialog).find(b=>/yop|bekor|orqaga/.test(normalize(controlLabel(b))));if(button){button.click();return say('Oyna yopildi.')}return say('Bu tekshiruv oynasini yakunlash uchun uning ko‘rsatmalariga amal qiling.')}
+    const button=actions().find(b=>/^(orqaga|bekor qilish|yopish|bekor)$/.test(normalize(controlLabel(b))));
+    if(button){button.click();return say('Oldingi oynaga qaytildi.')}
+    if(document.documentElement.dataset.page==='editor'){$('#editorCancel')?.click();return}
+    return travel(-1);
+  }
+  function showChoices(list){
+    dock.querySelector('#vaChoices').replaceChildren(...list.map((element,i)=>{const item=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=(i+1)+'. '+controlLabel(element);b.onclick=()=>{void activate(element)};item.append(b);return item}));
+  }
+  async function listControls(kind){
+    const list=kind==='fields'?fields():actions();
+    if(kind==='fields')fieldList=list;else actionList=list;
+    showChoices(kind==='fields'?[]:list);
+    if(!list.length)return say(kind==='fields'?'Bu oynada to‘ldiriladigan maydon yo‘q.':'Bu oynada faol tugma yo‘q.');
+    const labels=list.map((element,i)=>(i+1)+'. '+controlLabel(element));
+    await say((kind==='fields'?'Maydonlar. ':'Tugmalar. ')+labels.slice(0,18).join('. ')+(list.length>18?'. Qolganlari yordamchi panelidagi ro‘yxatda.':''));
+  }
+  async function focusField(command){
+    const list=fields(),found=command.index?{element:(fieldList.length?fieldList:list)[command.index-1]}:findControl(command.arg||'',list);
+    if(!found?.element||!list.includes(found.element))return say('Maydon topilmadi. «Maydonlarni ayt» deng.');
+    if(found.ambiguous)return say('Bir nechta o‘xshash maydon bor. «Maydonlar» deb, keyin tartib raqamini ayting.');
+    focused=found.element;focused.focus();focused.scrollIntoView({block:'nearest'});
+    const options=focused.tagName==='SELECT'?'. Variantlar: '+[...focused.options].filter(o=>!o.disabled).slice(0,15).map((o,i)=>(i+1)+'. '+o.textContent).join('. '):'';
+    await say(controlLabel(focused)+' tanlandi'+options+'. «Yoz» deb, keyin matn yoki variantni ayting.');
+  }
+  async function confirm(question,callback){
+    pending={callback,until:Date.now()+25000,scope:controlScope()};
+    await say(question+' Tasdiqlash uchun «ha», bekor qilish uchun «yo‘q» deng.');
+  }
+  async function activate(element){
+    if(!element||!actions().includes(element))return say('Bu tugma hozir faol emas. «Tugmalar» deng.');
+    if(element.matches('a[href]')){
+      const url=new URL(element.href,location.href);
+      if(url.origin!==location.origin||element.target==='_blank')return say('Bu havola yangi oynani ochadi. Uni klaviaturada Enter bilan oching.');
     }
-    $('#vaDock').hidden=!enabled();
+    const execute=()=>{if(!actions().includes(element))return say('Tugma o‘zgardi. «Tugmalar» deng.');element.click()};
+    if(isSensitiveAction(element))return confirm(controlLabel(element)+' amalini bajaraymi?',execute);
+    element.focus();element.click();
+    await say(controlLabel(element)+' tanlandi.');
   }
-
-  // ---------- listening ----------
-  function listenOnce({timeoutMs=9000}={}){
-    return new Promise((resolve,reject)=>{
-      if(!SR)return reject(new Error('Bu brauzer ovozli buyruqni qo‘llamaydi. Chrome, Edge yoki Samsung Internet ishlating.'));
-      try{recognizing?.abort()}catch{}
-      const r=new SR();recognizing=r;r.lang=ls('hx-va-lang')||'uz-UZ';r.interimResults=false;r.maxAlternatives=4;
-      let done=false;const finish=(fn,v)=>{if(done)return;done=true;clearTimeout(t);setDock('idle');fn(v)};
-      const t=setTimeout(()=>{try{r.stop()}catch{}},timeoutMs);
-      r.onresult=e=>finish(resolve,[...(e.results?.[0]||[])].map(a=>a.transcript).filter(Boolean));
-      r.onerror=e=>finish(reject,new Error(e.error==='not-allowed'||e.error==='service-not-allowed'?'Mikrofonga ruxsat berilmagan. Brauzer sozlamalarida mikrofonni yoqing.':e.error==='no-speech'?'Ovoz eshitilmadi.':e.error==='network'?'Ovozni aniqlash uchun internet kerak.':'Ovozni aniqlab bo‘lmadi ('+e.error+')'));
-      r.onend=()=>finish(resolve,[]);
-      try{r.start();setDock('listening');beep(880)}catch(e){finish(reject,e)}
-    });
+  function playPreparedReader(){
+    const opened=reader.current,until=Date.now()+15000;
+    const play=()=>{if(reader.current!==opened||!opened?.isOpen?.())return;if(isVisible($('[data-ar="play"]')))void opened.play();else if(Date.now()<until)setTimeout(play,100)};
+    play();
   }
-  const ask=async(q,o)=>{await say(q);return listenOnce(o)};
-
-  // ---------- reading the page ----------
-  function readPage(){
-    const page=$('#main>.page.active')||$('#login:not(.hidden)')||document.body;
-    const c=page.cloneNode(true);c.querySelectorAll('script,style,svg,[hidden],.hidden,[aria-hidden="true"],select,.sr-only').forEach(x=>x.remove());
-    const text=(c.innerText||c.textContent||'').replace(/\n{2,}/g,'. ').replace(/\s+/g,' ').trim().slice(0,6000);
-    if(!text)return say('Bu sahifada o‘qiladigan matn yo‘q.');
-    pageQueue={text};return say(text);
+  function playNextReader(previous){
+    const until=Date.now()+15000;
+    const check=()=>{if(reader.current&&reader.current!==previous&&reader.current.isOpen())playPreparedReader();else if(Date.now()<until)setTimeout(check,100)};
+    check();
   }
-
-  // ---------- commands ----------
-  const MONTHS=['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'],DAYS=['yakshanba','dushanba','seshanba','chorshanba','payshanba','juma','shanba'];
-  async function run(cmd){
+  async function readPage(){
+    const root=controlScope(),copy=root.cloneNode(true);
+    copy.querySelectorAll('script,style,svg,[hidden],.hidden,[aria-hidden="true"],select,.sr-only,#vaDock,input,textarea').forEach(x=>x.remove());
+    const text=(copy.innerText||copy.textContent||'').replace(/\s+/g,' ').trim().slice(0,30000);
+    if(!text)return say('Bu oynada o‘qiladigan matn yo‘q.');
+    openAudioReader({title:pageName(),text,announce:a11y?.announce});
+    playPreparedReader();
+  }
+  async function run(command){
     const r=reader.current?.isOpen?.()?reader.current:null;
-    if(pendingConfirm&&(cmd.action==='yes'||cmd.action==='no')){const f=pendingConfirm;pendingConfirm=null;return f(cmd.action==='yes')}
-    switch(cmd.action){
-      case 'stop':engineStop();r?.pause();return;
-      case 'resume':if(r)return r.play();if(pageQueue)return say(pageQueue.text);return say('Davom ettiradigan narsa yo‘q.');
-      case 'help':return say('Quyidagilarni aytishingiz mumkin. '+helpLines().join('. ')+'.');
-      case 'repeat':return say(lastSpoken()||'Hali hech narsa aytilmadi.');
+    if(['yes','no'].includes(command.action)){
+      const answer=$('dialog[data-va-confirm][open] [data-va-answer="'+command.action+'"]');
+      if(answer){pending=null;answer.click();return}
+      const confirmation=pending;pending=null;
+      if(!confirmation||Date.now()>confirmation.until||confirmation.scope!==controlScope())return say('Tasdiqlash muddati tugagan yoki savol yo‘q. Amalni qayta ayting.');
+      if(command.action==='no')return say('Bekor qilindi.');
+      return confirmation.callback();
+    }
+    pending=null;
+    switch(command.action){
+      case 'stop':speech.stop();r?.pause();for(const v of controlScope().querySelectorAll('video,audio'))v.pause();return;
+      case 'resume':{if(r)return r.play();const media=controlScope().querySelector('video,audio');if(media)return media.play().catch(()=>say('Tinglash uchun pleyer tugmasini bosing.'));return say('Davom ettiriladigan o‘qish yoki video yo‘q.')}
+      case 'help':return say('O‘zbekcha buyruq ayting. '+helpLines().join('. ')+'. Kitob ovozini bo‘lish uchun «Yordamchi, to‘xta» deng.');
+      case 'repeat':return say(speech.lastSpoken()||'Hali xabar yo‘q.');
+      case 'go':return navigate(command.page);
+      case 'login':return startLogin();
+      case 'listPages':return say('Sizga ochiq sahifalar. '+allowedPages().map(p=>p.label).join('. ')+'. Nomini ayting.');
+      case 'listActions':return listControls('actions');
+      case 'listFields':return listControls('fields');
+      case 'where':return say(pageName()+' sahifasidasiz.');
+      case 'back':return travel(-1);
+      case 'forward':return travel(1);
+      case 'close':return close();
       case 'readPage':return readPage();
-      case 'next':return r?r.next():undefined;
-      case 'prev':return r?r.prev():undefined;
-      case 'faster':return r?r.faster():say('Tezlikni qulaylik panelidan o‘zgartiring.');
-      case 'slower':return r?r.slower():say('Tezlikni qulaylik panelidan o‘zgartiring.');
-      case 'bigger':case 'smaller':{const p=prefs(),sizes=[100,115,130,150,175,200],i=Math.max(0,sizes.indexOf(p.textScale));const n=sizes[Math.max(0,Math.min(sizes.length-1,i+(cmd.action==='bigger'?1:-1)))];window.HxA11y?.set({...p,textScale:n});return say('Matn '+n+' foiz')}
-      case 'contrast':{const p=prefs();const c=p.contrast==='none'?'yellow':'none';window.HxA11y?.set({...p,contrast:c});return say(c==='none'?'Oddiy ranglar':'Yuqori kontrast yoqildi')}
-      case 'time':{const d=new Date();return say('Soat '+d.getHours()+' dan '+d.getMinutes()+' daqiqa o‘tdi. Bugun '+DAYS[d.getDay()]+', '+d.getDate()+'-'+MONTHS[d.getMonth()]+'.')}
-      case 'notifications':return say(history.length?'Oxirgi xabarlar. '+history.slice(0,5).join('. '):'Yangi bildirishnoma yo‘q.');
-    }
-    if(cmd.action==='go'&&cmd.page==='accessibility'){a11y?.open?.();return say('Qulaylik sozlamalari ochildi.')}
-    if(!currentUser()){if(cmd.action==='go'||cmd.action==='joinLesson'||cmd.action==='listenBook')return startLogin();return}
-    switch(cmd.action){
-      case 'go':{const page=cmd.page==='accessibility'?'dashboard':cmd.page;const btn=$('nav button[data-page="'+page+'"]');if(!btn||btn.classList.contains('hidden'))return say('Bu bo‘lim sizda yo‘q.');await go(page);
-        return say(($('.page.active h1')?.textContent||'')+' ochildi. '+($('.page.active .page-head p')?.textContent||'')+' Matnni eshitish uchun «o‘qi» deng.')}
-      case 'search':{go('search');await new Promise(r=>setTimeout(r,400));const i=$('#globalSearchInput');if(i){i.value=cmd.arg;i.dispatchEvent(new Event('input',{bubbles:true}));$('#globalSearchForm')?.requestSubmit?.()}return say('«'+cmd.arg+'» bo‘yicha qidiryapman.')}
+      case 'next':case 'prev':{if(r)return command.action==='next'?r.next():r.prev();const list=actions(),index=list.indexOf(document.activeElement),next=list[index+(command.action==='next'?1:-1)]||list[0];if(next){next.focus();await say(controlLabel(next))}return}
+      case 'faster':case 'slower':{if(r)return command.action==='faster'?r.faster():r.slower();const rate=Math.max(.5,Math.min(2,Math.round(((Number(prefs().ttsRate)||1)+(command.action==='faster'?.1:-.1))*10)/10));update({ttsRate:rate});return say('O‘qish tezligi '+rate);}
+      case 'maleVoice':case 'femaleVoice':speech.setGender(command.action==='maleVoice'?'male':'female');return say(command.action==='maleVoice'?'Sardor ovozi tanlandi.':'Madina ovozi tanlandi.');
+      case 'focusField':return focusField(command);
+      case 'dictate':case 'clear':{
+        const field=focused&&fields().includes(focused)?focused:fields().includes(document.activeElement)?document.activeElement:null;
+        const value=command.action==='clear'?'':field?.id==='loginInput'?spokenToLogin(command.arg):command.arg;
+        return say(writeField(field,value).message);
+      }
+      case 'activate':{const found=findControl(command.arg,actions());if(found?.ambiguous)return say('Bir nechta o‘xshash tugma bor. «Tugmalar» deb, keyin raqamini ayting.');return activate(found?.element)}
+      case 'selectIndex':{
+        const current=command.kind?indexedActions(command.kind):actions();
+        const list=!command.kind&&actionList.length?actionList:current;
+        if(!current.includes(list[command.index-1]))return say('Bu raqamdagi amal topilmadi. Avval «tugmalar» deng.');
+        const previous=reader.current;await activate(list[command.index-1]);if(command.kind==='kitob'){if(isVisible($('#libraryListen')))$('#libraryListen').click();playNextReader(previous)}return;
+      }
+      case 'submit':{
+        const form=focused?.isConnected?focused.closest('form'):controlScope().querySelector('form');
+        if(!form||!isVisible(form)||!controlScope().contains(form))return say('Yuboriladigan forma topilmadi. Avval kerakli maydonni tanlang.');
+        const submit=[...form.querySelectorAll('button[type="submit"],input[type="submit"],button:not([type])')].find(b=>!b.disabled&&isVisible(b));
+        if(!submit)return say('Yuborish tugmasi hozir faol emas.');
+        return confirm('Formadagi ma’lumotlarni yuboraymi?',()=>{if(form.isConnected&&isVisible(form)&&!submit.disabled)form.requestSubmit(submit)});
+      }
+      case 'search':{
+        if(!currentUser())return startLogin();await navigate('search');const field=$('#globalSearchInput');if(!field)return;
+        field.value=command.arg;field.dispatchEvent(new Event('input',{bubbles:true}));$('#globalSearchForm')?.requestSubmit();return say(command.arg+' bo‘yicha qidiruv boshlandi.');
+      }
       case 'listenBook':{
-        const lib=$('#libraryListen');if(lib&&lib.offsetParent)return lib.click();
-        await go('myBooks');const first=myBooks?.firstListen?.();
-        if(first){await say('Kitoblarim. Oxirgi kitobni davom ettiraman.');return first.click()}
-        return say('Javoningizda kitob yo‘q. Oilangizga yuklash havolasini yuboring yoki kitob qo‘shing.');
+        if(r)return r.play();if(!currentUser())return startLogin();
+        const button=$('#libraryListen');if(isVisible(button)){const previous=reader.current;button.click();playNextReader(previous);return}
+        await navigate('myBooks');const first=myBooks?.firstListen?.();if(first){first.click();playPreparedReader();return}
+        return say('Javoningizda kitob yo‘q. «Kitob qo‘shish» tugmasi yoki oilaviy yuklash havolasidan foydalaning.');
       }
-      case 'joinLesson':{go('live');await new Promise(r=>setTimeout(r,1200));const b=all('#live [data-live-join],#live [data-join-lesson],#dashboard [data-join-lesson]').find(x=>!x.disabled&&x.offsetParent);if(!b)return say('Hozir kirish mumkin bo‘lgan jonli dars yo‘q.');await say('Darsga kiryapman.');return b.click()}
-      case 'logout':pendingConfirm=ok=>{if(ok){say('Tizimdan chiqdingiz.');logout?.()}else say('Bekor qilindi.')};await say('Tizimdan chiqishni tasdiqlaysizmi? Ha yoki yo‘q deng.');return commandOnce();
-      case 'yes':case 'no':return say('Tasdiqlanadigan savol yo‘q.');
+      case 'joinLesson':{
+        if(!currentUser())return startLogin();await navigate('live');
+        const button=[...document.querySelectorAll('#live [data-live-join],#live [data-join-lesson]')].find(b=>isVisible(b)&&!b.disabled);
+        return button?activate(button):say('Hozir kirish mumkin bo‘lgan jonli dars yo‘q.');
+      }
+      case 'logout':if(!currentUser())return say('Siz tizimga kirmagansiz.');return confirm('Tizimdan chiqaymi?',async()=>{logout?.();await say('Tizimdan chiqdingiz. Kirish uchun «ovozli kirish» tugmasini bosing.')});
+      case 'pauseListening':pauseMic();return say('Mikrofon to‘xtatildi. Qayta boshlash uchun Alt+V yoki mikrofon tugmasini bosing.');
+      case 'resumeListening':update({voiceHandsFree:true});startMic();return say('Doimiy tinglash yoqildi.');
+      case 'scrollUp':case 'scrollDown':case 'top':case 'bottom':{
+        const root=controlScope(),scrollable=[root,...root.querySelectorAll('*')].filter(e=>!e.closest('#vaDock')&&e.scrollHeight>e.clientHeight+20&&/auto|scroll/.test(getComputedStyle(e).overflowY)).at(-1)||document.scrollingElement;
+        scrollable.scrollTo({top:command.action==='top'?0:command.action==='bottom'?scrollable.scrollHeight:scrollable.scrollTop+(command.action==='scrollDown'?1:-1)*Math.max(250,innerHeight*.65),behavior:'instant'});return;
+      }
+      case 'bigger':case 'smaller':{const sizes=[100,115,130,150,175,200],index=sizes.findIndex(x=>x>=(prefs().textScale||100));const value=sizes[Math.max(0,Math.min(sizes.length-1,index+(command.action==='bigger'?1:-1)))];update({textScale:value});return say('Matn '+value+' foiz.');}
+      case 'contrast':update({contrast:prefs().contrast==='none'?'yellow':'none'});return say('Kontrast o‘zgartirildi.');
+      case 'time':return say('Hozir '+new Date().toLocaleString('uz-UZ',{weekday:'long',hour:'2-digit',minute:'2-digit',day:'numeric',month:'long'}));
+      case 'notifications':return say(notifications.length?notifications.slice(0,5).join('. '):'Yangi bildirishnoma yo‘q.');
+      case 'focused':return say(controlLabel(focused||document.activeElement)||'Maydon tanlanmagan.');
     }
   }
-  async function commandOnce(){
-    if(!SR)return say('Bu brauzer ovozli buyruqni qo‘llamaydi. Chrome yoki Edge ishlating. Sahifani o‘qish uchun Alt, Shift va R tugmalarini bosing.');
+  async function receive(alternatives,{typed=false}={}){
+    if(!typed&&(!enabled()||stoppedForLogout||busy||speaking||externalSpeech))return;
+    if(busy)return;
+    const text=String(alternatives[0]||'').trim();if(!text)return;
+    // While a book is audible, only an explicit wake word (or a bare stop) is a command.
+    if(!typed&&reader.current?.isPlaying?.()&&!hasWakeWord(text)&&!['toxta','toxtat','stop'].includes(normalize(text)))return;
+    const now=Date.now();if(!typed&&text===lastInput&&now-lastAt<1300)return;lastInput=text;lastAt=now;
+    dock.querySelector('#vaHeard').textContent='Eshitildi: '+text.slice(0,200);error='';
+    let command=null;for(const alternative of alternatives){command=matchCommand(alternative);if(command)break}
+    busy=true;
     try{
-      reader.current?.pause();engineStop();const alts=await listenOnce();
-      if(!alts.length){if(!handsFree)await say('Ovoz eshitilmadi.');return}
-      if(loginActive)return;
-      let cmd=null;for(const a of alts){cmd=matchCommand(a);if(cmd)break}
-      if(!cmd){if(!currentUser()&&/kir|login|voyti/.test(normalize(alts[0])))return startLogin();return say('Tushunmadim: «'+alts[0]+'». Buyruqlar uchun «yordam» deng.')}
-      beep(660,80);await run(cmd);
-    }catch(e){await say(e.message)}
+      if(!command){pending=null;await say('Buyruqni aniqlay olmadim. «Yordam», «sahifalar» yoki «tugmalar» deng.');return}
+      await run(command);
+    }catch(e){await say('Amal bajarilmadi. '+(e?.message||'Qayta urinib ko‘ring.'))}
+    finally{busy=false;if(oneShot&&!pending&&!$('dialog[data-va-confirm][open]')){oneShot=false;recognition.stop()}render()}
   }
-  async function loop(){while(handsFree&&document.visibilityState==='visible'){if(isSpeaking()||loginActive||reader.current?.isPlaying?.()){await new Promise(r=>setTimeout(r,600));continue}await commandOnce();await new Promise(r=>setTimeout(r,250))}}
-  function setHandsFree(on){handsFree=Boolean(on);ls(HANDS,on?'1':'0');if(on)say('Qo‘llarsiz rejim yoqildi. Men doim tinglayman.').then(loop)}
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&handsFree)loop()});
-
-  // ---------- voice-guided login ----------
   async function startLogin(){
-    if(loginActive)return;loginActive=true;$('#vaGate')?.remove();
-    const loginInput=$('#loginInput'),pass=$('#passwordInput');loginInput?.focus();
-    try{
-      await say('Ovozli kirish.');
-      if(!SR){await say('Bu brauzerda ovozni aniqlash yo‘q. Login maydoni tanlandi: loginingizni yozing, Tab bosib parolni yozing va Enter bosing.');return}
-      let login='';
-      for(let tries=0;tries<3&&!login;tries++){
-        let alts=[];try{alts=await ask(tries?'Qaytadan. Loginingizni harflab ayting.':'Loginingizni harflab ayting. Masalan: K, T, 21, tire, 0412. Yoki klaviaturada yozib, Enter bosing.')}catch(e){await say(e.message);break}
-        if(loginInput.value.trim()){login=loginInput.value.trim();break}
-        const guess=spokenToLogin(alts[0]||'');if(!guess)continue;
-        let ans=[];try{ans=await ask('Login: '+spellOut(guess)+'. To‘g‘rimi? Ha yoki yo‘q deng.')}catch{}
-        if(ans.map(matchCommand).find(Boolean)?.action==='yes'){login=guess;loginInput.value=guess}
-      }
-      if(!login){await say('Loginni klaviaturada yozing. Login maydoni tanlandi.');loginInput?.focus();return}
-      pass?.focus();
-      let ans=[];try{ans=await ask('Endi parolingizni klaviaturada yozing va Enter bosing. Xavfsizlik uchun parolni ovoz chiqarib aytmang. Yozolmasangiz, «ovoz bilan» deng.',{timeoutMs:12000})}catch{}
-      if(ans.some(a=>/ovoz/.test(normalize(a)))&&!pass.value){
-        let p=[];try{p=await ask('Parolni aniq ayting. Kirgandan keyin parolingizni profil bo‘limida almashtirib qo‘ying.',{timeoutMs:12000})}catch{}
-        const v=String(p[0]||'').replace(/\s+/g,'');if(v){pass.value=v;await say('Kiryapman.');$('#loginForm')?.requestSubmit()}
-      }else if(!pass.value)await say('Parol maydoni tanlangan. Yozib bo‘lgach Enter bosing.');
-    }finally{loginActive=false}
+    expanded=true;stoppedForLogout=false;if(!enabled())update({voiceAssistant:true});render();
+    if(currentUser())return say('Siz tizimga kirgansiz. «Sahifalar» deng.');
+    const input=$('#loginInput');focused=input;input?.focus();
+    startMic();await say('Login maydoni tanlandi. «Yoz» deb loginingizni harflab ayting. Parolni klaviaturada kiriting. So‘ng «yubor» deng.');
   }
-  function watchLogin(){
-    const otp=$('#loginOtpWrap');if(otp)new MutationObserver(async()=>{if(otp.classList.contains('hidden')||!enabled())return;
-      if(!SR)return say('Ikki bosqichli kodni yozing va Enter bosing.');
-      try{const a=await ask('Ikki bosqichli tasdiqlash. Olti xonali kodni ayting.');const code=spokenToDigits(a[0]||''),inp=otp.querySelector('input');if(code.length>=6&&inp){inp.value=code;await say('Kiryapman.');$('#loginForm')?.requestSubmit()}else{await say('Kodni klaviaturada yozing.');inp?.focus()}}catch(e){await say(e.message)}
-    }).observe(otp,{attributes:true,attributeFilter:['class']});
-    const err=$('#loginError');if(err)new MutationObserver(()=>{const x=err.textContent.trim();if(x&&enabled())say(x)}).observe(err,{childList:true,characterData:true,subtree:true});
-    const card=$('#loginForm');if(card&&!$('#voiceLoginBtn')){const b=document.createElement('button');b.type='button';b.id='voiceLoginBtn';b.className='secondary voice-login-btn';b.innerHTML='<span aria-hidden="true">🔊</span> Ovozli yordamchi bilan kirish';b.onclick=()=>{ls(DEVICE,'1');mountDock();startLogin()};card.querySelector('.login-submit')?.after(b)}
+  function preferenceChanged(){
+    const on=enabled(),hands=handsFree(),newlyEnabled=on&&!wasEnabled,changedHands=hands!==lastHandsFree;
+    wasEnabled=on;lastHandsFree=hands;
+    if(!on){pending=null;oneShot=false;recognition.stop();speech.stop()}
+    if(newlyEnabled){stoppedForLogout=false;expanded=true;render();void say('Ovozli yordamchi yoqildi. «Kutubxona», «jadvalim», «tugmalar» yoki «yordam» deng.').then(()=>{if(enabled()&&handsFree()&&!stoppedForLogout)startMic()})}
+    else if(changedHands){if(hands&&on)startMic();else{oneShot=false;recognition.stop()}}
+    syncMic();render();
   }
-  // Browsers speak only after a tap or key press: a device marked for voice use starts with a full-screen start button.
-  function offerGate(){
-    const wanted=new URLSearchParams(location.search).get('voice')==='1'||ls(DEVICE)==='1';
-    if(!wanted||$('#vaGate'))return;
-    const g=document.createElement('button');g.id='vaGate';g.type='button';g.className='va-gate hx-plain';
-    g.innerHTML='<span aria-hidden="true">🔊</span><b>Ovozli yordamchini boshlash</b><small>Ekranning istalgan joyiga yoki istalgan tugmaga bosing</small>';
-    document.body.append(g);g.focus();
-    const start=()=>{g.remove();document.removeEventListener('keydown',key,true);ls(DEVICE,'1');mountDock();
-      if($('#login:not(.hidden)'))startLogin();else say('Ovozli yordamchi tayyor. Buyruq uchun Alt va V ni yoki mikrofon tugmasini bosing. «Yordam» deng.').then(()=>{if(ls(HANDS)==='1')setHandsFree(true)})};
-    const key=e=>{if(['Tab','Shift'].includes(e.key))return;e.preventDefault();start()};
-    g.onclick=start;document.addEventListener('keydown',key,true);
-  }
-
-  // ---------- notifications are spoken ----------
-  function watchToasts(){
-    const t=$('#toast');if(!t||t.dataset.vaWatch)return;t.dataset.vaWatch='1';let last='';
-    new MutationObserver(()=>{const x=t.textContent.trim();if(!x||x===last||!t.classList.contains('show'))return;last=x;history.unshift(x);history.length=Math.min(history.length,20);if(enabled()&&!loginActive&&!reader.current?.isPlaying?.())engineSpeak(x,{rate:rate()});setTimeout(()=>{last=''},1500)})
-      .observe(t,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['class']});
-  }
-
-  document.addEventListener('keydown',e=>{if(e.altKey&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&e.code==='KeyV'){e.preventDefault();if(!enabled()){ls(DEVICE,'1');mountDock()}commandOnce()}});
-  window.HxA11y?.onChange?.(()=>mountDock());
-  mountDock();watchLogin();watchToasts();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',offerGate,{once:true});else offerGate();
-
   async function afterLogin(){
-    mountDock();
-    if(!enabled())return;
-    const u=currentUser();
-    await say('Xush kelibsiz, '+(u?.fullName||'')+'. Buyruq uchun Alt va V ni bosing. Kitob tinglash uchun «kitobni o‘qi» deng.');
-    if(ls(HANDS)==='1')setHandsFree(true);
+    stoppedForLogout=false;trail=[$('#main>.page.active')?.id||'dashboard'];trailIndex=0;
+    wasEnabled=enabled();lastHandsFree=handsFree();expanded=enabled();render();
+    if(enabled()){await say('Xush kelibsiz, '+(currentUser()?.fullName||'')+'. Ovozli boshqaruv tayyor. «Sahifalar» yoki «yordam» deng.');if(handsFree()&&enabled())startMic()}
   }
-  return {afterLogin,commandOnce,startLogin,setHandsFree,say,enabled};
+  function afterLogout(){document.dispatchEvent(new Event('hx:voice-logout'));stoppedForLogout=true;oneShot=false;pending=null;focused=null;actionList=[];fieldList=[];notifications.length=0;trail=[];trailIndex=-1;recognition.stop();showChoices([]);dock.querySelector('#vaHeard').textContent='';render()}
+
+  mount();
+  // A native modal makes body siblings inert. Keep the widget inside the active modal.
+  const portal=()=>{const parent=[...document.querySelectorAll('dialog[open],.hxa-panel')].filter(isVisible).at(-1)||document.body;if(dock.parentNode!==parent)parent.append(dock)};
+  new MutationObserver(portal).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open']});
+  document.addEventListener('hx:navigate',event=>{
+    remember(event.detail.page);const serial=++navSerial;
+    if(enabled()&&!voiceNavigation&&!restoring)Promise.resolve(event.detail.ready).then(()=>{if(serial===navSerial&&enabled()&&!busy)void say(pageName()+' ochildi.')},()=>{});
+  });
+  document.addEventListener('visibilitychange',syncMic);
+  document.addEventListener('hx:confirmation',event=>{if(enabled())void say(event.detail.message+' «Ha» yoki «yo‘q» deng.')});
+  document.addEventListener('keydown',e=>{if(e.altKey&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&e.code==='KeyV'){e.preventDefault();expanded=true;startMic()}});
+  document.addEventListener('hx-speech-start',event=>{
+    if(event.detail?.owner==='assistant'||event.detail?.owner==='reader'){clearTimeout(externalTimer);externalSpeech=false;syncMic();return}
+    externalSpeech=true;syncMic();clearTimeout(externalTimer);
+    const check=()=>{if(speech.isSpeaking())externalTimer=setTimeout(check,200);else{externalSpeech=false;syncMic()}};externalTimer=setTimeout(check,200);
+  });
+  const toast=$('#toast');if(toast)new MutationObserver(()=>{
+    const text=toast.textContent.trim();if(!text||!toast.classList.contains('show')||notifications[0]===text)return;
+    notifications.unshift(text);notifications.length=Math.min(20,notifications.length);
+    if(enabled()&&!busy&&!speech.isSpeaking()&&!reader.current?.isPlaying?.())void say(text);
+  }).observe(toast,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
+  const loginForm=$('#loginForm');if(loginForm&&!$('#voiceLoginBtn')){const button=document.createElement('button');button.id='voiceLoginBtn';button.type='button';button.className='secondary voice-login-btn';button.textContent='Ovozli yordamchi bilan kirish';button.onclick=()=>{void startLogin()};loginForm.querySelector('.login-submit')?.after(button)}
+  const loginError=$('#loginError');if(loginError)new MutationObserver(()=>{if(enabled()&&loginError.textContent.trim())void say(loginError.textContent.trim())}).observe(loginError,{childList:true,subtree:true,characterData:true});
+  window.HxA11y?.onChange?.(preferenceChanged);
+  if(new URLSearchParams(location.search).get('voice')==='1'&&!enabled())update({voiceAssistant:true});
+  else{wasEnabled=enabled();if(enabled()){expanded=true;render()}}
+  const api={afterLogin,afterLogout,commandOnce:startMic,startLogin,setHandsFree:on=>{update({voiceHandsFree:Boolean(on)});if(on)startMic();else pauseMic()},say,enabled,execute:text=>receive([text],{typed:true})};
+  window.HxVoiceAssistant=api;
+  return api;
 }

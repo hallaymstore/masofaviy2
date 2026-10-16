@@ -1,3 +1,4 @@
+import {askConfirmation} from './accessible-confirm.js';
 // HALLAYM EDU — «Inklyuziv ta'lim» page. One page, different views by role:
 // student → own accommodations, request, consent, lesson transcripts; teacher → students who need adjustments in own
 // groups, transcripts, subtitles for own video lessons, teaching guide; coordinator (inclusion.manage) → overview,
@@ -165,7 +166,7 @@ export function createInclusionUi({api,toast,esc=escHtml,currentUser,enterLive,o
     const rows=await api('/inclusion/support');
     p.innerHTML='<p class="in-lead">Surdotarjimon guruh darslariga o‘z akkaunti bilan kiradi; uning videosi talabalarga doim ekranning chap pastida ko‘rinadi. Assistent va konspekt yordamchisi ham darsga kira oladi.</p><div class="in-actions"><button type="button" class="primary" id="inAddSupport">+ Yordamchi biriktirish</button></div>'+
       (rows.length?'<div class="in-table"><div class="in-tr in-th in-tr4"><span>Xodim</span><span>Turi</span><span>Guruhlar</span><span></span></div>'+rows.map(r=>'<div class="in-tr in-tr4"><span><b>'+esc(r.fullName)+'</b><small>'+esc(r.login)+'</small></span><span>'+esc(r.kindLabel)+'</span><span>'+r.groups.map(g=>esc(g.name)).join(', ')+(r.note?'<small>'+esc(r.note)+'</small>':'')+'</span><span><button type="button" class="ghost" data-del="'+esc(r.id)+'">Olib tashlash</button></span></div>').join('')+'</div>':empty('Hali yordamchi biriktirilmagan'));
-    p.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!confirm('Biriktirish olib tashlansinmi?'))return;try{await api('/inclusion/support/'+b.dataset.del,{method:'DELETE'});paneSupport(p,m)}catch(e){toast(e.message)}});
+    p.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!await askConfirmation('Biriktirish olib tashlansinmi?'))return;try{await api('/inclusion/support/'+b.dataset.del,{method:'DELETE'});paneSupport(p,m)}catch(e){toast(e.message)}});
     p.querySelector('#inAddSupport').onclick=()=>pickPerson('Xodimni tanlang (surdotarjimon yoki assistent)',true,(userId,name)=>{
       const chosen=new Map();
       const s=sheet('Biriktirish · '+name,'<form class="in-form" id="inSup"><label class="in-field">Yordam turi<select name="kind">'+Object.entries(m.supportKinds).map(([k,l])=>'<option value="'+k+'">'+esc(l)+'</option>').join('')+'</select></label><label class="in-field">Guruh qo‘shish<input type="search" id="inGroupQ" placeholder="Guruh nomi"></label><div id="inGroupHits" class="in-picklist"></div><div id="inGroupSel" class="in-chips"></div><label class="in-field">Izoh<input name="note" maxlength="300"></label><div class="in-actions"><button class="primary" type="submit">Saqlash</button></div></form>');
@@ -188,7 +189,7 @@ export function createInclusionUi({api,toast,esc=escHtml,currentUser,enterLive,o
       '<div class="in-kpis"><div><b>'+x.summary.total+'</b><span>Videodars</span></div><div class="'+(x.summary.total-x.summary.withCaptions?'warn':'')+'"><b>'+x.summary.withCaptions+'</b><span>Subtitrli</span></div></div>'+
       (x.videos.length?'<div class="in-table"><div class="in-tr in-th in-tr4"><span>Video</span><span>Manba</span><span>Subtitr</span><span></span></div>'+x.videos.map(v=>'<div class="in-tr in-tr4'+(v.captions?'':' in-warn')+'"><span>'+esc(v.title)+'</span><span>'+esc(v.sourceType)+'</span><span>'+(v.captions?'✓ '+v.cues+' ta qator':'Yo‘q')+'</span><span class="in-dl"><button type="button" class="secondary" data-up="'+esc(v.id)+'">'+(v.captions?'Almashtirish':'Yuklash')+'</button>'+(v.captions?'<button type="button" class="ghost" data-rm="'+esc(v.id)+'">O‘chirish</button>':'')+'</span></div>').join('')+'</div>':empty('Videodars yo‘q'));
     p.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>uploadCaptions(b.dataset.up,()=>paneVideos(p)));
-    p.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!confirm('Subtitr o‘chirilsinmi?'))return;try{await api('/inclusion/videos/'+b.dataset.rm+'/captions',{method:'DELETE'});paneVideos(p)}catch(e){toast(e.message)}});
+    p.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!await askConfirmation('Subtitr o‘chirilsinmi?'))return;try{await api('/inclusion/videos/'+b.dataset.rm+'/captions',{method:'DELETE'});paneVideos(p)}catch(e){toast(e.message)}});
   }
   function uploadCaptions(videoId,done){
     const input=document.createElement('input');input.type='file';input.accept='.vtt,.srt,text/vtt,application/x-subrip';
