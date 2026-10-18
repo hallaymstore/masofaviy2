@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -163,7 +162,12 @@ class MainActivity : AppCompatActivity(), VoiceBus.Listener {
         val cmd = VoiceBus.pendingCommand ?: return
         if (!pageReady || !VoiceBus.activityVisible) return
         web.evaluateJavascript("Boolean(window.HxVoiceAssistant&&window.HxVoiceAssistant.execute)") { ready ->
-            if (ready == "true") { VoiceBus.pendingCommand = null; web.evaluateJavascript("window.HxNative.command(" + JSONObject.quote(cmd) + ")", null) }
+            if (ready == "true") {
+                VoiceBus.pendingCommand = null
+                // Newer site: through the bridge; a site without the bridge still understands the command directly.
+                val q = JSONObject.quote(cmd)
+                web.evaluateJavascript("window.HxNative?HxNative.command($q):HxVoiceAssistant.execute($q)", null)
+            }
             else if (attempt < 40) main.postDelayed({ deliverPendingSoon(attempt + 1) }, 250)
         }
     }
@@ -184,5 +188,4 @@ class MainActivity : AppCompatActivity(), VoiceBus.Listener {
         private fun refresh() = main.post { if (has(Manifest.permission.RECORD_AUDIO)) VoiceService.refresh(this@MainActivity) }
     }
 
-    @Suppress("unused") private fun hide(v: View) { v.visibility = View.GONE }
 }

@@ -60,3 +60,17 @@ test('web and app are wired together; answers are short', ()=>{
   assert.ok(act.includes('mediaPlaybackRequiresUserGesture = false')&&act.includes('addJavascriptInterface(Bridge(), "HallaymNative")'));
   assert.ok(manifest.includes('android:foregroundServiceType="microphone"')&&manifest.includes('.HallaymWidget'));
 });
+
+test('silent phone sessions reopen the microphone more slowly and stop after a long silence', async()=>{
+  const {createRecognition}=await import('../public/voice-recognition.js');
+  const delays=[],errors=[],states=[];let instance=null;
+  const timers=[];const setTimer=(fn,ms)=>{delays.push(ms);timers.push(fn);return timers.length};
+  const rec=createRecognition({factory:()=>(instance={start(){},abort(){}}),setTimer,clearTimer(){},onError:(m,c)=>errors.push(c),onState:s=>states.push(s)});
+  rec.start();
+  for(let i=0;i<8;i++){instance.onend();const fn=timers.pop();if(fn)fn()}
+  assert.deepEqual(delays.slice(0,4),[250,600,1200,2400],'first silences reopen fast, then slower');
+  assert.ok(delays.every(d=>d<=4000));
+  assert.equal(rec.isWanted(),false,'stops after 8 silent sessions');assert.equal(errors.at(-1),'idle');assert.equal(states.at(-1),'paused');
+  rec.start();instance.onresult({resultIndex:0,results:[Object.assign([{transcript:'jadval'}],{isFinal:true})]});instance.onend();
+  assert.equal(delays.at(-1),250,'after speech the microphone reopens at once');
+});

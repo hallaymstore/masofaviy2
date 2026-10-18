@@ -11,7 +11,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -72,7 +73,9 @@ class VoiceService : Service() {
     private var model: Model? = null
     private var vosk: SpeechService? = null
     private var google: SpeechRecognizer? = null
-    private var tone: ToneGenerator? = null
+    private var player: MediaPlayer? = null
+    private var lastLoopStart = 0L
+    private var quickFailures = 0
     private var mutedBeep = false
     private var forcedOnce = false
     private var googleFailures = 0
@@ -84,7 +87,6 @@ class VoiceService : Service() {
         super.onCreate()
         prefs = Prefs(this)
         ensureChannels(this)
-        tone = try { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 70) } catch (_: Exception) { null }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -100,7 +102,7 @@ class VoiceService : Service() {
     override fun onDestroy() {
         stopAll(); unmuteBeep()
         try { model?.close() } catch (_: Exception) {}
-        tone?.release()
+        try { player?.release() } catch (_: Exception) {}
         super.onDestroy()
     }
 
@@ -167,7 +169,7 @@ class VoiceService : Service() {
         when (want) {
             Mode.CONTINUOUS -> startContinuous()
             Mode.WAKE -> startWake()
-            Mode.COMMAND -> { forcedOnce = false; beep(true); captureCommand() }
+            Mode.COMMAND -> { forcedOnce = false; say(R.raw.va_labbay) { captureCommand() } }
             Mode.PAUSED -> setState(if (VoiceBus.micBusy) "Jonli dars mikrofonni ishlatyapti" else "Javob o‘qilmoqda…")
             Mode.NONE -> { setState("Tinglash o‘chiq"); if (!VoiceBus.activityVisible && !prefs.background) stopSelf() }
         }
@@ -185,7 +187,17 @@ class VoiceService : Service() {
     // ---------------------------------------------------------------- continuous mode (app open)
     private fun startContinuous() {
         setState("Tinglayapman — buyruq ayting", "listening")
-        if (useGoogle()) googleOnce { alts -> if (alts.isNotEmpty()) VoiceBus.phrase(alts); if (mode == Mode.CONTINUOUS) main.postDelayed({ if (mode == Mode.CONTINUOUS) startContinuous() }, 120) }
+        if (useGoogle()) {
+            lastLoopStart = System.currentTimeMillis()
+            googleOnce { alts ->
+                if (alts.isNotEmpty()) { VoiceBus.phrase(alts); quickFailures = 0 }
+                // A session that ends almost at once is an error, not silence: back off instead of flickering the microphone.
+                val quick = alts.isEmpty() && System.currentTimeMillis() - lastLoopStart < 1500
+                quickFailures = if (quick) quickFailures + 1 else 0
+                val delay = if (quickFailures >= 3) 4000L else if (quick) 1500L else 300L
+                if (mode == Mode.CONTINUOUS) main.postDelayed({ if (mode == Mode.CONTINUOUS) startContinuous() }, delay)
+            }
+        }
         else voskStream(null) { text -> VoiceBus.phrase(listOf(text)) }
     }
 
@@ -224,8 +236,8 @@ class VoiceService : Service() {
         if (mode != Mode.WAKE) return
         val rest = afterWake(phrase, prefs.wakeWords) ?: return
         mode = Mode.COMMAND
-        stopAll(); vibrate(); beep(true)
-        if (rest.split(' ').size >= 2) route(rest, listOf(rest)) else captureCommand()
+        stopAll(); vibrate()
+        if (rest.split(' ').size >= 2) route(rest, listOf(rest)) else say(R.raw.va_labbay) { captureCommand() }
     }
 
     // ---------------------------------------------------------------- one command after the wake word / widget tap
@@ -233,19 +245,21 @@ class VoiceService : Service() {
         setState("Eshityapman…", "listening")
         val handle: (List<String>) -> Unit = { alts ->
             val text = alts.firstOrNull()?.let { AppCommands.stripWake(it, prefs.wakeWords) }.orEmpty()
-            if (text.isBlank()) { beep(false); afterCommand() } else route(text, alts.map { AppCommands.stripWake(it, prefs.wakeWords) })
+            if (text.isBlank()) say(R.raw.va_repeat) { afterCommand() } else route(text, alts.map { AppCommands.stripWake(it, prefs.wakeWords) })
         }
         if (useGoogle()) googleOnce(handle) else voskStream(8000, single = true) { handle(listOf(it)) }
     }
 
     private fun route(text: String, alternatives: List<String>) {
         when (AppCommands.classify(text)) {
-            AppCommands.Kind.OPEN_APP -> openApp(null)
-            AppCommands.Kind.EXIT_APP -> { VoiceBus.exit() }
-            AppCommands.Kind.SLEEP -> { prefs.background = false; setState("Tinglash o‘chirildi. Qayta yoqish uchun vidjetdagi tugmani bosing."); stopAll(); mode = Mode.NONE; return }
+            AppCommands.Kind.OPEN_APP -> { say(R.raw.va_open) { openApp(null); afterCommand() }; return }
+            AppCommands.Kind.EXIT_APP -> { say(R.raw.va_exit) { VoiceBus.exit(); afterCommand() }; return }
+            AppCommands.Kind.SLEEP -> { prefs.background = false; setState("Tinglash o‘chirildi. Qayta yoqish uchun vidjetdagi tugmani bosing."); stopAll(); mode = Mode.NONE; say(R.raw.va_sleep) {}; return }
             AppCommands.Kind.NONE -> {
+                // The web assistant answers in its own (Madina) voice; when the app is hidden it opens first.
                 if (VoiceBus.activityVisible && VoiceBus.webListening) VoiceBus.phrase(alternatives)
-                else { VoiceBus.command(text); if (!VoiceBus.activityVisible) openApp(text) }
+                else if (VoiceBus.activityVisible) VoiceBus.command(text)
+                else { VoiceBus.command(text); say(R.raw.va_xop) { openApp(text); afterCommand() }; return }
             }
         }
         afterCommand()
@@ -278,9 +292,9 @@ class VoiceService : Service() {
         if (sr == null) { googleFailures = 3; main.post { onDone(emptyList()) }; return }
         google = sr
         var finished = false
-        val finish = { list: List<String> -> if (!finished) { finished = true; unmuteBeep(); try { sr.destroy() } catch (_: Exception) {}; if (google === sr) google = null; onDone(list) } }
+        val finish = { list: List<String> -> if (!finished) { finished = true; main.postDelayed({ if (google == null) unmuteBeep() }, 600); try { sr.destroy() } catch (_: Exception) {}; if (google === sr) google = null; onDone(list) } }
         sr.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { main.postDelayed({ unmuteBeep() }, 350) }
+            override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -326,7 +340,7 @@ class VoiceService : Service() {
                     }
                     override fun onFinalResult(hypothesis: String?) {}
                     override fun onError(e: Exception?) { setState("Mikrofon xatosi", "error") }
-                    override fun onTimeout() { if (single && !done) { done = true; stopAll(); beep(false); afterCommand() } }
+                    override fun onTimeout() { if (single && !done) { done = true; stopAll(); say(R.raw.va_repeat) { afterCommand() } } }
                 }, timeoutMs ?: -1)
             }
         } catch (e: Exception) { setState("Oflayn tanish ishlamadi: ${e.message}") }
@@ -334,17 +348,34 @@ class VoiceService : Service() {
 
     // ---------------------------------------------------------------- sound helpers
     /** Android's speech service plays a start beep on every restart; muted for a moment so continuous listening is quiet. */
+    // Android's speech service plays a start and an end sound on every session (the «two quick sounds»). They are
+    // muted for the whole session; our own replies are spoken by Madina before the microphone opens.
+    private val earconStreams = intArrayOf(AudioManager.STREAM_MUSIC, AudioManager.STREAM_SYSTEM, AudioManager.STREAM_NOTIFICATION)
     private fun muteBeep() {
+        if (mutedBeep) return
         val am = getSystemService(AudioManager::class.java) ?: return
-        try { am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0); am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0); mutedBeep = true } catch (_: Exception) {}
+        try { earconStreams.forEach { am.adjustStreamVolume(it, AudioManager.ADJUST_MUTE, 0) }; mutedBeep = true } catch (_: Exception) {}
     }
     private fun unmuteBeep() {
         if (!mutedBeep) return
         val am = getSystemService(AudioManager::class.java) ?: return
-        try { am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0); am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0) } catch (_: Exception) {}
+        try { earconStreams.forEach { am.adjustStreamVolume(it, AudioManager.ADJUST_UNMUTE, 0) } } catch (_: Exception) {}
         mutedBeep = false
     }
-    private fun beep(up: Boolean) { try { tone?.startTone(if (up) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_NACK, 150) } catch (_: Exception) {} }
+    /** Plays a short pre-recorded Madina phrase, then continues. The microphone is never open while she speaks. */
+    private fun say(res: Int, then: () -> Unit) {
+        unmuteBeep()
+        try { player?.release() } catch (_: Exception) {}
+        val mp = try { MediaPlayer.create(this, res, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(), 0) } catch (_: Exception) { null }
+        if (mp == null) { then(); return }
+        player = mp
+        var done = false
+        val next = { if (!done) { done = true; try { mp.release() } catch (_: Exception) {}; if (player === mp) player = null; main.postDelayed(then, 150) } }
+        mp.setOnCompletionListener { next() }
+        mp.setOnErrorListener { _, _, _ -> next(); true }
+        main.postDelayed({ next() }, 8000)
+        try { mp.start() } catch (_: Exception) { next() }
+    }
     private fun vibrate() {
         try {
             val v = getSystemService(Vibrator::class.java)
