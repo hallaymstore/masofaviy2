@@ -21,6 +21,8 @@ android {
         versionName = "1.0.0"
         // The platform the app opens; can also be changed in the app settings.
         buildConfigField("String", "DEFAULT_URL", "\"https://hallaym.kstu.uz\"")
+        // Phones only (ARM); emulator libraries (x86) would almost double the APK. Build with -PwithX86 for an emulator.
+        if (!project.hasProperty("withX86")) ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "VOSK_MODEL_URL", "\"https://alphacephei.com/vosk/models/vosk-model-small-uz-0.22.zip\"")
     }
     signingConfigs {
