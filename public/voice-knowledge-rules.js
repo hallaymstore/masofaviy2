@@ -44,7 +44,7 @@ export function parseQuestion(raw){
     return {topic:'assignments',when};
   }
   if(/\b(jadval|jadvali|jadvalda|jadvalim|raspisan)/.test(t)||/\b(nechta|qanday|qaysi|qanaqa)\b.*\b(dars|para)/.test(t)||/\b(dars|darslar|para|paralar)\b.*\b(bormi|bor mi|qanaqa|qanday|qachon|nechta)\b/.test(t)||/\b(ertaga|ertangi|indin|dushanba|seshanba|chorshanba|payshanba|juma|shanba)\b.*\bdars/.test(t)){
-    if(/^(?:dars jadvali|jadval|jadvalim|jadvalni och)$/.test(t))return null; // bare page name → normal navigation
+    if(/^(?:dars jadvali|jadval|jadvalim|jadvalni och|jadval och|dars jadvalini och)$/.test(t))return null; // bare page name → normal navigation
     return {topic:'schedule',day:parseDay(t)};
   }
   return null;

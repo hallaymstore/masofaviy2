@@ -7,6 +7,7 @@ import {reader,openAudioReader} from './audio-reader.js';
 import {createVoiceContext,contextActionLabel} from './voice-context.js';
 import {isNegated,parseContextCommand} from './voice-context-rules.js';
 import {createVoiceKnowledge} from './voice-knowledge.js';
+import {speakingChanged} from './native-bridge.js';
 import {parseFind} from './voice-knowledge-rules.js';
 
 const $=s=>document.querySelector(s);
@@ -58,15 +59,22 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     oneShot=!handsFree();syncMic();recognition.start();render();
   }
   function pauseMic(){oneShot=false;recognition.stop();update({voiceHandsFree:false});render()}
+  // Short answers by default: hint sentences («… deng») are dropped unless the user turned on detailed answers.
+  function brief(text){
+    if(prefs().voiceVerbose===true)return text;
+    const parts=String(text).match(/[^.!?]+[.!?]*/g)||[text];
+    const kept=parts.filter(p=>!/(\bdeng\b|deyishingiz|aytishingiz mumkin|deb so‘rang|tugmasini bosing\.?$)/.test(p));
+    return (kept.length?kept:parts.slice(0,1)).join('').trim();
+  }
   async function say(text){
-    if(!text)return;
-    speaking++;syncMic();
+    if(!text)return;text=brief(text);
+    speaking++;syncMic();speakingChanged(true);
     a11y?.announce?.(text);
     try{await new Promise(resolve=>{
       let done=false;const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve()}};
       const timer=setTimeout(finish,45000);
       try{const result=speech.speak(text,{owner:'assistant',lang:'uz',rate:Number(prefs().ttsRate)||1,onend:finish,oncancel:finish,onerror:e=>{error=e?.message||'Ovoz ijro etilmadi.';render();finish()}});if(result===false)finish()}catch{finish()}
-    })}finally{speaking--;syncMic()}
+    })}finally{speaking--;if(!speaking)speakingChanged(false);syncMic()}
   }
   function mount(){
     dock=document.createElement('aside');dock.id='vaDock';dock.className='va-widget';dock.setAttribute('aria-label','O‘zbekcha ovozli yordamchi');
