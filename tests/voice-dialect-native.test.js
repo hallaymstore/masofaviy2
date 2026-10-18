@@ -56,7 +56,7 @@ test('web and app are wired together; answers are short', ()=>{
   assert.ok(va.includes('function brief(text)')&&va.includes('speakingChanged(true)'));
   assert.ok(sw.includes("'/native-bridge.js'"));
   const svc=read('android/app/src/main/java/uz/hallaym/edu/VoiceService.kt'),act=read('android/app/src/main/java/uz/hallaym/edu/MainActivity.kt'),manifest=read('android/app/src/main/AndroidManifest.xml');
-  assert.ok(svc.includes('FOREGROUND_SERVICE_TYPE_MICROPHONE')&&svc.includes('Recognizer(m, SAMPLE, grammar)'),'wake word is offline Vosk with a grammar');
+  assert.ok(svc.includes('FOREGROUND_SERVICE_TYPE_MICROPHONE')&&svc.includes('fun afterWake(')&&!svc.includes('Recognizer(m, SAMPLE, grammar)'),'wake word: full offline model + real word (a wake-word-only grammar woke on every phrase)');
   assert.ok(act.includes('mediaPlaybackRequiresUserGesture = false')&&act.includes('addJavascriptInterface(Bridge(), "HallaymNative")'));
   assert.ok(manifest.includes('android:foregroundServiceType="microphone"')&&manifest.includes('.HallaymWidget'));
 });
