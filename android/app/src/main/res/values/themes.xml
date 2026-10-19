@@ -1,0 +1,13 @@
+<resources>
+    <color name="bg">#081A38</color>
+    <color name="brand">#0B4FD8</color>
+    <color name="accent">#FFB000</color>
+    <style name="Theme.Hallaym" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">#0B4FD8</item>
+        <item name="colorPrimaryDark">#081A38</item>
+        <item name="colorAccent">#FFB000</item>
+        <item name="android:statusBarColor">#081A38</item>
+        <item name="android:navigationBarColor">#081A38</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+</resources>

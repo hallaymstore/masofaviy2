@@ -17,6 +17,7 @@ import {createInclusionUi} from './inclusion-ui.js';
 import {createMyBooksUi} from './my-books-ui.js';
 import {createLibraryManagerUi} from './library-manager-ui.js';
 import {createVoiceAssistant} from './voice-assistant.js';
+import {inApp,nativeRecognitionFactory} from './native-bridge.js';
 import {openAudioReader,reader} from './audio-reader.js';
 import {refreshServer as refreshSpeech,signedOut as speechSignedOut} from './speech.js';
 import {rememberPlayback,readPlayback,playbackResumeSeconds} from './video-playback-state.js';
@@ -37,7 +38,7 @@ const toast=t=>{const e=$('#toast');if(!e)return;e.textContent=String(t||'Xatoli
 const a11y=createA11y({api,toast}); // accessibility panel: available on the login screen and every page
 const myBooksUi=createMyBooksUi({api,toast,esc,csrf,currentUser:()=>user,announce:text=>{toast(text);a11y.announce(text)}});
 const libraryManagerUi=createLibraryManagerUi({api,toast,esc,csrf});
-const voiceAssistant=createVoiceAssistant({go,currentUser:()=>user,logout,a11y,myBooks:myBooksUi});
+const voiceAssistant=createVoiceAssistant({recognitionFactory:inApp()?nativeRecognitionFactory:undefined,go,currentUser:()=>user,logout,a11y,myBooks:myBooksUi,api,enterLive:id=>enterLiveRoom(id),openSearchHit:hit=>openGlobalSearchResult(hit)});
 const applyBranding=()=>{
   const product=branding.productName||'HALLAYM EDU',institution=branding.institutionName||'Universitet',short=branding.shortName||institution;
   document.title=product+(institution?' · '+institution:'');
@@ -1567,7 +1568,8 @@ async function loadLessonParticipants(){
     const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],audit=x.groupAudit||null;
     if(seq!==participantsSeq||lessonId!==activeLessonId)return; // a newer refresh or another lesson won
     renderLessonStudentRail(rows,audit);
-    if(attendanceDirty){$('#attendanceSave')?.classList.add('needs-save');return} // keep the teacher's unsaved marksconst label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
+    if(attendanceDirty){$('#attendanceSave')?.classList.add('needs-save');return} // keep the teacher's unsaved marks
+    const label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
     const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length,face:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return p.cameraReady&&p.faceState==='present'}).length,attentionLow:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60}).length};
     const summary='<div class="attendance-summary">'+

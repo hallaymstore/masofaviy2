@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">HALLAYM EDU</string>
+    <string name="settings_title">Ovozli yordamchi sozlamalari</string>
+    <string name="widget_name">HALLAYM ovozli yordamchi</string>
+    <string name="widget_desc">Gapirish, kitoblar, darsga kirish va jadval</string>
+    <string name="channel_voice">Ovozli yordamchi</string>
+    <string name="channel_alert">Ovozli buyruqlar</string>
+    <string name="shortcut_listen">Madina, tingla</string>
+    <string name="w_mic">🎙  Madina, tingla</string>
+    <string name="w_books">📚\nKitoblarim</string>
+    <string name="w_live">🎓\nDarsga kirish</string>
+    <string name="w_today">📅\nBugungi jadval</string>
+</resources>

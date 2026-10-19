@@ -4,11 +4,16 @@ import {createRecognition} from './voice-recognition.js';
 import {actions,fields,findControl,indexedActions,controlLabel,controlScope,isVisible,writeField,isSensitiveAction} from './voice-controls.js';
 import * as speechEngine from './speech.js';
 import {reader,openAudioReader} from './audio-reader.js';
+import {createVoiceContext,contextActionLabel} from './voice-context.js';
+import {isNegated,parseContextCommand} from './voice-context-rules.js';
+import {createVoiceKnowledge} from './voice-knowledge.js';
+import {speakingChanged} from './native-bridge.js';
+import {parseFind} from './voice-knowledge-rules.js';
 
 const $=s=>document.querySelector(s);
 const STATES={idle:'Tayyor',starting:'Mikrofon ulanmoqda…',listening:'Tinglayapman — buyruq ayting',waiting:'Javob o‘qilmoqda…',paused:'Mikrofon to‘xtatilgan',blocked:'Mikrofonni tekshiring',unsupported:'Yozma buyruqdan foydalaning',retrying:'Qayta ulanmoqda…'};
 
-export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBooks,speech=speechEngine,recognitionFactory}={}){
+export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBooks,api:request,enterLive,openSearchHit,speech=speechEngine,recognitionFactory}={}){
   const prefs=()=>window.HxA11y?.get?.()||{};
   const enabled=()=>prefs().voiceAssistant===true;
   const handsFree=()=>prefs().voiceHandsFree!==false;
@@ -17,6 +22,11 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
   let pending=null,focused=null,actionList=[],fieldList=[],lastInput='',lastAt=0,voiceNavigation=false,restoring=false,trail=[],trailIndex=-1;
   let wasEnabled=false,lastHandsFree=handsFree(),navSerial=0;
   const notifications=[];
+  const context=createVoiceContext();
+  // Questions (schedule, assignments, live lesson) and «find X anywhere and open it», with spoken multiple choice.
+  const knowledge=createVoiceKnowledge({api:request,go:async page=>{voiceNavigation=true;try{await go(page)}finally{voiceNavigation=false}},say:text=>say(text),
+    step:text=>{const el=dock?.querySelector('#vaHeard');if(el)el.textContent='➜ '+text},enterLive,openSearchHit:async hit=>{voiceNavigation=true;try{await openSearchHit?.(hit)}finally{voiceNavigation=false}},myBooks,currentUser,
+    playReader:()=>{const until=Date.now()+15000;const tick=()=>{const r=reader.current;if(r?.isOpen?.()&&isVisible($('[data-ar="play"]'))){if(!r.isPlaying?.())void r.play();return}if(Date.now()<until)setTimeout(tick,120)};setTimeout(tick,150)}});
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const recognition=createRecognition({factory:recognitionFactory||(SR?()=>new SR():undefined),
     canListen:()=>enabled()&&!stoppedForLogout&&document.visibilityState==='visible',
@@ -49,15 +59,22 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     oneShot=!handsFree();syncMic();recognition.start();render();
   }
   function pauseMic(){oneShot=false;recognition.stop();update({voiceHandsFree:false});render()}
+  // Short answers by default: hint sentences («… deng») are dropped unless the user turned on detailed answers.
+  function brief(text){
+    if(prefs().voiceVerbose===true)return text;
+    const parts=String(text).match(/[^.!?]+[.!?]*/g)||[text];
+    const kept=parts.filter(p=>!/(\bdeng\b|deyishingiz|aytishingiz mumkin|deb so‘rang|tugmasini bosing\.?$)/.test(p));
+    return (kept.length?kept:parts.slice(0,1)).join('').trim();
+  }
   async function say(text){
-    if(!text)return;
-    speaking++;syncMic();
+    if(!text)return;text=brief(text);
+    speaking++;syncMic();speakingChanged(true);
     a11y?.announce?.(text);
     try{await new Promise(resolve=>{
       let done=false;const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve()}};
       const timer=setTimeout(finish,45000);
       try{const result=speech.speak(text,{owner:'assistant',lang:'uz',rate:Number(prefs().ttsRate)||1,onend:finish,oncancel:finish,onerror:e=>{error=e?.message||'Ovoz ijro etilmadi.';render();finish()}});if(result===false)finish()}catch{finish()}
-    })}finally{speaking--;syncMic()}
+    })}finally{speaking--;if(!speaking)speakingChanged(false);syncMic()}
   }
   function mount(){
     dock=document.createElement('aside');dock.id='vaDock';dock.className='va-widget';dock.setAttribute('aria-label','O‘zbekcha ovozli yordamchi');
@@ -95,7 +112,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     try{await go(page);await say(pageName()+' ochildi. «Tugmalarni ayt» yoki «sahifani o‘qi» deng.')}finally{voiceNavigation=false}
   }
   function remember(page){
-    focused=null;pending=null;actionList=[];fieldList=[];showChoices([]);
+    focused=null;pending=null;actionList=[];fieldList=[];context.reset();showChoices([]);
     if(restoring)return;
     if(trail[trailIndex]===page)return;
     trail=trail.slice(0,trailIndex+1);trail.push(page);trailIndex=trail.length-1;
@@ -122,14 +139,14 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     return travel(-1);
   }
   function showChoices(list){
-    dock.querySelector('#vaChoices').replaceChildren(...list.map((element,i)=>{const item=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=(i+1)+'. '+controlLabel(element);b.onclick=()=>{void activate(element)};item.append(b);return item}));
+    dock.querySelector('#vaChoices').replaceChildren(...list.map((element,i)=>{const item=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=(i+1)+'. '+contextActionLabel(element);b.onclick=()=>{void activate(element)};item.append(b);return item}));
   }
   async function listControls(kind){
     const list=kind==='fields'?fields():actions();
     if(kind==='fields')fieldList=list;else actionList=list;
     showChoices(kind==='fields'?[]:list);
     if(!list.length)return say(kind==='fields'?'Bu oynada to‘ldiriladigan maydon yo‘q.':'Bu oynada faol tugma yo‘q.');
-    const labels=list.map((element,i)=>(i+1)+'. '+controlLabel(element));
+    const labels=list.map((element,i)=>(i+1)+'. '+(kind==='fields'?controlLabel(element):contextActionLabel(element)));
     await say((kind==='fields'?'Maydonlar. ':'Tugmalar. ')+labels.slice(0,18).join('. ')+(list.length>18?'. Qolganlari yordamchi panelidagi ro‘yxatda.':''));
   }
   async function focusField(command){
@@ -144,16 +161,61 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     pending={callback,until:Date.now()+25000,scope:controlScope()};
     await say(question+' Tasdiqlash uchun «ha», bekor qilish uchun «yo‘q» deng.');
   }
-  async function activate(element){
+  async function activate(element,{label=contextActionLabel(element||document.body)}={}){
     if(!element||!actions().includes(element))return say('Bu tugma hozir faol emas. «Tugmalar» deng.');
     if(element.matches('a[href]')){
       const url=new URL(element.href,location.href);
       if(url.origin!==location.origin||element.target==='_blank')return say('Bu havola yangi oynani ochadi. Uni klaviaturada Enter bilan oching.');
     }
     const execute=()=>{if(!actions().includes(element))return say('Tugma o‘zgardi. «Tugmalar» deng.');element.click()};
-    if(isSensitiveAction(element))return confirm(controlLabel(element)+' amalini bajaraymi?',execute);
+    if(isSensitiveAction(element))return confirm((label===controlLabel(element)?label:label+' — '+controlLabel(element))+' amalini bajaraymi?',execute);
     element.focus();element.click();
-    await say(controlLabel(element)+' tanlandi.');
+    await say(label+' tanlandi.');
+  }
+  function contextChoices(result,intent){
+    context.rememberChoices(result,intent);
+    dock.querySelector('#vaChoices').replaceChildren(...result.candidates.map((record,i)=>{const item=document.createElement('li'),button=document.createElement('button');button.type='button';button.textContent=(i+1)+'. '+[record.title,record.path].filter(Boolean).join(' — ');button.onclick=()=>{void receive([String(i+1)],{typed:true})};item.append(button);return item}));
+  }
+  async function executeContext(result,intent){
+    if(result.status==='unanswered')return false;
+    if(result.status==='missingReference'){await say('Avval kerakli fan yoki mavzuni tanlang. «Mavzularni sanab ber» deyishingiz mumkin.');return true}
+    if(result.status==='missing'){await say('Hozirgi sahifada bu mazmunga mos amal topilmadi. «Mavzularni sanab ber» yoki «tugmalarni ayt» deng.');return true}
+    if(result.status==='list'||result.status==='ambiguous'){
+      if(!result.candidates.length){await say('Hozirgi oynada bunday material ko‘rsatilmagan.');return true}
+      contextChoices(result,intent);
+      const prefix=result.status==='ambiguous'?'Bir nechta mos variant bor. Qaysi birini ochay? ':'Mavjud variantlar. ';
+      await say(prefix+result.candidates.slice(0,8).map((r,i)=>(i+1)+'. '+[r.title,r.course||r.path].filter(Boolean).join(', ')).join('. ')+'. Raqamini yoki fan va mavzu nomini ayting.');return true;
+    }
+    const target=result.target,fresh=context.snapshot().records.find(r=>r.id===target.id);
+    if(!fresh||!context.reveal(fresh)){context.clearChoices();await say('Sahifa o‘zgardi. Kerakli mavzu yoki amalni qayta ayting.');return true}
+    if(fresh.blocked&&['open','edit','delete'].includes(intent.operation)){await say(fresh.title+'. '+fresh.reason);return true}
+    if(intent.operation==='describe'){context.select(fresh);await say([fresh.title,fresh.path,fresh.text].filter(Boolean).join('. ').slice(0,1800));return true}
+    if(intent.operation==='read'){
+      context.select(fresh);openAudioReader({title:fresh.title,text:fresh.text,announce:a11y?.announce});playPreparedReader();return true;
+    }
+    let element=fresh.element;
+    if(intent.operation==='delete'||intent.operation==='edit'){
+      const pattern=intent.operation==='delete'?/ochir|arxiv/:/tahrir|ozgartir/;
+      element=[...fresh.container.querySelectorAll('button,a[href]')].find(b=>isVisible(b)&&!b.disabled&&pattern.test(normalize(controlLabel(b))));
+      if(!element){await say('Bu material uchun so‘ralgan amal hozir mavjud emas.');return true}
+    }
+    if(element?.tagName==='SUMMARY'){
+      const details=element.parentElement;if(details.tagName==='DETAILS'){details.open=true;context.select(fresh);await say(fresh.title+' mavzusi ochildi. Ichidagi material yoki test nomini ayting.');return true}
+    }
+    if(!element){fresh.container.setAttribute('tabindex','-1');fresh.container.focus();context.select(fresh);await say(fresh.title+' tanlandi. Endi uning mavzu yoki materialini ayting.');return true}
+    const previous=reader.current;
+    await activate(element,{label:fresh.title});context.select(fresh);
+    if(fresh.kind==='book'&&/tingla|oqi|oqib/.test(intent.text)){if(isVisible($('#libraryListen')))$('#libraryListen').click();playNextReader(previous)}
+    return true;
+  }
+  async function runContext(intent){
+    if(intent.operation==='overview'){
+      const {records}=context.snapshot(),items=records.filter(r=>r.kind!=='action');
+      const list=items.length?items:records;
+      await say(pageName()+'. '+list.slice(0,12).map((r,i)=>(i+1)+'. '+r.title+(r.blocked?' — hozir yopiq':'')).join('. ')+'. Nomini, mavzu raqamini yoki «tugmalarni ayt» deng.');return true;
+    }
+    if(intent.relative&&controlScope().id==='videoWatch'&&['topic','video'].includes(intent.kind)){voiceNavigation=true;try{await go('videos')}finally{voiceNavigation=false}}
+    return executeContext(context.resolve(intent),intent);
   }
   function playPreparedReader(){
     const opened=reader.current,until=Date.now()+15000;
@@ -208,7 +270,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
         const value=command.action==='clear'?'':field?.id==='loginInput'?spokenToLogin(command.arg):command.arg;
         return say(writeField(field,value).message);
       }
-      case 'activate':{const found=findControl(command.arg,actions());if(found?.ambiguous)return say('Bir nechta o‘xshash tugma bor. «Tugmalar» deb, keyin raqamini ayting.');return activate(found?.element)}
+      case 'activate':{const found=findControl(command.arg,actions());if(found?.element&&!found.ambiguous)return activate(found.element);const intent=parseContextCommand(command.arg+' och');if(intent)return runContext(intent);return say('Bir nechta o‘xshash tugma bor. «Tugmalar» deb, keyin raqamini ayting.')}
       case 'selectIndex':{
         const current=command.kind?indexedActions(command.kind):actions();
         const list=!command.kind&&actionList.length?actionList:current;
@@ -262,10 +324,25 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     let command=null;for(const alternative of alternatives){command=matchCommand(alternative);if(command)break}
     busy=true;
     try{
+      if(knowledge.hasPending()&&await knowledge.answer(text))return;
+      if(isNegated(text)){context.clearChoices();pending=null;await say('Amal bajarilmadi.');return}
+      if(currentUser()&&!pending&&!context.hasChoices()&&await knowledge.handleQuestion(text))return;
+      const intent=parseContextCommand(text);
+      const answer=context.hasChoices()&&(!intent?.explicit||intent.kind==='any')?context.answer(text):null;
+      if(answer?.status==='stale'){await say('Variantlar ro‘yxati o‘zgardi. Mavzu yoki material nomini qayta ayting.');return}
+      if(answer&&['matched','blocked'].includes(answer.status)&&!['yes','no'].includes(command?.action)){await executeContext(answer,answer.intent);return}
+      if(answer?.status==='ambiguous'&&!command){await executeContext(answer,answer.intent);return}
+      const protectedCommand=command&&['stop','resume','help','repeat','go','logout','yes','no','dictate','focusField','submit','clear','search','login','back','forward','close','pauseListening','resumeListening','readPage'].includes(command.action);
+      if(intent&&!protectedCommand){const result=context.resolve(intent);
+        // Not on this page: look for it across the platform (books, videos, courses…) and walk there.
+        if(result.status==='missing'&&currentUser()&&parseFind(text)){pending=null;await knowledge.handleFind(text);return}
+        if(result.status!=='missing'||intent.explicit){pending=null;await runContext(intent);return}}
+      context.clearChoices();
+      if(!command&&currentUser()&&await knowledge.handleFind(text))return;
       if(!command){pending=null;await say('Buyruqni aniqlay olmadim. «Yordam», «sahifalar» yoki «tugmalar» deng.');return}
       await run(command);
     }catch(e){await say('Amal bajarilmadi. '+(e?.message||'Qayta urinib ko‘ring.'))}
-    finally{busy=false;if(oneShot&&!pending&&!$('dialog[data-va-confirm][open]')){oneShot=false;recognition.stop()}render()}
+    finally{busy=false;if(oneShot&&!pending&&!context.hasChoices()&&!knowledge.hasPending()&&!$('dialog[data-va-confirm][open]')){oneShot=false;recognition.stop()}render()}
   }
   async function startLogin(){
     expanded=true;stoppedForLogout=false;if(!enabled())update({voiceAssistant:true});render();
@@ -282,11 +359,12 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     syncMic();render();
   }
   async function afterLogin(){
+    context.reset({forget:true});
     stoppedForLogout=false;trail=[$('#main>.page.active')?.id||'dashboard'];trailIndex=0;
     wasEnabled=enabled();lastHandsFree=handsFree();expanded=enabled();render();
     if(enabled()){await say('Xush kelibsiz, '+(currentUser()?.fullName||'')+'. Ovozli boshqaruv tayyor. «Sahifalar» yoki «yordam» deng.');if(handsFree()&&enabled())startMic()}
   }
-  function afterLogout(){document.dispatchEvent(new Event('hx:voice-logout'));stoppedForLogout=true;oneShot=false;pending=null;focused=null;actionList=[];fieldList=[];notifications.length=0;trail=[];trailIndex=-1;recognition.stop();showChoices([]);dock.querySelector('#vaHeard').textContent='';render()}
+  function afterLogout(){context.reset({forget:true});document.dispatchEvent(new Event('hx:voice-logout'));stoppedForLogout=true;oneShot=false;pending=null;focused=null;actionList=[];fieldList=[];notifications.length=0;trail=[];trailIndex=-1;recognition.stop();showChoices([]);dock.querySelector('#vaHeard').textContent='';render()}
 
   mount();
   // A native modal makes body siblings inert. Keep the widget inside the active modal.
