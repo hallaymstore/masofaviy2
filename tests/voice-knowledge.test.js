@@ -101,3 +101,29 @@ test('assistant routes questions and cross-page finds before saying «not found�
   assert.ok(sw.includes("'/voice-knowledge.js'")&&sw.includes("'/voice-knowledge-rules.js'"));
   assert.ok(pkg.scripts.check.includes('public/voice-knowledge.js'));
 });
+
+test('more questions: next lesson, grades by subject, unread messages, who am I', async()=>{
+  const {parseQuestion,describeNext,describeGrades,describeMessages}=await import('../public/voice-knowledge-rules.js');
+  assert.deepEqual(parseQuestion('keyingi dars qachon'),{topic:'nextLesson'});
+  assert.deepEqual(parseQuestion('matematikadan bahom qanday'),{topic:'grades',subject:'matematika'});
+  assert.deepEqual(parseQuestion('yangi xabar bormi'),{topic:'messages'});
+  assert.deepEqual(parseQuestion('qaysi guruhdaman'),{topic:'whoami'});
+  assert.equal(parseQuestion('baholarni och'),null,'opening the page stays navigation');
+  const now=new Date(2026,9,16,10,0);
+  const rows=[{title:'Fizika',weekday:5,start:'08:30',end:'09:50'},{title:'Kimyo',weekday:5,start:'13:30',end:'14:50',room:'210'},{title:'Tarix',weekday:6,start:'08:30',end:'09:50'}];
+  assert.equal(describeNext(rows,now),'Bugun, juma, 16-oktabr soat 13:30 da Kimyo, 210-xona.');
+  assert.match(describeNext([{title:'Fizika',weekday:5,start:'09:30',end:'11:00'}],now),/^Hozir Fizika ketyapti, soat 11:00 gacha\.$/);
+  const book={rows:[{status:'graded',courseTitle:'Oliy matematika',assignmentTitle:'1-nazorat',score:8,scale:10,percent:80},{status:'graded',courseTitle:'Fizika',assignmentTitle:'Lab',score:4,scale:5,percent:80},{status:'pending',courseTitle:'Fizika'}],stats:{pending:1}};
+  assert.match(describeGrades(book,'matematika'),/^O‘rtacha natijangiz 80 foiz, 1 ta baho\. Oxirgilari: Oliy matematika, 1-nazorat — 8 dan 10\. Yana 1 ta ish tekshirilmoqda\.$/);
+  assert.match(describeGrades({rows:[],stats:{pending:0}}),/baholangan ishingiz yo‘q/);
+  assert.equal(describeMessages([{readAt:new Date()},{senderId:{fullName:'Dekanat'},subject:'Imtihon jadvali'}]),'1 ta o‘qilmagan xabar. Dekanatdan: Imtihon jadvali. O‘qish uchun «xabarlar» deng.');
+});
+
+test('app and page never talk at once; a silent page cannot keep the microphone off', ()=>{
+  const bridge=read('public/native-bridge.js'),svc=read('android/app/src/main/java/uz/hallaym/edu/VoiceService.kt'),bus=read('android/app/src/main/java/uz/hallaym/edu/VoiceBus.kt');
+  assert.ok(bridge.includes("if(state==='wake'){try{window.HxSpeech?.stop?.()}"),'wake word stops the page voice');
+  assert.ok(svc.includes('VoiceBus.state("wake")')&&svc.includes('VoiceBus.reallySpeaking()'));
+  assert.ok(bus.includes('System.currentTimeMillis() - speakingAt < 25_000'));
+  assert.ok(svc.includes('googleFailures = 0 // try the accurate engine again'),'falls back to offline only for a minute');
+  assert.ok(!svc.includes('say(R.raw.va_labbay) { captureCommand() }'),'no long phrase before listening — fast speakers are not cut off');
+});

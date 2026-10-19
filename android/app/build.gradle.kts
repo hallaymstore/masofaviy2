@@ -17,8 +17,8 @@ android {
         applicationId = "uz.hallaym.edu"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
         // The platform the app opens; can also be changed in the app settings.
         buildConfigField("String", "DEFAULT_URL", "\"https://hallaym.kstu.uz\"")
         // Phones only (ARM); emulator libraries (x86) would almost double the APK. Build with -PwithX86 for an emulator.

@@ -24,6 +24,10 @@ object VoiceBus {
     @Volatile var webListening = false
     /** The page is speaking: never listen, or «Madina» in our own answer would wake us. */
     @Volatile var speaking = false
+        set(v) { field = v; speakingAt = if (v) System.currentTimeMillis() else 0L }
+    /** When the page started speaking; a page that never says «done» must not keep the microphone off for ever. */
+    @Volatile var speakingAt = 0L
+    fun reallySpeaking() = speaking && System.currentTimeMillis() - speakingAt < 25_000
     /** A live lesson uses the microphone through WebRTC. */
     @Volatile var micBusy = false
     /** Command waiting for the window to open (said while the app was in the background). */

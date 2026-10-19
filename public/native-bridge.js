@@ -15,6 +15,8 @@ if(typeof window!=='undefined')window.HxNative={
     current.onresult?.({resultIndex:0,results:[row]});return true;
   },
   state(state,message){
+    // «Madina» was heard: the page stops talking immediately so the two assistants never speak at once.
+    if(state==='wake'){try{window.HxSpeech?.stop?.()}catch{};try{window.speechSynthesis?.cancel()}catch{};document.querySelectorAll('audio').forEach(a=>{if(!a.paused&&!a.closest('.ar-dialog'))a.pause()});return}
     if(!current)return;
     if(state==='error')current.onerror?.({error:message||'network'});
     else if(state==='listening')current.onstart?.();

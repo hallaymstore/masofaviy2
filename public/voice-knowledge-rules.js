@@ -35,6 +35,11 @@ export function dayName(date,now=new Date()){
 // What kind of question is this? null when it is not a question the knowledge module answers.
 export function parseQuestion(raw){
   const t=canonical(raw);if(!t)return null;
+  // Short questions people actually ask (any word order, dialect forms come normalised by canonical()).
+  if(/\b(keyingi|navbatdagi|keyin qaysi|sledu)\b.*\b(dars|para|urok)|\b(dars|para)\b.*\b(qachon|soat nechada)\b/.test(t))return {topic:'nextLesson'};
+  if(/\b(baho|bahol|bahom|bahoyim|ball|ballar|ballarim|otsenk|reyting|natija|natijalar|natijam)/.test(t)&&!/\b(och|korsat|sahifa)\b/.test(t))return {topic:'grades',subject:(t.match(/([a-z]{4,})dan(?:\s|$)/)||[])[1]||''};
+  if(/\b(xabar|xabarlar|xat|pochta|soobshen)\b.*\b(bormi|keldimi|nechta|yangi|oqilmagan)\b|\b(yangi|oqilmagan)\b.*\b(xabar|xat)/.test(t))return {topic:'messages'};
+  if(/\b(men kimman|kim bilan gaplashyapman|mening guruhim|qaysi guruhdaman|profilim haqida)\b/.test(t))return {topic:'whoami'};
   const openVerb=/\b(och|ochib|ochgin|oching|kir|kirgin|kiring|ulan|ulanib|qoshil|qoshilib|olib bor|otkaz|voyti|otkroy)\b/.test(t);
   if(/\b(hozirgi|joriy|jonli|boshlangan|ketayotgan|ketyapgan|davom etayotgan|aktiv|faol|tekushch|seychas)\b/.test(t)&&/\b(dars|darsni|darsga|urok)/.test(t))
     return {topic:'live',action:openVerb?'open':'ask'};
@@ -103,6 +108,28 @@ export function describeLive(rooms){
   }
   const r=active.find(x=>x.canJoin)||active[0];
   return {room:r,text:'Hozir '+(r.schedule?.title||r.schedule?.subject||'dars')+' ketyapti, soat '+clock(r.schedule?.end)+' gacha.'};
+}
+
+// Next lesson from now (today later, or the coming days).
+export function describeNext(rows,now=new Date()){
+  for(let i=0;i<8;i++){const d=new Date(now);d.setDate(d.getDate()+i);const nowHm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const list=lessonsForDate(rows,d).filter(r=>i>0||String(r.end).slice(0,5)>nowHm);
+    if(list.length){const r=list[0];const live=i===0&&String(r.start).slice(0,5)<=nowHm;
+      return (live?'Hozir ':dayName(d,now)+' soat '+String(r.start).slice(0,5)+' da ')+(r.title||r.subject||'dars')+(live?' ketyapti, soat '+String(r.end).slice(0,5)+' gacha':'')+(r.teacherId?.fullName?', o‘qituvchi '+r.teacherId.fullName:'')+(r.room?', '+r.room+'-xona':'')+'.'}}
+  return 'Yaqin bir hafta ichida dars yo‘q.';
+}
+// Grades: average and the latest marks (optionally of one subject).
+export function describeGrades(book,subject=''){
+  let rows=(book?.rows||[]).filter(r=>r.status==='graded');
+  const want=canonical(subject||'').slice(0,6);if(want.length>=4){const f=rows.filter(r=>canonical(r.courseTitle).includes(want));if(f.length)rows=f}
+  if(!rows.length)return 'Hozircha baholangan ishingiz yo‘q.'+(book?.stats?.pending?' Tekshirilishi kutilayotgan ishlar: '+book.stats.pending+' ta.':'');
+  const avg=Math.round(rows.reduce((t,r)=>t+(Number(r.percent)||0),0)/rows.length);
+  return 'O‘rtacha natijangiz '+avg+' foiz, '+rows.length+' ta baho. Oxirgilari: '+rows.slice(0,4).map(r=>r.courseTitle+', '+r.assignmentTitle+' — '+r.score+' dan '+r.scale).join('. ')+'.'+(book?.stats?.pending?' Yana '+book.stats.pending+' ta ish tekshirilmoqda.':'');
+}
+export function describeMessages(rows){
+  const unread=(rows||[]).filter(m=>!m.readAt);
+  if(!unread.length)return 'Yangi xabar yo‘q.';
+  return unread.length+' ta o‘qilmagan xabar. '+unread.slice(0,3).map(m=>(m.senderId?.fullName||'Kimdir')+'dan: '+(m.subject||'mavzusiz')).join('. ')+'. O‘qish uchun «xabarlar» deng.';
 }
 
 // Ranking search hits by how many spoken words they contain.

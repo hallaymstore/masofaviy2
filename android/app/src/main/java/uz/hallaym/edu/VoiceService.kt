@@ -157,7 +157,7 @@ class VoiceService : Service() {
     /** Picks what the microphone should do now. Called on every change (window visible, page speaking, lesson…). */
     fun decide() {
         val want = when {
-            VoiceBus.speaking || VoiceBus.micBusy -> Mode.PAUSED
+            VoiceBus.reallySpeaking() || VoiceBus.micBusy -> Mode.PAUSED
             forcedOnce -> Mode.COMMAND
             VoiceBus.activityVisible && VoiceBus.webListening -> Mode.CONTINUOUS
             prefs.background && model != null -> Mode.WAKE
@@ -169,8 +169,8 @@ class VoiceService : Service() {
         when (want) {
             Mode.CONTINUOUS -> startContinuous()
             Mode.WAKE -> startWake()
-            Mode.COMMAND -> { forcedOnce = false; say(R.raw.va_labbay) { captureCommand() } }
-            Mode.PAUSED -> setState(if (VoiceBus.micBusy) "Jonli dars mikrofonni ishlatyapti" else "Javob o‘qilmoqda…")
+            Mode.COMMAND -> { forcedOnce = false; VoiceBus.state("wake"); tick(); captureCommand() }
+            Mode.PAUSED -> { setState(if (VoiceBus.micBusy) "Jonli dars mikrofonni ishlatyapti" else "Javob o‘qilmoqda…"); if (VoiceBus.speaking) main.postDelayed({ decide() }, 26_000) }
             Mode.NONE -> { setState("Tinglash o‘chiq"); if (!VoiceBus.activityVisible && !prefs.background) stopSelf() }
         }
     }
@@ -237,7 +237,8 @@ class VoiceService : Service() {
         val rest = afterWake(phrase, prefs.wakeWords) ?: return
         mode = Mode.COMMAND
         stopAll(); vibrate()
-        if (rest.split(' ').size >= 2) route(rest, listOf(rest)) else say(R.raw.va_labbay) { captureCommand() }
+        VoiceBus.state("wake") // the page stops talking at once
+        if (rest.split(' ').size >= 2) route(rest, listOf(rest)) else { tick(); captureCommand() }
     }
 
     // ---------------------------------------------------------------- one command after the wake word / widget tap
@@ -284,7 +285,11 @@ class VoiceService : Service() {
     }
 
     // ---------------------------------------------------------------- engines
-    private fun useGoogle(): Boolean = prefs.engine == "google" && googleFailures < 3 && SpeechRecognizer.isRecognitionAvailable(this) || model == null
+    private var googleFailedAt = 0L
+    private fun useGoogle(): Boolean {
+        if (googleFailures >= 3 && System.currentTimeMillis() - googleFailedAt > 60_000) googleFailures = 0 // try the accurate engine again
+        return prefs.engine == "google" && googleFailures < 3 && SpeechRecognizer.isRecognitionAvailable(this) || model == null
+    }
 
     /** One utterance with the Android speech service (Google), uz-UZ, up to 5 alternatives. */
     private fun googleOnce(onDone: (List<String>) -> Unit) {
@@ -306,7 +311,8 @@ class VoiceService : Service() {
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> finish(emptyList())
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { setState("Mikrofonga ruxsat kerak", "error"); finish(emptyList()) }
-                    else -> { googleFailures++; if (googleFailures >= 3 && model != null) setState("Internet ovoz xizmati ishlamadi — oflayn rejimga o‘tildi"); finish(emptyList()) }
+                    SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> finish(emptyList())
+                    else -> { googleFailures++; googleFailedAt = System.currentTimeMillis(); if (googleFailures >= 3 && model != null) setState("Internet ovoz xizmati ishlamadi — vaqtincha oflayn rejim"); finish(emptyList()) }
                 }
             }
         })
@@ -316,8 +322,11 @@ class VoiceService : Service() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "uz-UZ")
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 700L)
+            // Fast and slow speakers: end after ~1.1 s of silence, never cut a phrase shorter than 1.5 s.
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1100L)
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
+            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         muteBeep()
         try { sr.startListening(intent) } catch (_: Exception) { finish(emptyList()) }
         main.postDelayed({ if (!finished) { try { sr.stopListening() } catch (_: Exception) {} } }, 12000)
@@ -375,6 +384,10 @@ class VoiceService : Service() {
         mp.setOnErrorListener { _, _, _ -> next(); true }
         main.postDelayed({ next() }, 8000)
         try { mp.start() } catch (_: Exception) { next() }
+    }
+    /** One short soft tick (not the old double beep) so a blind user knows the microphone is open. */
+    private fun tick() {
+        try { android.media.ToneGenerator(AudioManager.STREAM_NOTIFICATION, 35).apply { startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 70); main.postDelayed({ release() }, 300) } } catch (_: Exception) {}
     }
     private fun vibrate() {
         try {

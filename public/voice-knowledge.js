@@ -2,7 +2,7 @@
 //  «ertangi jadval qanaqa», «topshiriqlarim qanaqa», «hozirgi darsni och», «Amir Temur kitobini och».
 // It looks the thing up (platform search + personal shelf), walks to the right page step by step (spoken and shown),
 // highlights the item and, for books and videos with a saved position, asks «davom ettiraymi yoki boshidan?».
-import {parseQuestion,parseFind,describeSchedule,describeWeek,describeAssignments,describeLive,resolveDate,hitScore} from './voice-knowledge-rules.js';
+import {parseQuestion,parseFind,describeSchedule,describeWeek,describeAssignments,describeLive,resolveDate,hitScore,describeNext,describeGrades,describeMessages} from './voice-knowledge-rules.js';
 import {canonical,spokenNumber} from './voice-commands.js';
 
 const $=s=>document.querySelector(s);
@@ -132,6 +132,10 @@ export function createVoiceKnowledge({api,go,say,step=()=>{},enterLive,openSearc
       if(q.topic==='schedule')await schedule(q.day);
       else if(q.topic==='assignments')await assignments(q.when);
       else if(q.topic==='live')await live(q.action);
+      else if(q.topic==='nextLesson'){step('Jadval tekshirilmoqda…');await say(describeNext(await api('/schedules')))}
+      else if(q.topic==='grades'){step('Baholar yig‘ilmoqda…');const u=currentUser();await say(u?.role==='student'?describeGrades(await api('/coursework/my-grades'),q.subject):'Shaxsiy baholar abituriyent va talabalar uchun. Jurnalni ochish uchun «baholar» deng.')}
+      else if(q.topic==='messages'){step('Xabarlar tekshirilmoqda…');await say(describeMessages(await api('/lms/messages')))}
+      else if(q.topic==='whoami'){const u=currentUser();await say('Siz '+(u?.fullName||'')+(u?.group?', guruh '+u.group:'')+'. '+(u?.role==='student'?'Talaba akkaunti.':'Xodim akkaunti.'))}
     }catch(e){console.warn('voice knowledge',e);await say(e?.status===403?'Bu ma’lumotni ko‘rishga ruxsatingiz yo‘q.':'Ma’lumotni hozir olib bo‘lmadi. Internet aloqasini tekshirib, birozdan keyin qayta so‘rang.')}
     return true;
   }
