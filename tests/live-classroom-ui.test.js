@@ -116,3 +116,8 @@ test('network indicator prioritizes real WebRTC statistics over estimated browse
  assert.ok(app.includes('Network Information API values are estimates'));
  assert.ok(!app.includes("(down&&down<0.8)"));
 });
+
+test('attendance panel: the status labels are real code, not swallowed by a comment', ()=>{
+  assert.ok(!app.includes("unsaved marksconst label="),'«label is not defined» in the live-lesson attendance panel');
+  assert.ok(/\n\s*const label=\{present:'Vaqtida'/.test(app));
+});
