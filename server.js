@@ -32,6 +32,7 @@ import { installTts } from './tts.js';
 import { installMyBooks } from './my-books.js';
 import { installAiAssistant } from './ai-assistant.js';
 import { installAiDocumentAnalysis } from './ai-documents.js';
+import { installAiMedia } from './ai-media.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -421,6 +422,7 @@ installAiDocumentAnalysis(app,{auth});
 installMyBooks(app,{mongoose,User,auth,audit,resolveScope:(u,q)=>resolveScope(u,q),GLOBAL_SCOPE_ROLES});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId,accommodationFor:inclusionApi.accommodationFor});
 const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
+installAiMedia(app,{auth,authorizedSource:(req,kind,id)=>inclusionApi.aiTranscriptSource(req,kind,id,{checkVideoAccess})});
 installGlobalSearch(app,{mongoose,auth,User,Structure,Schedule,VideoLesson,LiveSession,resolveScope,resolveUserGroupId,hasPermission,checkVideoAccess});
 installCompliance(app,{mongoose,User,auth,audit});
 const unitsApi=installUnits(app,{mongoose,User,Structure,auth,audit,hasPermission});
