@@ -1,4 +1,5 @@
 // HALLAYM EDU — compact draggable Groq assistant and dedicated AI workspace.
+import {analyzeBookDocument} from './ai-document-client.js';
 const MODES=[
   ["chat","Savol-javob"],["explain","Mavzuni tushuntirish"],["summarize","Qisqa xulosa"],
   ["simplify","Soddalashtirish"],["video","Videodars haqida"],["library","Kitob / matn izohi"],
@@ -15,6 +16,7 @@ const make=(tag,classes,text)=>{const node=document.createElement(tag);node.clas
 export function createAiUi({api,currentUser,onGo,voice}={}){
   let float=null,panel=null,aiPage=null,nav=null,history=[],ready=false,busy=false,teacher=false;
   let remaining=null,providerModel="",lastContentPage="courses",dragged=false,readReplies=false;
+  let selectedDocument=null,documentController=null;
   const currentPage=()=>document.documentElement.dataset.page||"dashboard";
   const exam=()=>["finalExams","remoteExams","exam"].includes(currentPage());
   const menu=()=>MODES.filter(m=>!m[2]||teacher);
@@ -94,12 +96,47 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     $(".hai-tools",root).open=true;
     inform("Sahifadan matn olindi. AI'ga yuborishdan oldin materialni tekshiring.");
   }
+  async function analyzeDocument(source){
+    if(busy||exam())return;
+    let descriptor=source||selectedDocument;
+    if(!descriptor){inform("Avval kutubxonadan kitobni oching yoki «Kitobni AI bilan tahlil qilish» tugmasini bosing.");return;}
+    busy=true;
+    history.push({role:"user",content:"«"+(descriptor.title||"Kitob")+"» PDF hujjatini to‘liq tahlil qil."});
+    const status={role:"assistant",content:"Kitob PDF matni yuklanmoqda…"};
+    history.push(status);
+    renderHistory();
+    openPanel();
+    documentController=new AbortController();
+    const showProgress=value=>{status.content=value;renderHistory();};
+    try{
+      if(descriptor.kind==="library"){
+        const result=await api("/lms/library/"+encodeURIComponent(descriptor.id)+"/open");
+        descriptor={...descriptor,url:result.url};
+      }
+      if(!descriptor.url)throw new Error("Bu kitobning PDF fayli topilmadi.");
+      const result=await analyzeBookDocument({
+        url:descriptor.url,title:descriptor.title,lang:descriptor.lang||"uz",api,
+        onProgress:showProgress,signal:documentController.signal
+      });
+      status.content="📖 «"+descriptor.title+"» — "+result.pageCount+" sahifa bo‘yicha tahlil\n\n"+result.answer;
+      selectedDocument=descriptor;
+      containers().forEach(root=>{
+        const context=$(".hai-context",root);
+        if(context)context.value=("Kitob: "+descriptor.title+"\n"+result.answer).slice(0,6500);
+      });
+      if(readReplies&&voice?.say)void voice.say(result.answer.slice(0,2400));
+    }catch(e){status.content="Kitob tahlilini yakunlab bo‘lmadi: "+(e?.message||"Noma’lum xato");}
+    finally{documentController=null;busy=false;if(history.length>18)history=history.slice(-18);renderHistory();}
+  }
   async function send(root){
     if(busy)return;
     const selectedMode=$(".hai-mode",root).value,source=$(".hai-context",root).value.trim();
     const text=$(".hai-prompt",root).value.trim().toLowerCase();
     const mode=selectedMode!=="chat"?selectedMode:source&&/\b(xulosa|qisqartir|umumlashtir|summary)\b/.test(text)?"summarize":source&&/\b(tarjima|translate)\b/.test(text)?"translate":teacher&&/\b(test|quiz|savollar|variantli)\b/.test(text)?"quiz":teacher&&/\b(dars rejasi|80 daqiqa|konspekt)\b/.test(text)?"lesson":"chat";
     let prompt=$(".hai-prompt",root).value.trim();
+    if(selectedDocument&&currentPage()==="library"&&/(?:kitob|pdf|darslik|hujjat).*(?:tahlil|analiz|xulosa|mazmun)|(?:tahlil|analiz|xulosa).*(?:kitob|pdf|darslik|hujjat)|^(?:analiz qil|tahlil qil|xulosa qil)$/i.test(prompt)){
+      $(".hai-prompt",root).value="";void analyzeDocument(selectedDocument);return;
+    }
     if(!prompt){prompt=mode==="summarize"?"Ushbu matnni qisqacha va tushunarli xulosa qil.":mode==="simplify"?"Ushbu matnni talaba uchun soddalashtir.":"";}
     if(!prompt){$(".hai-prompt",root).focus();return;}
     if(!source&&["summarize","simplify","video","library","feedback","translate"].includes(mode)){
@@ -217,6 +254,8 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     });
     inlineActions();syncVisibility();renderHistory();
     document.addEventListener("hx:voice-state",renderHistory);
+    document.addEventListener("hx:ai-document-context",event=>{selectedDocument=event.detail||null;});
+    document.addEventListener("hx:ai-analyze-document",event=>{selectedDocument=event.detail||null;void analyzeDocument(selectedDocument);});
   }
   function place(x,y){
     if(!float)return;
@@ -286,8 +325,9 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     syncVisibility();renderHistory();await refreshStatus();
   }
   function afterLogout(){
+    documentController?.abort();selectedDocument=null;
     history=[];ready=false;remaining=null;readReplies=false;closePanel();
     if(float)float.hidden=true;if(nav)nav.hidden=true;
   }
-  return {afterLogin,afterLogout,open:openPanel,refreshStatus};
+  return {afterLogin,afterLogout,open:openPanel,refreshStatus,analyzeDocument};
 }
