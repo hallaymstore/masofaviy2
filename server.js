@@ -31,6 +31,7 @@ import { installInclusion } from './inclusion.js';
 import { installTts } from './tts.js';
 import { installMyBooks } from './my-books.js';
 import { installAiAssistant } from './ai-assistant.js';
+import { installAiDocumentAnalysis } from './ai-documents.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -416,6 +417,7 @@ const inclusionApi=installInclusion(app,{mongoose,User,Structure,Schedule,auth,a
   localDateKey:d=>localDateKey(d),localWeekday:d=>localWeekday(d),scheduleAccess:(u,l)=>scheduleAccess(u,l)});
 installTts(app,{auth});
 installAiAssistant(app,{auth});
+installAiDocumentAnalysis(app,{auth});
 installMyBooks(app,{mongoose,User,auth,audit,resolveScope:(u,q)=>resolveScope(u,q),GLOBAL_SCOPE_ROLES});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId,accommodationFor:inclusionApi.accommodationFor});
 const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
