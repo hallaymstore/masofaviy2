@@ -18,7 +18,7 @@ export function openAudioReader({title,url,text,start,onProgress,announce=()=>{}
   let doc=null,chunks=[],playing=false,finished=Boolean(saved.finished),closed=false,loading=true,revision=0,ownStop=false;
   const stopOwnSpeech=()=>{ownStop=true;stopSpeech();ownStop=false};
   const dialog=document.createElement('dialog');dialog.className='ar-dialog';dialog.setAttribute('aria-labelledby','arTitle');
-  dialog.innerHTML='<div class="ar-card"><div class="ar-head"><div><small>Audio kitob · <span class="ar-engine"></span></small><h2 id="arTitle">'+esc(title||'Kitob')+'</h2></div><button type="button" class="ar-close secondary" aria-label="Kitobni yopish">✕</button></div>'+
+  dialog.innerHTML='<div class="ar-card"><div class="ar-head"><div><small>Audio kitob · <span class="ar-engine"></span></small><h2 id="arTitle">'+esc(title||'Kitob')+'</h2></div><button type="button" class="ar-ai secondary" aria-label="Kitobni AI bilan to‘liq tahlil qilish">✦ AI tahlil</button><button type="button" class="ar-close secondary" aria-label="Kitobni yopish">✕</button></div>'+
     '<p class="ar-status" role="status" aria-live="polite">Kitob ochilmoqda…</p>'+
     '<div class="ar-progress" hidden><progress max="100" value="0" aria-label="O‘qilgan qismi"></progress><small></small></div>'+
     '<div class="ar-controls" hidden><button type="button" data-ar="prevPage" aria-label="Oldingi sahifa">⏮ Sahifa</button><button type="button" data-ar="prev" aria-label="Oldingi parcha">◀ Orqaga</button><button type="button" data-ar="play" class="primary ar-play" aria-label="Kitobni tinglash">▶ Tinglash</button><button type="button" data-ar="next" aria-label="Keyingi parcha">Oldinga ▶</button><button type="button" data-ar="nextPage" aria-label="Keyingi sahifa">Sahifa ⏭</button></div>'+
@@ -106,6 +106,12 @@ export function openAudioReader({title,url,text,start,onProgress,announce=()=>{}
   function onVisibility(){if(document.visibilityState==='hidden')persist()}
   document.addEventListener('visibilitychange',onVisibility);document.addEventListener('hx-speech-start',onOtherSpeech);
   dialog.addEventListener('cancel',e=>{e.preventDefault();close()});$('.ar-close').onclick=close;
+  const aiButton=$('.ar-ai');aiButton.hidden=!url;aiButton.onclick=()=>{
+    if(!url)return;
+    const source={kind:'reader',title:title||'Kitob',url,lang};
+    close();
+    document.dispatchEvent(new CustomEvent('hx:ai-analyze-document',{detail:source}));
+  };
   dialog.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();close();return}
     if(event.target.closest('button,input,select,textarea,a'))return;
