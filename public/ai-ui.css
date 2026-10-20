@@ -83,3 +83,45 @@ html[data-theme="dark"] .hai-inline{background:#323253!important;color:#d5cfff!i
 .hai-panel .hai-voicebar{gap:5px}
 .hai-panel .hai-voicebar>button{font-size:10px;padding:6px 7px}
 @media(max-width:640px){.hai-voicebar{gap:5px}.hai-voicebar>button{flex:1 1 auto}.hai-voice-state{margin-left:0;width:100%;text-align:left}}
+
+/* 2026-10-20: Chat-first layout; scroll in both full page and floating assistant. */
+html.hx[data-page="ai"] #shell>main{height:calc(100dvh - 64px)!important;max-height:none!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior-y:contain;scrollbar-width:auto}
+html.hx[data-page="ai"] #shell>main>.hai-page.active{height:auto!important;min-height:100%;padding-bottom:32px}
+.hai-page{overflow:visible!important;min-height:0!important}
+.hai-workspace{height:clamp(440px,calc(100dvh - 190px),840px)!important;min-height:0!important;max-width:1150px;display:flex;flex-direction:column}
+.hai-panel{width:min(500px,calc(100vw - 16px))!important;height:min(740px,calc(100dvh - 16px))!important;max-height:calc(100dvh - 16px);display:flex;flex-direction:column}
+.hai-panel.is-compact{height:min(420px,calc(100dvh - 16px))!important}
+.hai-panel.is-compact .hai-history{min-height:20px}
+.hai-history,.hai-workspace .hai-history{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior-y:contain;scrollbar-width:thin}
+.hai-panel .hai-form,.hai-workspace .hai-form{display:flex!important;flex:0 0 auto!important;flex-direction:column!important;gap:9px!important;min-height:0!important;max-height:70%!important;overflow-y:auto!important;overscroll-behavior:contain;padding:12px 15px!important}
+.hai-form>label{width:100%;min-width:0;flex:none}
+.hai-form .hai-prompt{min-height:104px!important;height:104px;max-height:35dvh!important;resize:vertical!important;font-size:14px!important;padding:11px 13px!important}
+.hai-workspace .hai-form .hai-prompt{height:120px;min-height:120px!important}
+.hai-panel.is-compact .hai-form .hai-prompt{height:74px;min-height:74px!important}
+.hai-form .hai-tools{flex:none;border:1px solid var(--hai-line);border-radius:11px;background:var(--hai-bg);overflow:visible}
+.hai-form .hai-tools>summary{list-style:none;cursor:pointer;padding:8px 10px;font-size:11px;color:var(--hai-accent);font-weight:650;user-select:none}
+.hai-form .hai-tools>summary::-webkit-details-marker{display:none}
+.hai-form .hai-tools>summary::after{content:" ▾";font-size:12px}
+.hai-form .hai-tools[open]>summary::after{content:" ▴"}
+.hai-tools-inner{display:flex;flex-direction:column;gap:9px;padding:2px 10px 11px;max-height:35dvh;overflow-y:auto;overscroll-behavior:contain}
+.hai-tools-inner>label{display:grid;gap:4px;font-size:11px;min-width:0}
+.hai-tools-inner .hai-quick{padding:0;overflow-x:auto;max-width:100%}
+.hai-tools-inner .hai-gettext,.hai-tools-inner .hai-voicebar{flex-wrap:wrap}
+.hai-tools-inner .hai-voice-state{display:none}
+.hai-footer{display:flex!important;align-items:center;gap:8px!important;flex-wrap:nowrap;min-height:40px;justify-content:initial!important}
+.hai-footer .hai-voice-ask{display:grid;place-items:center;flex:none;width:40px;height:38px;border:1px solid var(--hai-line);border-radius:10px;background:var(--hai-soft);color:var(--hai-accent);cursor:pointer;font-size:17px}
+.hai-footer .hai-voice-state{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;font-size:10px}
+.hai-footer .hai-remaining{white-space:nowrap;font-size:10px}
+.hai-footer .hai-submit{flex:none;min-height:38px;white-space:nowrap}
+.hai-message{max-width:92%;font-size:13px;line-height:1.55}
+.hai-panel .hai-message{max-width:95%}
+.hai-panel .hai-top,.hai-workspace .hai-top{padding:10px 12px!important}
+@media(max-width:640px){
+ html.hx[data-page="ai"] #shell>main{height:calc(100dvh - 70px)!important;padding-bottom:calc(70px + env(safe-area-inset-bottom))!important}
+ .hai-workspace{height:clamp(450px,calc(100dvh - 145px),780px)!important}
+ .hai-panel{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important}
+ .hai-panel .hai-form,.hai-workspace .hai-form{padding:10px!important}
+ .hai-footer .hai-voice-state{display:none}
+ .hai-footer .hai-submit{margin-left:auto}
+ .hai-form .hai-prompt{font-size:16px!important}
+}
