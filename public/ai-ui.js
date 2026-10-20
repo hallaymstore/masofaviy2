@@ -56,6 +56,17 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
           const copy=make("button","hai-copy","Nusxalash");copy.type="button";
           copy.onclick=()=>navigator.clipboard?.writeText(item.content).catch(()=>{});
           bubble.appendChild(copy);
+          if(Array.isArray(item.related)&&item.related.length){
+            const wrapRelated=make('div','hai-gettext');
+            wrapRelated.appendChild(make('small','', 'Davomini o‘rganish:'));
+            for(const video of item.related){
+              if(!video?.id||!video.title)continue;
+              const button=make('button','hai-inline',String(video.title));button.type='button';
+              button.onclick=()=>{closePanel();document.dispatchEvent(new CustomEvent('hx:ai-open-video',{detail:{id:video.id}}));};
+              wrapRelated.appendChild(button);
+            }
+            bubble.appendChild(wrapRelated);
+          }
         }
         wrap.appendChild(bubble);
       }
@@ -150,6 +161,11 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
       }
       if(result?.status!=='completed')throw new Error('Tahlil hali tayyor emas. Subtitr hajmi yoki API limiti sabab uzoq davom etmoqda.');
       status.content='📚 '+(started.title||source.title||'Dars')+' — subtitr asosidagi AI tahlil\n\n'+result.answer;
+      status.related=Array.isArray(result.related)?result.related:[];
+      for(const root of containers()){
+        const context=$('.hai-context',root);
+        if(context)context.value=('Videodars: '+(started.title||source.title)+'\nSubtitr tahlili:\n'+result.answer).slice(0,6500);
+      }
       if(readReplies&&voice?.say)void voice.say(result.answer.slice(0,2300));
     }catch(e){status.content='Subtitr tahlili: '+(e?.message||'Tahlil bajarilmadi.');}
     finally{busy=false;if(history.length>18)history=history.slice(-18);renderHistory();}
