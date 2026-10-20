@@ -114,6 +114,36 @@ export function createAiUi({api,currentUser,onGo}={}){
     $(".hai-expand",root)?.addEventListener("click",()=>{closePanel();onGo("ai");renderHistory();});
     $(".hai-hide",root)?.addEventListener("click",closePanel);
   }
+  function inlineActions(){
+    const locations=[
+      ["courses","Fan bo‘yicha AI","explain"],
+      ["videoWatch","Videodars AI","video"],
+      ["videos","Videodarslar AI","explain"],
+      ["library","Kutubxona AI","library"],
+      ["myBooks","Kitob yordamchisi","library"],
+      ["lab","Laboratoriya AI","lab"],
+      ["inclusion","AI yordamchi","explain"]
+    ];
+    for(const [id,label,mode] of locations){
+      const section=document.getElementById(id);
+      if(!section||section.querySelector(".hai-inline"))continue;
+      const header=section.querySelector(".page-head,.video-watch-head");
+      if(!header)continue;
+      const btn=make("button","hai-inline","✦ "+label);
+      btn.type="button";
+      btn.onclick=()=>{
+        lastContentPage=id;
+        openPanel();
+        if(panel?.hidden)return;
+        $(".hai-mode",panel).value=mode;
+        const source=$(SOURCE_TARGETS[id]);
+        $(".hai-context",panel).value=String(source?.innerText||"").trim().slice(0,6500);
+        $(".hai-prompt",panel).placeholder=id==="videoWatch"?"Video haqidagi mavjud matnni tushuntir. Video transkriptini joylasangiz aniq xulosa qilaman.":"Ushbu materialni sodda tushuntir";
+        $(".hai-prompt",panel).focus();
+      };
+      header.appendChild(btn);
+    }
+  }
   function mount(){
     if(float)return;
     const main=$("#main"),sidebar=$("#sidebar nav");
@@ -138,9 +168,9 @@ export function createAiUi({api,currentUser,onGo}={}){
     document.addEventListener("hx:navigate",event=>{
       const destination=event.detail?.page||currentPage();
       if(destination!=="ai")lastContentPage=destination;
-      closePanel();syncVisibility();renderHistory();
+      closePanel();inlineActions();syncVisibility();renderHistory();
     });
-    syncVisibility();renderHistory();
+    inlineActions();syncVisibility();renderHistory();
   }
   function place(x,y){
     if(!float)return;
