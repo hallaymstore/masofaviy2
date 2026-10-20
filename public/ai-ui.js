@@ -18,26 +18,28 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
   const currentPage=()=>document.documentElement.dataset.page||"dashboard";
   const exam=()=>["finalExams","remoteExams","exam"].includes(currentPage());
   const menu=()=>MODES.filter(m=>!m[2]||teacher);
-  const template=full=>'<div class="hai-top"><span class="hai-star">✦</span><div><b>HALLAYM AI</b><small class="hai-status">Groq tekshirilmoqda…</small></div>'+
-    '<button type="button" class="hai-reset" title="Suhbatni tozalash" aria-label="Suhbatni tozalash">↻</button>'+
-    (!full?'<button type="button" class="hai-expand" title="AI markaziga o‘tish" aria-label="AI markaziga o‘tish">⤢</button><button type="button" class="hai-hide" title="Yopish" aria-label="Yopish">×</button>':'')+'</div>'+
-    '<div class="hai-intro"><b>'+(teacher?"O‘qituvchi yordamchisi":"Talaba yordamchisi")+'</b>'+
-    '<span>'+(teacher?"Dars rejalari, savollar, konspekt va topshiriqlarni tez tayyorlang.":"Mavzuni tushuning, matnni qisqartiring va mustaqil o‘rganing.")+'</span></div>'+
-    '<div class="hai-quick"><button type="button" data-mode="explain">Tushuntirish</button><button type="button" data-mode="summarize">Xulosa</button>'+
-    (teacher?'<button type="button" data-mode="lesson">Dars rejasi</button><button type="button" data-mode="quiz">Test</button>':'<button type="button" data-mode="plan">O‘qish rejasi</button>')+'</div>'+
+  const template=full=>
+    '<div class="hai-top"><span class="hai-star">✦</span><div><b>HALLAYM AI</b><small class="hai-status">Groq tekshirilmoqda…</small></div>'+
+    '<button type="button" class="hai-reset" title="Yangi suhbat" aria-label="Suhbatni tozalash">↻</button>'+
+    (!full?'<button type="button" class="hai-compact" title="Ixcham / keng ko‘rinish" aria-label="Ixcham ko‘rinishga o‘tish">▣</button><button type="button" class="hai-expand" title="AI markaziga o‘tish" aria-label="AI markaziga o‘tish">⤢</button><button type="button" class="hai-hide" title="Yopish" aria-label="Yopish">×</button>':'')+'</div>'+
     '<div class="hai-history" role="log" aria-live="polite" aria-label="AI suhbat tarixi"></div>'+
-    '<form class="hai-form"><label>Amal turi<select class="hai-mode">'+menu().map(m=>'<option value="'+m[0]+'">'+m[1]+'</option>').join("")+'</select></label>'+
-    '<label>Material (ixtiyoriy)<textarea class="hai-context" rows="2" maxlength="6500" placeholder="Xulosa uchun matnni kiriting yoki tanlangan matnni oling"></textarea></label>'+
-    '<div class="hai-gettext"><button type="button" class="hai-selected">Belgilangan matn</button><button type="button" class="hai-frompage">Sahifadan olish</button></div>'+
-    '<label class="hai-prompt-label">Savolingiz<textarea class="hai-prompt" rows="2" maxlength="4000" placeholder="Savol yoki mavzu yozing…"></textarea></label>'+
-    '<div class="hai-voicebar" role="group" aria-label="Ovozli AI yordamchi">'+
-    '<button type="button" class="hai-voice-ask" title="Gapirib AI’dan so‘rang yoki ovozli buyruq bering">🎙 Gapirib so‘rash</button>'+
-    '<button type="button" class="hai-voice-command" title="Platformani ovoz bilan boshqarish">🧭 Buyruq berish</button>'+
-    '<button type="button" class="hai-voice-read" title="Oxirgi AI javobini o‘qish">🔊 O‘qib berish</button>'+
-    '<label class="hai-voice-option"><input type="checkbox" class="hai-read-aloud"> Javobni ovozda o‘qish</label>'+
-    '<label class="hai-voice-option"><input type="checkbox" class="hai-hands"> Doimiy tinglash</label>'+
-    '<small class="hai-voice-state" role="status">Mikrofon tayyor · Alt+V</small></div>'+
-    '<div class="hai-footer"><span class="hai-remaining">Kunlik limit: —</span><button class="hai-submit" type="submit">Yuborish ↗</button></div></form>';
+    '<form class="hai-form">'+
+      '<details class="hai-tools"><summary>⚙ Qo‘shimcha imkoniyatlar</summary><div class="hai-tools-inner">'+
+        '<label>Maxsus amal (ixtiyoriy)<select class="hai-mode">'+menu().map(m=>'<option value="'+m[0]+'">'+(m[0]==="chat"?"AI o‘zi aniqlaydi":m[1])+'</option>').join("")+'</select></label>'+
+        '<div class="hai-quick"><button type="button" data-mode="explain">Tushuntirish</button><button type="button" data-mode="summarize">Xulosa</button>'+
+          (teacher?'<button type="button" data-mode="lesson">Dars rejasi</button><button type="button" data-mode="quiz">Test</button>':'<button type="button" data-mode="plan">O‘qish rejasi</button>')+'</div>'+
+        '<label>Material (ixtiyoriy)<textarea class="hai-context" rows="3" maxlength="6500" placeholder="Matn, konspekt yoki kitob parchasini kiriting"></textarea></label>'+
+        '<div class="hai-gettext"><button type="button" class="hai-selected">Belgilangan matn</button><button type="button" class="hai-frompage">Sahifadan olish</button></div>'+
+        '<div class="hai-voicebar" role="group" aria-label="Ovozli AI yordamchi">'+
+          '<button type="button" class="hai-voice-command" title="Platformani ovoz bilan boshqarish">🧭 Buyruq berish</button>'+
+          '<button type="button" class="hai-voice-read" title="Oxirgi javobni ovozda o‘qish">🔊 O‘qib berish</button>'+
+          '<label class="hai-voice-option"><input type="checkbox" class="hai-read-aloud"> Javobni o‘qish</label>'+
+          '<label class="hai-voice-option"><input type="checkbox" class="hai-hands"> Doimiy tinglash</label>'+
+        '</div>'+
+      '</div></details>'+
+      '<label class="hai-prompt-label" for="'+(full?'haiPagePrompt':'haiFloatPrompt')+'">Savolingiz<textarea id="'+(full?'haiPagePrompt':'haiFloatPrompt')+'" class="hai-prompt" rows="4" maxlength="4000" placeholder="Istalgan savolni yozing…"></textarea></label>'+
+      '<div class="hai-footer"><button type="button" class="hai-voice-ask" title="Gapirib savol yuborish">🎙</button><small class="hai-voice-state" role="status">Mikrofon tayyor</small><span class="hai-remaining">Kunlik limit: —</span><button class="hai-submit" type="submit">Yuborish ↗</button></div>'+
+    '</form>';
   const containers=()=>[panel,aiPage].filter(Boolean);
   function renderHistory(){
     containers().forEach(root=>{
@@ -80,6 +82,7 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     const text=String(window.getSelection?.()?.toString()||"").trim();
     if(!text){inform("Matnni oldin belgilab oling, so‘ng ushbu tugmani bosing.");return;}
     $(".hai-context",root).value=text.slice(0,6500);
+    $(".hai-tools",root).open=true;
   }
   function takePage(root){
     const pageName=currentPage()==="ai"?lastContentPage:currentPage();
@@ -88,11 +91,14 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     const elem=$(target),content=(elem?.innerText||"").trim();
     if(!content){inform("Sahifada olinadigan matn topilmadi. Materialni kiriting.");return;}
     $(".hai-context",root).value=content.slice(0,6500);
+    $(".hai-tools",root).open=true;
     inform("Sahifadan matn olindi. AI'ga yuborishdan oldin materialni tekshiring.");
   }
   async function send(root){
     if(busy)return;
-    const mode=$(".hai-mode",root).value,source=$(".hai-context",root).value.trim();
+    const selectedMode=$(".hai-mode",root).value,source=$(".hai-context",root).value.trim();
+    const text=$(".hai-prompt",root).value.trim().toLowerCase();
+    const mode=selectedMode!=="chat"?selectedMode:source&&/\b(xulosa|qisqartir|umumlashtir|summary)\b/.test(text)?"summarize":source&&/\b(tarjima|translate)\b/.test(text)?"translate":teacher&&/\b(test|quiz|savollar|variantli)\b/.test(text)?"quiz":teacher&&/\b(dars rejasi|80 daqiqa|konspekt)\b/.test(text)?"lesson":"chat";
     let prompt=$(".hai-prompt",root).value.trim();
     if(!prompt){prompt=mode==="summarize"?"Ushbu matnni qisqacha va tushunarli xulosa qil.":mode==="simplify"?"Ushbu matnni talaba uchun soddalashtir.":"";}
     if(!prompt){$(".hai-prompt",root).focus();return;}
@@ -121,6 +127,7 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
   }
   function bindView(root){
     $(".hai-form",root).onsubmit=e=>{e.preventDefault();void send(root);};
+    $(".hai-prompt",root).addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing){event.preventDefault();void send(root);}});
     $(".hai-reset",root).onclick=()=>{history=[];renderHistory();};
     $(".hai-selected",root).onclick=()=>takeSelection(root);
     $(".hai-frompage",root).onclick=()=>takePage(root);
@@ -149,6 +156,7 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     });
     $(".hai-expand",root)?.addEventListener("click",()=>{closePanel();onGo("ai");renderHistory();});
     $(".hai-hide",root)?.addEventListener("click",closePanel);
+    $(".hai-compact",root)?.addEventListener("click",()=>{panel.classList.toggle("is-compact");$(".hai-compact",root).setAttribute("aria-pressed",String(panel.classList.contains("is-compact")));positionPanel();});
   }
   function inlineActions(){
     const locations=[
@@ -172,6 +180,7 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
         openPanel();
         if(panel?.hidden)return;
         $(".hai-mode",panel).value=mode;
+        $(".hai-tools",panel).open=true;
         const source=$(SOURCE_TARGETS[id]);
         $(".hai-context",panel).value=String(source?.innerText||"").trim().slice(0,6500);
         $(".hai-prompt",panel).placeholder=id==="videoWatch"?"Video haqidagi mavjud matnni tushuntir. Video transkriptini joylasangiz aniq xulosa qilaman.":"Ushbu materialni sodda tushuntir";
@@ -241,7 +250,7 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
   }
   function positionPanel(){
     if(!panel||panel.hidden)return;
-    const rect=float.getBoundingClientRect(),w=Math.min(395,window.innerWidth-16),h=Math.min(620,window.innerHeight-28);
+    const rect=float.getBoundingClientRect(),w=Math.min(500,window.innerWidth-16),h=panel.getBoundingClientRect().height||Math.min(740,window.innerHeight-24);
     let x=rect.left+rect.width>w?rect.right-w:rect.left;
     let y=rect.bottom+12;
     if(y+h>window.innerHeight-8)y=Math.max(8,rect.top-h-12);
