@@ -39,7 +39,7 @@ const a11y=createA11y({api,toast}); // accessibility panel: available on the log
 const myBooksUi=createMyBooksUi({api,toast,esc,csrf,currentUser:()=>user,announce:text=>{toast(text);a11y.announce(text)}});
 const libraryManagerUi=createLibraryManagerUi({api,toast,esc,csrf});
 const voiceAssistant=createVoiceAssistant({go,currentUser:()=>user,logout,a11y,myBooks:myBooksUi});
-const aiUi=createAiUi({api,currentUser:()=>user,onGo:page=>go(page)});
+const aiUi=createAiUi({api,currentUser:()=>user,onGo:page=>go(page),voice:voiceAssistant});
 const applyBranding=()=>{
   const product=branding.productName||'HALLAYM EDU',institution=branding.institutionName||'Universitet',short=branding.shortName||institution;
   document.title=product+(institution?' · '+institution:'');

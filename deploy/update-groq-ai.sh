@@ -36,10 +36,57 @@ npm run build:media-client
 npm run check
 npm test
 
-echo "[2/5] Groq kalitini yashirin kiritish"
-read -r -s -p "GROQ_API_KEY (ekranda ko'rinmaydi): " GROQ_KEY
-echo
-[[ "$GROQ_KEY" =~ ^gsk_[[:alnum:]_-]{20,}$ ]] || { echo "Groq key noto'g'ri"; exit 4; }
+echo "[2/5] Groq kalitini xavfsiz tekshirish"
+echo "Yashirin kiritishda belgilar chiqmaydi. To‘liq yangi gsk_... kalitini qo‘ying va Enter bosing."
+echo "Kalit brauzerdagi Groq ro‘yxatida to‘liq ko‘rinmaydi; yaratilgan zahoti nusxa oling."
+GROQ_VERIFIED=0
+for attempt in 1 2 3; do
+  read -r -s -p "GROQ_API_KEY ($attempt/3, ekranda ko'rinmaydi): " GROQ_KEY || { echo; exit 4; }
+  echo
+  if ! [[ "$GROQ_KEY" =~ ^gsk_[[:alnum:]_-]{20,}$ ]]; then
+    echo "Kalitning formati noto'g'ri (to'liq gsk_ kalitini kiriting)."
+    unset GROQ_KEY
+    continue
+  fi
+
+  echo "[3/5] Groq API'ga haqiqiy so'rov..."
+  # Candidate stays in this process environment; .env changes only after the API approves the key.
+  if GROQ_API_KEY="$GROQ_KEY" GROQ_MODEL='openai/gpt-oss-20b' node --input-type=module <<'NODE'
+const ctrl=new AbortController();
+const timer=setTimeout(()=>ctrl.abort(),25000);
+try {
+  const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+    method:'POST',signal:ctrl.signal,headers:{
+      Authorization:'Bearer '+process.env.GROQ_API_KEY,
+      'Content-Type':'application/json'
+    },body:JSON.stringify({
+      model:process.env.GROQ_MODEL||'openai/gpt-oss-20b',
+      messages:[{role:'user',content:'Reply with exactly: OK'}],
+      reasoning_effort:'low',max_completion_tokens:250
+    })
+  });
+  if(!res.ok){
+    console.error('Groq HTTP '+res.status+(res.status===401?' — kalit noto‘g‘ri yoki bekor qilingan':res.status===429?' — limit tugagan':' — model/tarmoq sozlamasini tekshiring'));
+    process.exitCode=1;
+  }else{
+    const data=await res.json();
+    if(data.choices?.[0]?.message?.content){console.log('GROQ_API_OK');}
+    else{console.error('Groq javobi bo‘sh, kalit saqlanmadi');process.exitCode=1;}
+  }
+}catch(err){console.error('Groq bilan aloqa xatosi: '+err.name);process.exitCode=1;}
+finally{clearTimeout(timer);}
+NODE
+  then
+    GROQ_VERIFIED=1
+    break
+  fi
+  unset GROQ_KEY
+  echo "Kalit saqlanmadi. Qayta kiriting yoki Ctrl+C bilan to'xtating."
+done
+if [[ "$GROQ_VERIFIED" -ne 1 ]]; then
+  echo "Groq tekshiruvi o'tmadi; eski .env o'zgarishsiz qoldi. LMS qayta ishga tushirilmadi."
+  exit 4
+fi
 set_env(){ sed -i "/^$1=/d" .env; printf '%s=%s\n' "$1" "$2" >> .env; }
 set_env GROQ_API_KEY "$GROQ_KEY"
 unset GROQ_KEY
@@ -49,29 +96,6 @@ set_env AI_GLOBAL_DAILY_LIMIT '500'
 set_env AI_USER_RPM '3'
 set_env AI_MAX_CONCURRENT '2'
 chmod 600 .env
-
-echo "[3/5] Groq haqiqiy API so'rovini tekshirish"
-node --input-type=module <<'NODE'
-import 'dotenv/config';
-const ctrl=new AbortController();
-const timer=setTimeout(()=>ctrl.abort(),20000);
-try {
-  const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-    method:'POST',signal:ctrl.signal,headers:{
-      Authorization:'Bearer '+process.env.GROQ_API_KEY,
-      'Content-Type':'application/json'
-    },body:JSON.stringify({
-      model:process.env.GROQ_MODEL||'openai/gpt-oss-20b',
-      messages:[{role:'user',content:'Reply with one word: OK'}],
-      reasoning_effort:'low',max_completion_tokens:160
-    })
-  });
-  if(!res.ok){console.error('Groq HTTP '+res.status+' — API key/kvota tekshiring');process.exitCode=1;}
-  else{const data=await res.json();if(data.choices?.[0]?.message?.content)console.log('GROQ_API_OK');
-       else{console.error('Groq bo‘sh javob');process.exitCode=1;}}
-}catch(err){console.error('Groq tarmoqqa ulanmadi: '+err.name);process.exitCode=1;}
-finally{clearTimeout(timer);}
-NODE
 
 echo "[4/5] LMS restart (SFU restart qilinmaydi)"
 if command -v pm2 >/dev/null && pm2 describe masofaviy2 >/dev/null 2>&1; then

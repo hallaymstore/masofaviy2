@@ -16,6 +16,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
   let dock,expanded=false,state='idle',error='',busy=false,oneShot=false,stoppedForLogout=false,speaking=0,externalSpeech=false,externalTimer;
   let pending=null,focused=null,actionList=[],fieldList=[],lastInput='',lastAt=0,voiceNavigation=false,restoring=false,trail=[],trailIndex=-1;
   let wasEnabled=false,lastHandsFree=handsFree(),navSerial=0;
+  let aiCapture=null;
   const notifications=[];
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const recognition=createRecognition({factory:recognitionFactory||(SR?()=>new SR():undefined),
@@ -27,6 +28,8 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
 
   function render(){
     if(!dock)return;
+    // Authenticated users control voice from the unified HALLAYM AI interface.
+    dock.hidden=Boolean(currentUser());
     dock.dataset.state=state;dock.dataset.enabled=String(enabled());
     dock.querySelector('#vaPanel').hidden=!expanded;
     const toggle=dock.querySelector('#vaToggle');toggle.setAttribute('aria-expanded',String(expanded));
@@ -36,6 +39,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     dock.querySelector('#vaStart').setAttribute('aria-pressed',String(recognition.isWanted()));
     dock.querySelector('#vaDisable').hidden=!enabled();
     dock.querySelector('#vaHands').checked=handsFree();
+    document.dispatchEvent(new CustomEvent('hx:voice-state',{detail:{state,listening:recognition.isListening(),enabled:enabled(),error}}));
   }
   function syncMic(){
     const wanted=enabled()&&!stoppedForLogout&&(handsFree()||oneShot);
@@ -48,7 +52,16 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     if(!enabled())update({voiceAssistant:true});
     oneShot=!handsFree();syncMic();recognition.start();render();
   }
-  function pauseMic(){oneShot=false;recognition.stop();update({voiceHandsFree:false});render()}
+  function pauseMic(){aiCapture=null;oneShot=false;recognition.stop();update({voiceHandsFree:false});render()}
+  function captureForAi(callback){
+    if(typeof callback!=='function'||!currentUser()||['finalExams','remoteExams','exam'].includes(document.documentElement.dataset.page))return false;
+    if(!recognition.available()){error='Brauzer ovozni aniqlamayapti. Chrome yoki Edge orqali urinib ko‘ring.';render();return false;}
+    if(busy)return false;
+    aiCapture=callback;stoppedForLogout=false;error='';expanded=false;
+    // AI dictation is always one-shot; never silently enable an always-on microphone.
+    if(!enabled()||handsFree())update({voiceAssistant:true,voiceHandsFree:false});
+    oneShot=true;recognition.start();render();return true;
+  }
   async function say(text){
     if(!text)return;
     speaking++;syncMic();
@@ -255,6 +268,13 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     if(!typed&&(!enabled()||stoppedForLogout||busy||speaking||externalSpeech))return;
     if(busy)return;
     const text=String(alternatives[0]||'').trim();if(!text)return;
+    if(aiCapture&&!typed){
+      const callback=aiCapture;aiCapture=null;oneShot=false;recognition.stop();
+      // Keep deterministic navigation and sensitive-action confirmation instead of sending commands to Groq.
+      if(alternatives.some(phrase=>matchCommand(phrase))){await receive(alternatives,{typed:true});return;}
+      try{await callback(text)}catch(e){error=e?.message||'AI ovozli so‘rov bajarilmadi.'}
+      render();return;
+    }
     // While a book is audible, only an explicit wake word (or a bare stop) is a command.
     if(!typed&&reader.current?.isPlaying?.()&&!hasWakeWord(text)&&!['toxta','toxtat','stop'].includes(normalize(text)))return;
     const now=Date.now();if(!typed&&text===lastInput&&now-lastAt<1300)return;lastInput=text;lastAt=now;
@@ -277,8 +297,8 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     const on=enabled(),hands=handsFree(),newlyEnabled=on&&!wasEnabled,changedHands=hands!==lastHandsFree;
     wasEnabled=on;lastHandsFree=hands;
     if(!on){pending=null;oneShot=false;recognition.stop();speech.stop()}
-    if(newlyEnabled){stoppedForLogout=false;expanded=true;render();void say('Ovozli yordamchi yoqildi. «Kutubxona», «jadvalim», «tugmalar» yoki «yordam» deng.').then(()=>{if(enabled()&&handsFree()&&!stoppedForLogout)startMic()})}
-    else if(changedHands){if(hands&&on)startMic();else{oneShot=false;recognition.stop()}}
+    if(newlyEnabled&&!aiCapture){stoppedForLogout=false;expanded=true;render();void say('Ovozli yordamchi yoqildi. «Kutubxona», «jadvalim», «tugmalar» yoki «yordam» deng.').then(()=>{if(enabled()&&handsFree()&&!stoppedForLogout)startMic()})}
+    else if(changedHands&&!aiCapture){if(hands&&on)startMic();else{oneShot=false;recognition.stop()}}
     syncMic();render();
   }
   async function afterLogin(){
@@ -286,7 +306,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
     wasEnabled=enabled();lastHandsFree=handsFree();expanded=enabled();render();
     if(enabled()){await say('Xush kelibsiz, '+(currentUser()?.fullName||'')+'. Ovozli boshqaruv tayyor. «Sahifalar» yoki «yordam» deng.');if(handsFree()&&enabled())startMic()}
   }
-  function afterLogout(){document.dispatchEvent(new Event('hx:voice-logout'));stoppedForLogout=true;oneShot=false;pending=null;focused=null;actionList=[];fieldList=[];notifications.length=0;trail=[];trailIndex=-1;recognition.stop();showChoices([]);dock.querySelector('#vaHeard').textContent='';render()}
+  function afterLogout(){aiCapture=null;document.dispatchEvent(new Event('hx:voice-logout'));stoppedForLogout=true;oneShot=false;pending=null;focused=null;actionList=[];fieldList=[];notifications.length=0;trail=[];trailIndex=-1;recognition.stop();showChoices([]);dock.querySelector('#vaHeard').textContent='';render()}
 
   mount();
   // A native modal makes body siblings inert. Keep the widget inside the active modal.
@@ -314,7 +334,7 @@ export function createVoiceAssistant({go,currentUser=()=>null,logout,a11y,myBook
   window.HxA11y?.onChange?.(preferenceChanged);
   if(new URLSearchParams(location.search).get('voice')==='1'&&!enabled())update({voiceAssistant:true});
   else{wasEnabled=enabled();if(enabled()){expanded=true;render()}}
-  const api={afterLogin,afterLogout,commandOnce:startMic,startLogin,setHandsFree:on=>{update({voiceHandsFree:Boolean(on)});if(on)startMic();else pauseMic()},say,enabled,execute:text=>receive([text],{typed:true})};
+  const api={afterLogin,afterLogout,commandOnce:startMic,captureForAi,startLogin,setHandsFree:on=>{update({voiceHandsFree:Boolean(on)});if(on)startMic();else pauseMic()},handsFree,listenState:()=>({state,error,listening:recognition.isListening()}),say,enabled,execute:text=>receive([text],{typed:true})};
   window.HxVoiceAssistant=api;
   return api;
 }
