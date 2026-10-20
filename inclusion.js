@@ -314,5 +314,55 @@ export function installInclusion(app,{mongoose,User,Structure,Schedule,auth,audi
     res.json({videos,summary:{total:videos.length,withCaptions:videos.filter(v=>v.captions).length}});
   }));
 
-  return {accommodationFor,supportKindFor,recordCaption,flushAll,refreshSupport,invalidate:id=>id?accCache.delete(String(id)):accCache.clear(),models:{Profile,Support,Transcript,Prefs,Caption},stop:()=>clearInterval(flushTimer)};
+
+  // Reuse inclusion ACLs for AI: Groq sees *only* a source an authenticated user can already read.
+  async function aiTranscriptSource(req,kind,id,{checkVideoAccess}={}){
+    if(!mongoose.isValidObjectId(id))throw fail('Manba identifikatori noto‘g‘ri',400);
+    if(kind==='video'){
+      const v=await videoFor({...req,params:{...req.params,id}});
+      if(checkVideoAccess){
+        const permission=await checkVideoAccess(req,v);
+        if(!permission?.allowed)throw fail('Videodarsni ko‘rish huquqi hali ochilmagan',403);
+      }
+      const caption=await Caption.findOne({videoId:v._id}).lean();
+      if(!caption?.transcript?.trim())throw fail('Videodarsda subtitr matni yo‘q. O‘qituvchi .vtt yoki .srt subtitr yuklashi kerak.',422);
+      const Progress=mongoose.models.VideoProgress;
+      const progress=mongoose.isValidObjectId(req.user._id)&&Progress?await Progress.findOne({videoId:v._id,userId:req.user._id}).lean():null;
+      const Video=mongoose.models.VideoLesson;
+      let related=[];
+      if(v.courseId&&Video&&checkVideoAccess){
+        const candidates=await Video.find({courseId:v.courseId,published:true,_id:{$ne:v._id}}).select('_id title topicTitle moduleTitle').limit(15).lean();
+        for(const next of candidates){
+          if((await checkVideoAccess(req,next))?.allowed)related.push({id:String(next._id),title:String(next.title||next.topicTitle||'').slice(0,110)});
+          if(related.length>=5)break;
+        }
+      }
+      return {kind:'video',title:String(v.title||'Videodars'),sourceText:String(caption.transcript),lang:caption.lang||'uz',
+        sourceUnits:caption.cues||null,progress:progress?{
+          viewedSeconds:Number(progress.watchedSeconds)||0,completed:Boolean(progress.completed),
+          durationSeconds:Number(progress.durationSeconds)||0,lastPositionSeconds:Number(progress.lastPositionSeconds)||0
+        }:null,related};
+    }
+    if(kind==='live'){
+      if(process.env.AI_LIVE_TRANSCRIPT_SHARING_ENABLED!=='true')
+        throw fail('Jonli dars subtitrini tashqi AI xizmatiga yuborish uchun universitet roziligi va AI_LIVE_TRANSCRIPT_SHARING_ENABLED sozlamasi talab qilinadi.',403);
+      const lesson=await Schedule.findById(id).lean();if(!lesson)throw fail('Dars topilmadi',404);
+      const ok=req.user.role==='student'?sameId(await userGroup(req.user),lesson.groupId):(await scheduleAccess(req.user,lesson))||Boolean(await supportKindFor(req.user._id,lesson.groupId));
+      if(!ok)throw fail('Dars subtitrini ko‘rishga ruxsat yo‘q',403);
+      const key=String(lesson._id)+':'+today();await flush(key);
+      const t=await Transcript.findOne({scheduleId:lesson._id,dateKey:today()}).lean();
+      if(!t?.lines?.length)throw fail('Bugungi darsning saqlangan subtitri hali mavjud emas. O‘qituvchi subtitrni yoqishi kerak.',422);
+      const teacher=await User.findById(lesson.teacherId).select('fullName').lean();
+      const teacherName=teacher?.fullName;
+      // For teacher-led notes, never treat a student utterance as a teacher instruction.
+      const spoken=t.lines.filter(l=>!teacherName||l.name===teacherName)
+        .map(l=>'['+new Date(l.at).toISOString().slice(11,16)+'] '+String(l.text||'')).filter(x=>x.length>9);
+      if(!spoken.length)throw fail('O‘qituvchi nutqi subtitrlarda topilmadi.',422);
+      return {kind:'live',title:String(lesson.title||'Jonli dars'),sourceText:spoken.join('\n'),lang:t.lang||'uz',
+        sourceUnits:spoken.length,teacherName:teacherName||'O‘qituvchi',partial:true,related:[]};
+    }
+    throw fail('Manba turi noto‘g‘ri',400);
+  }
+
+  return {aiTranscriptSource,accommodationFor,supportKindFor,recordCaption,flushAll,refreshSupport,invalidate:id=>id?accCache.delete(String(id)):accCache.clear(),models:{Profile,Support,Transcript,Prefs,Caption},stop:()=>clearInterval(flushTimer)};
 }
