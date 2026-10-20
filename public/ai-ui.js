@@ -12,9 +12,9 @@ const SOURCE_TARGETS={
 };
 const $=(sel,root=document)=>root.querySelector(sel);
 const make=(tag,classes,text)=>{const node=document.createElement(tag);node.className=classes||"";if(text)node.textContent=text;return node;};
-export function createAiUi({api,currentUser,onGo}={}){
+export function createAiUi({api,currentUser,onGo,voice}={}){
   let float=null,panel=null,aiPage=null,nav=null,history=[],ready=false,busy=false,teacher=false;
-  let remaining=null,providerModel="",lastContentPage="courses",dragged=false;
+  let remaining=null,providerModel="",lastContentPage="courses",dragged=false,readReplies=false;
   const currentPage=()=>document.documentElement.dataset.page||"dashboard";
   const exam=()=>["finalExams","remoteExams","exam"].includes(currentPage());
   const menu=()=>MODES.filter(m=>!m[2]||teacher);
@@ -29,7 +29,14 @@ export function createAiUi({api,currentUser,onGo}={}){
     '<form class="hai-form"><label>Amal turi<select class="hai-mode">'+menu().map(m=>'<option value="'+m[0]+'">'+m[1]+'</option>').join("")+'</select></label>'+
     '<label>Material (ixtiyoriy)<textarea class="hai-context" rows="2" maxlength="6500" placeholder="Xulosa uchun matnni kiriting yoki tanlangan matnni oling"></textarea></label>'+
     '<div class="hai-gettext"><button type="button" class="hai-selected">Belgilangan matn</button><button type="button" class="hai-frompage">Sahifadan olish</button></div>'+
-    '<label>Savolingiz<textarea class="hai-prompt" rows="2" maxlength="4000" placeholder="Savol yoki mavzu yozing…"></textarea></label>'+
+    '<label class="hai-prompt-label">Savolingiz<textarea class="hai-prompt" rows="2" maxlength="4000" placeholder="Savol yoki mavzu yozing…"></textarea></label>'+
+    '<div class="hai-voicebar" role="group" aria-label="Ovozli AI yordamchi">'+
+    '<button type="button" class="hai-voice-ask" title="Gapirib AI’dan so‘rang yoki ovozli buyruq bering">🎙 Gapirib so‘rash</button>'+
+    '<button type="button" class="hai-voice-command" title="Platformani ovoz bilan boshqarish">🧭 Buyruq berish</button>'+
+    '<button type="button" class="hai-voice-read" title="Oxirgi AI javobini o‘qish">🔊 O‘qib berish</button>'+
+    '<label class="hai-voice-option"><input type="checkbox" class="hai-read-aloud"> Javobni ovozda o‘qish</label>'+
+    '<label class="hai-voice-option"><input type="checkbox" class="hai-hands"> Doimiy tinglash</label>'+
+    '<small class="hai-voice-state" role="status">Mikrofon tayyor · Alt+V</small></div>'+
     '<div class="hai-footer"><span class="hai-remaining">Kunlik limit: —</span><button class="hai-submit" type="submit">Yuborish ↗</button></div></form>';
   const containers=()=>[panel,aiPage].filter(Boolean);
   function renderHistory(){
@@ -49,7 +56,11 @@ export function createAiUi({api,currentUser,onGo}={}){
         wrap.appendChild(bubble);
       }
       wrap.scrollTop=wrap.scrollHeight;
-      const blocked=busy||!ready;
+      const voiceState=voice?.listenState?.()||{};
+       $(".hai-voice-state",root).textContent=voiceState.error||({listening:"Tinglayapman…",starting:"Mikrofon ulanmoqda…",retrying:"Qayta ulanmoqda…" }[voiceState.state]||"Ovozli boshqaruv · Alt+V");
+       $(".hai-read-aloud",root).checked=readReplies;
+       $(".hai-hands",root).checked=Boolean(voice?.enabled?.()&&voice?.handsFree?.());
+       const blocked=busy||!ready;
       $(".hai-submit",root).disabled=blocked;
       $(".hai-submit",root).textContent=busy?"Javob tayyorlanmoqda…":"Yuborish ↗";
       $(".hai-remaining",root).textContent="Kunlik qolgan: "+(remaining==null?"—":remaining);
@@ -94,7 +105,9 @@ export function createAiUi({api,currentUser,onGo}={}){
     history.push({role:"user",content:prompt});renderHistory();
     try{
       const result=await api("/ai/chat",{method:"POST",body:JSON.stringify({mode,prompt,page:pageName,context:source,history:conversation})});
-      history.push({role:"assistant",content:String(result.answer||"Javob bo‘sh.")});
+      const answer=String(result.answer||"Javob bo‘sh.");
+       history.push({role:"assistant",content:answer});
+       if(readReplies&&voice?.say)void voice.say(answer.slice(0,2400));
       remaining=remaining==null?null:Math.max(0,remaining-1);
       $(".hai-prompt",root).value="";
     }catch(error){
@@ -107,6 +120,25 @@ export function createAiUi({api,currentUser,onGo}={}){
     $(".hai-reset",root).onclick=()=>{history=[];renderHistory();};
     $(".hai-selected",root).onclick=()=>takeSelection(root);
     $(".hai-frompage",root).onclick=()=>takePage(root);
+    $(".hai-voice-ask",root).onclick=()=>{
+      const started=voice?.captureForAi?.(async text=>{
+        $(".hai-prompt",root).value=text;
+        renderHistory();
+        await send(root);
+      });
+      if(!started)inform("Mikrofon ishga tushmadi. Chrome/Edge va brauzerdagi mikrofon ruxsatini tekshiring.");
+      renderHistory();
+    };
+    $(".hai-voice-command",root).onclick=()=>{
+      voice?.commandOnce?.();renderHistory();
+    };
+    $(".hai-voice-read",root).onclick=()=>{
+      const answer=[...history].reverse().find(item=>item.role==="assistant"&&item.content);
+      if(answer)void voice?.say?.(answer.content.slice(0,2400));
+      else inform("Avval AI'dan javob oling.");
+    };
+    $(".hai-read-aloud",root).onchange=event=>{readReplies=Boolean(event.target.checked);renderHistory();};
+    $(".hai-hands",root).onchange=event=>{voice?.setHandsFree?.(event.target.checked);renderHistory();};
     root.querySelectorAll("[data-mode]").forEach(btn=>btn.onclick=()=>{
       $(".hai-mode",root).value=btn.dataset.mode;
       $(".hai-prompt",root).focus();
@@ -171,6 +203,7 @@ export function createAiUi({api,currentUser,onGo}={}){
       closePanel();inlineActions();syncVisibility();renderHistory();
     });
     inlineActions();syncVisibility();renderHistory();
+    document.addEventListener("hx:voice-state",renderHistory);
   }
   function place(x,y){
     if(!float)return;
@@ -240,7 +273,7 @@ export function createAiUi({api,currentUser,onGo}={}){
     syncVisibility();renderHistory();await refreshStatus();
   }
   function afterLogout(){
-    history=[];ready=false;remaining=null;closePanel();
+    history=[];ready=false;remaining=null;readReplies=false;closePanel();
     if(float)float.hidden=true;if(nav)nav.hidden=true;
   }
   return {afterLogin,afterLogout,open:openPanel,refreshStatus};
