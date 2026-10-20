@@ -30,12 +30,16 @@ export function createMyBooksUi({api,toast,esc,csrf,currentUser,announce=t=>toas
       '<p class="mb-hint">Kitob qo‘shilgach «Tinglash» tugmasini bosing. Madina yoki Sardor ovozini tanlang. To‘xtagan joyingiz eslab qolinadi. Skanerlangan PDF matni qurilmangizda taniladi; birinchi ochilish uzoqroq vaqt olishi mumkin.</p>'+
       (books.length?'<ul class="mb-list" aria-label="Kitoblarim">'+books.map(b=>{const p=pct(b.progress);return '<li class="mb-book"><div class="mb-cover" aria-hidden="true">'+(b.mimeType?.includes('pdf')?'📕':'📄')+'</div><div class="mb-info"><h3>'+esc(b.title)+'</h3><small>'+esc([b.author,fromLabel[b.addedBy]+(b.addedByName&&b.addedBy!=='self'?' ('+b.addedByName+')':''),size(b.size)].filter(Boolean).join(' · '))+'</small>'+
         '<div class="mb-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" aria-label="O‘qilgan qismi"><i style="width:'+p+'%"></i></div><small>'+(b.progress?.finished?'✅ Tinglab bo‘lingan':p?p+'% · '+((b.progress.page||0)+1)+'-sahifada to‘xtagansiz':'Hali boshlanmagan')+'</small></div>'+
-        '<div class="mb-btns"><button type="button" class="primary mb-listen" data-listen="'+esc(b.id)+'" aria-label="'+esc(b.title)+' kitobini tinglash">▶ '+(p&&!b.progress?.finished?'Davom ettirish':'Tinglash')+'</button><button type="button" class="secondary" data-del="'+esc(b.id)+'" aria-label="'+esc(b.title)+' kitobini o‘chirish">O‘chirish</button></div></li>'}).join('')+'</ul>'
+        '<div class="mb-btns"><button type="button" class="primary mb-listen" data-listen="'+esc(b.id)+'" aria-label="'+esc(b.title)+' kitobini tinglash">▶ '+(p&&!b.progress?.finished?'Davom ettirish':'Tinglash')+'</button><button type="button" class="secondary" data-ai-book="'+esc(b.id)+'">✦ AI tahlil</button><button type="button" class="secondary" data-del="'+esc(b.id)+'" aria-label="'+esc(b.title)+' kitobini o‘chirish">O‘chirish</button></div></li>'}).join('')+'</ul>'
       :'<div class="empty mb-empty"><b>Javoningiz hozircha bo‘sh</b><p>«Kitob qo‘shish» tugmasi bilan PDF kitob yuklang'+(isStudent?' yoki oilangizga yuklash havolasini yuboring':'')+'.</p></div>');
     document.getElementById('mbFile').onchange=e=>upload(e.target.files?.[0],e.target);
     document.getElementById('mbAdd').onclick=()=>document.getElementById('mbFile').click();
     document.getElementById('mbFamily')?.addEventListener('click',familyLink);
     host.querySelectorAll('[data-listen]').forEach(b=>b.onclick=()=>listen(b.dataset.listen));
+    host.querySelectorAll('[data-ai-book]').forEach(button=>button.onclick=()=>{
+      const book=books.find(b=>b.id===button.dataset.aiBook);if(!book)return;
+      document.dispatchEvent(new CustomEvent('hx:ai-analyze-document',{detail:{kind:'personal',title:book.title,url:'/api/my-books/'+encodeURIComponent(book.id)+'/file',lang:book.lang}}));
+    });
     host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>remove(b.dataset.del));
   }
 

@@ -42,8 +42,8 @@ test('light/dark themes, small phones and PWA cache are supported',()=>{
  assert.ok(css.includes('html[data-theme="dark"]'));
  assert.ok(css.includes('@media(max-width:900px)'));
  assert.ok(css.includes('@media(max-width:430px)'));
- assert.ok(sw.includes('m2-v127-ai-chat-scroll'));
+ assert.ok(sw.includes('m2-v129-ai-media'));
  assert.ok(sw.includes("'/telegram-design.css?v=20261013-rc5'"));
  assert.ok(sw.includes("'/telegram-design.css'"));
- assert.ok(sw.includes('/app.js?v=20261020-chat2'));
+ assert.ok(sw.includes('/app.js?v=20261020-lessonai2'));
 });
