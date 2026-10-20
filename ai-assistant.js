@@ -1,6 +1,6 @@
 // HALLAYM EDU: Groq-only, authenticated educational AI. API key is server-side.
 const MODES = Object.freeze({
-  chat:"Answer questions for independent learning. Be specific, clear and accurate.",
+  chat:"Infer the requested task and appropriate response format directly from the user message. Explain, translate, summarize supplied text, make practice questions, outline a lesson or answer normally as requested. Do not ask the user to select a mode when the request is clear. Be specific, clear and accurate. Do not claim to have accessed materials not supplied.",
   explain:"Explain this topic in simple Uzbek step-by-step with an example and a quick self-check.",
   summarize:"Summarize ONLY the learning material supplied in the message, preserving key points. If material is missing request it.",
   simplify:"Rewrite the provided material in plain language for a university student, without changing its factual meaning.",
