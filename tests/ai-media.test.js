@@ -35,7 +35,12 @@ test('media AI never bypasses source ACL',async()=>{
 test('media AI returns personalized result only to job owner',async()=>{
  const key=process.env.GROQ_API_KEY,fetcher=globalThis.fetch;process.env.GROQ_API_KEY='test-only';
  let calls=0,requestText='';
- globalThis.fetch=async(_url,init)=>{calls++;requestText=init.body;return {ok:true,json:async()=>({choices:[{message:{content:calls===1?'Darsda budjet tushunchasi aytilgan.':'Talabaga 3 ta mustaqil topshiriq va 5 ta savol tavsiya qilindi.'}}]})}}};
+ globalThis.fetch=async(_url,init)=>{
+    calls++;requestText=init.body;
+    return {ok:true,json:async()=>({
+      choices:[{message:{content:calls===1?'Darsda budjet tushunchasi aytilgan.':'Talabaga 3 ta mustaqil topshiriq va 5 ta savol tavsiya qilindi.'}}]
+    })};
+  };
  try{
   const routes=setup(),started=response();
   await routes['POST /api/ai/media/analyze'](request('unique-student',{kind:'video',id:'video123',consent:true,goal:'Budjetni tushunish'}),started);
