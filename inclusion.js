@@ -333,11 +333,11 @@ export function installInclusion(app,{mongoose,User,Structure,Schedule,auth,audi
       if(v.courseId&&Video&&checkVideoAccess){
         const candidates=await Video.find({courseId:v.courseId,published:true,_id:{$ne:v._id}}).select('_id title topicTitle moduleTitle').limit(15).lean();
         for(const next of candidates){
-          if((await checkVideoAccess(req,next))?.allowed)related.push({id:String(next._id),title:String(next.title||next.topicTitle||'').slice(0,110)});
+          try{if((await checkVideoAccess(req,next))?.allowed)related.push({id:String(next._id),title:String(next.title||next.topicTitle||'').slice(0,110)});}catch{}
           if(related.length>=5)break;
         }
       }
-      return {kind:'video',title:String(v.title||'Videodars'),sourceText:String(caption.transcript),lang:caption.lang||'uz',
+      return {kind:'video',title:String(v.title||'Videodars'),sourceText:String(caption.vtt||caption.transcript),lang:caption.lang||'uz',
         sourceUnits:caption.cues||null,progress:progress?{
           viewedSeconds:Number(progress.watchedSeconds)||0,completed:Boolean(progress.completed),
           durationSeconds:Number(progress.durationSeconds)||0,lastPositionSeconds:Number(progress.lastPositionSeconds)||0
@@ -355,7 +355,7 @@ export function installInclusion(app,{mongoose,User,Structure,Schedule,auth,audi
       const teacher=await User.findById(lesson.teacherId).select('fullName').lean();
       const teacherName=teacher?.fullName;
       // For teacher-led notes, never treat a student utterance as a teacher instruction.
-      const spoken=t.lines.filter(l=>!teacherName||l.name===teacherName)
+      const spoken=t.lines.filter(l=>String(l.userId||'')===String(lesson.teacherId))
         .map(l=>'['+new Date(l.at).toISOString().slice(11,16)+'] '+String(l.text||'')).filter(x=>x.length>9);
       if(!spoken.length)throw fail('O‘qituvchi nutqi subtitrlarda topilmadi.',422);
       return {kind:'live',title:String(lesson.title||'Jonli dars'),sourceText:spoken.join('\n'),lang:t.lang||'uz',
