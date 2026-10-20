@@ -16,7 +16,7 @@ const make=(tag,classes,text)=>{const node=document.createElement(tag);node.clas
 export function createAiUi({api,currentUser,onGo,voice}={}){
   let float=null,panel=null,aiPage=null,nav=null,history=[],ready=false,busy=false,teacher=false;
   let remaining=null,providerModel="",lastContentPage="courses",dragged=false,readReplies=false;
-  let selectedDocument=null,documentController=null;
+  let selectedDocument=null,documentController=null,selectedMedia=null;
   const currentPage=()=>document.documentElement.dataset.page||"dashboard";
   const exam=()=>["finalExams","remoteExams","exam"].includes(currentPage());
   const menu=()=>MODES.filter(m=>!m[2]||teacher);
@@ -128,12 +128,41 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     }catch(e){status.content="Kitob tahlilini yakunlab bo‘lmadi: "+(e?.message||"Noma’lum xato");}
     finally{documentController=null;busy=false;if(history.length>18)history=history.slice(-18);renderHistory();}
   }
+  async function analyzeMedia(descriptor,goal=''){
+    if(busy||exam())return;
+    const source=descriptor||selectedMedia;
+    if(!source?.id||!['video','live'].includes(source.kind)){inform('Avval subtitrli videodars yoki jonli darsni tanlang.');return;}
+    if(!window.confirm('Tanlangan dars subtitridagi matn tahlil qilish uchun Groq AI xizmatiga yuboriladi. Faqat ruxsatli, mavjud subtitrlar tahlil qilinadi. Davom etasizmi?'))return;
+    busy=true;history.push({role:'user',content:'«'+(source.title||'Dars')+'» subtitrlari asosida mavzuni tahlil qil va menga o‘qish tavsiyalarini ber.'});
+    const status={role:'assistant',content:'Videodars subtitri va foydalanish ruxsati tekshirilmoqda…'};history.push(status);
+    openPanel();renderHistory();
+    try{
+      const started=await api('/ai/media/analyze',{method:'POST',body:JSON.stringify({page:currentPage(),kind:source.kind,id:source.id,goal,consent:true})});
+      const first=Date.now();
+      let result;
+      while(Date.now()-first<18*60*1000){
+        await new Promise(resolve=>setTimeout(resolve,1900));
+        result=await api('/ai/media/'+encodeURIComponent(started.jobId));
+        if(result.status==='completed')break;
+        if(result.status==='failed')throw new Error(result.error||'Dars tahlili bajarilmadi.');
+        status.content='Subtitr tahlil qilinmoqda: '+(result.done||0)+' / '+(result.total||'…')+' qism. '+(result.stage||'');
+        renderHistory();
+      }
+      if(result?.status!=='completed')throw new Error('Tahlil hali tayyor emas. Subtitr hajmi yoki API limiti sabab uzoq davom etmoqda.');
+      status.content='📚 '+(started.title||source.title||'Dars')+' — subtitr asosidagi AI tahlil\n\n'+result.answer;
+      if(readReplies&&voice?.say)void voice.say(result.answer.slice(0,2300));
+    }catch(e){status.content='Subtitr tahlili: '+(e?.message||'Tahlil bajarilmadi.');}
+    finally{busy=false;if(history.length>18)history=history.slice(-18);renderHistory();}
+  }
   async function send(root){
     if(busy)return;
     const selectedMode=$(".hai-mode",root).value,source=$(".hai-context",root).value.trim();
     const text=$(".hai-prompt",root).value.trim().toLowerCase();
     const mode=selectedMode!=="chat"?selectedMode:source&&/\b(xulosa|qisqartir|umumlashtir|summary)\b/.test(text)?"summarize":source&&/\b(tarjima|translate)\b/.test(text)?"translate":teacher&&/\b(test|quiz|savollar|variantli)\b/.test(text)?"quiz":teacher&&/\b(dars rejasi|80 daqiqa|konspekt)\b/.test(text)?"lesson":"chat";
     let prompt=$(".hai-prompt",root).value.trim();
+    if(selectedMedia&&currentPage()===("videoWatch")&&/(?:video|dars|subtitr|o.qituvchi).*(?:tahlil|analiz|xulosa|tushuntir|tavsiya)|(?:tahlil|analiz|xulosa).*(?:video|dars|subtitr)|^(?:shu videoni tahlil qil|shu darsni tahlil qil)$/i.test(prompt)){
+      $(".hai-prompt",root).value="";void analyzeMedia(selectedMedia,prompt);return;
+    }
     if(selectedDocument&&currentPage()==="library"&&/(?:kitob|pdf|darslik|hujjat).*(?:tahlil|analiz|xulosa|mazmun)|(?:tahlil|analiz|xulosa).*(?:kitob|pdf|darslik|hujjat)|^(?:analiz qil|tahlil qil|xulosa qil)$/i.test(prompt)){
       $(".hai-prompt",root).value="";void analyzeDocument(selectedDocument);return;
     }
@@ -255,6 +284,8 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     inlineActions();syncVisibility();renderHistory();
     document.addEventListener("hx:voice-state",renderHistory);
     document.addEventListener("hx:ai-document-context",event=>{selectedDocument=event.detail||null;});
+    document.addEventListener("hx:ai-media-context",event=>{selectedMedia=event.detail||null;});
+    document.addEventListener("hx:ai-analyze-media",event=>{selectedMedia=event.detail||null;void analyzeMedia(selectedMedia,event.detail?.goal||"");});
     document.addEventListener("hx:ai-analyze-document",event=>{selectedDocument=event.detail||null;void analyzeDocument(selectedDocument);});
   }
   function place(x,y){
@@ -325,9 +356,9 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     syncVisibility();renderHistory();await refreshStatus();
   }
   function afterLogout(){
-    documentController?.abort();selectedDocument=null;
+    documentController?.abort();selectedDocument=null;selectedMedia=null;
     history=[];ready=false;remaining=null;readReplies=false;closePanel();
     if(float)float.hidden=true;if(nav)nav.hidden=true;
   }
-  return {afterLogin,afterLogout,open:openPanel,refreshStatus,analyzeDocument};
+  return {afterLogin,afterLogout,open:openPanel,refreshStatus,analyzeDocument,analyzeMedia};
 }
