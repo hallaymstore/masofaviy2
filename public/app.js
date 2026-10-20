@@ -812,6 +812,10 @@ function syncInterpreterOverlay(host){
 $('#callTranscript')?.addEventListener('click',()=>{$('#liveMorePanel')?.classList.add('hidden');showTranscriptPanel($('#lessonTranscript')?.classList.contains('hidden'),true)});
 $('#lessonTranscriptClose')?.addEventListener('click',()=>showTranscriptPanel(false));
 $('#lessonTranscriptDownload')?.addEventListener('click',async()=>{try{const rows=await api('/inclusion/transcripts?scheduleId='+encodeURIComponent(activeLessonId)+'&limit=1');if(!rows[0])return toast('Hali saqlangan matn yo‘q');location.href='/api/inclusion/transcripts/'+encodeURIComponent(rows[0].id)+'?format=txt'}catch(e){toast(e.message)}});
+$('#lessonTranscriptAnalyze')?.addEventListener('click',()=>{
+  if(!activeLessonId)return toast('Avval jonli darsga kiring');
+  void aiUi.analyzeMedia({kind:'live',id:String(activeLessonId),title:'Jonli dars subtitri'});
+});
 // ---- Video lessons: subtitles (WebVTT) for MP4 via <track>, overlay for YouTube, readable transcript ----
 function parseVtt(text){
   const t=s=>{const p=s.trim().split(':').map(Number);return p.length===3?p[0]*3600+p[1]*60+p[2]:p[0]*60+p[1]};
@@ -2032,6 +2036,13 @@ async function openVideoLesson(id,pushHistory=true,preview=false){
   $('#watchDescription').innerHTML='<div class="watch-description-meta">'+[v.courseId?.title,v.moduleTitle,v.topicTitle,...tags].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div><p>'+esc(v.description||'Videodars uchun tavsif kiritilmagan.')+'</p><div class="watch-progress-card"><div><b id="watchProgressLabel">'+(p.completed?'Video tugallandi · test ochildi':esc(pp)+'% ko‘rildi')+'</b><small>Chiqib qaytsangiz ayni joyidan davom etadi</small></div><div class="watch-progress-track"><i id="watchProgressBar" style="width:'+esc(pp)+'%"></i></div></div>'+(v.checkpointQuizId?'<div class="video-checkpoint-box"><div><b>Mavzu nazorati</b><small>'+esc(v.checkpointQuizId.title)+' · '+esc(v.checkpointQuizId.durationMinutes||30)+' daqiqa'+(v.checkpointQuizId.proctorRequired?' · kamera nazorati':'')+'</small></div><button class="primary" id="watchCheckpointQuiz" '+(p.completed?'':'disabled')+'>'+(p.completed?'Testni boshlash':'🔒 Video tugagach ochiladi')+'</button></div>':'');
   await renderWatchPlayer(v);
   mountVideoCaptions(v).catch(()=>{});
+  const aiVideo={kind:'video',id:String(v._id),title:v.title||'Videodars'};
+  document.dispatchEvent(new CustomEvent('hx:ai-media-context',{detail:aiVideo}));
+  const aiVideoButton=document.createElement('button');
+  aiVideoButton.type='button';aiVideoButton.className='secondary hai-inline';
+  aiVideoButton.textContent='✦ Video subtitrini AI bilan tahlil qilish';
+  aiVideoButton.onclick=()=>void aiUi.analyzeMedia(aiVideo);
+  $('#watchDescription')?.append(aiVideoButton);
   $('#watchCheckpointQuiz')?.addEventListener('click',()=>{if($('#watchCheckpointQuiz').disabled)return;startCourseQuiz(v.checkpointQuizId._id,v.checkpointQuizId.proctorRequired,activeVideoId)});
   const related=videoLessonsCache.filter(x=>String(x._id)!==activeVideoId).sort((a,b)=>(b.recommendationScore||0)-(a.recommendationScore||0)).slice(0,30);
   $('#watchRelated').innerHTML=related.map(compactRelatedCard).join('')||'<p class="muted">Boshqa videodars yo‘q.</p>';
