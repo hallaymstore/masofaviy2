@@ -32,7 +32,7 @@ function splitPages(pages){
   }
   flush();return parts;
 }
-async function completion(system,prompt,{signal,outputTokens=800}={}){
+export async function documentGroqCompletion(system,prompt,{signal,outputTokens=800}={}){
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),50000);
   const relay=()=>controller.abort();signal?.addEventListener('abort',relay,{once:true});
@@ -64,7 +64,7 @@ async function runJob(job,parts){
     // Sequential requests avoid flooding Groq free-tier RPM/TPM. Progress is polled by the client.
     for(let i=0;i<parts.length;i++){
       const part=parts[i];
-      const note=await completion(system,
+      const note=await documentGroqCompletion(system,
         'Kitob: '+job.title+'; bo‘lim '+(i+1)+'/'+parts.length+'; sahifalar '+part.start+'–'+part.end+'. Ushbu sahifalardagi barcha asosiy g‘oyalar, ta’riflar, formulalar va xulosalarni ixcham, faktlarga sodiq konspekt qil. Muhim faktlarda sahifa raqamini ko‘rsat. Matn:\n'+part.text,
         {outputTokens:850});
       notes.push('Sahifalar '+part.start+'–'+part.end+':\n'+note);
@@ -72,7 +72,7 @@ async function runJob(job,parts){
     }
     job.stage='Yakuniy xulosa tayyorlanmoqda';
     const merged=notes.join('\n\n').slice(0,58000);
-    job.answer=await completion(system,
+    job.answer=await documentGroqCompletion(system,
       'Kitob nomi: '+job.title+'. '+job.pageCount+' sahifali PDFning matn mavjud '+job.extractedPages+' sahifasi '+parts.length+' qismda tahlil qilindi. Shu konspektlardan kitobning asosiy g‘oyasi, boblar/mavzular kesimidagi sharh, eng muhim 8-15 tushuncha, asosiy formulalar (bo‘lsa), amaliy xulosalar, 5 ta tekshiruv savoli bilan tushunarli umumiy tahlil yoz. Sahifalar bo‘yicha manbani ko‘rsat. Matnda yo‘q ma’lumotni qo‘shma.\n\n'+merged,
       {outputTokens:1900});
     job.status='completed';job.stage='Tayyor';
