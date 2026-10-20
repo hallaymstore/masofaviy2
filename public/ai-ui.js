@@ -60,9 +60,10 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
        $(".hai-voice-state",root).textContent=voiceState.error||({listening:"Tinglayapman…",starting:"Mikrofon ulanmoqda…",retrying:"Qayta ulanmoqda…" }[voiceState.state]||"Ovozli boshqaruv · Alt+V");
        $(".hai-read-aloud",root).checked=readReplies;
        $(".hai-hands",root).checked=Boolean(voice?.enabled?.()&&voice?.handsFree?.());
-       const blocked=busy||!ready;
+       const blocked=busy;
       $(".hai-submit",root).disabled=blocked;
       $(".hai-submit",root).textContent=busy?"Javob tayyorlanmoqda…":"Yuborish ↗";
+       $(".hai-submit",root).title=ready?"Groq AI javobini olish":"AI ulanmagan bo‘lsa, tugma ulanish holatini qayta tekshiradi";
       $(".hai-remaining",root).textContent="Kunlik qolgan: "+(remaining==null?"—":remaining);
       $(".hai-status",root).textContent=ready?"Groq · "+providerModel:"Groq API hali sozlanmagan";
     });
@@ -98,7 +99,10 @@ export function createAiUi({api,currentUser,onGo,voice}={}){
     if(!source&&["summarize","simplify","video","library","feedback","translate"].includes(mode)){
       inform("Bu amal uchun matn yoki konspekt kerak. Material maydoniga qo‘ying.");return;
     }
-    if(!ready){inform("AI ulanmagan. Administrator serverda GROQ_API_KEY ni sozlashi kerak.");return;}
+    if(!ready){
+      await refreshStatus();
+      if(!ready){inform("Groq AI hali serverda ishga tushmagan. Administrator GROQ_API_KEY ni yangilab, LMS xizmatini qayta ishga tushirishi kerak. Savolingiz saqlandi, keyin Yuborish tugmasini qayta bosing.");return;}
+    }
     const pageName=currentPage()==="ai"?lastContentPage:currentPage();
     const conversation=history.filter(m=>m.role==="user"||m.role==="assistant").slice(-6);
     busy=true;
