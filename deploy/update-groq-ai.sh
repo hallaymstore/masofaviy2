@@ -11,7 +11,13 @@ for cmd in git npm node curl; do command -v "$cmd" >/dev/null || { echo "$cmd to
 echo "Darslar tugagach deploy qiling: LMS qisqa muddatga qayta ishga tushadi, SFU alohida qoladi."
 read -r -p "Davom etilsinmi? (ha): " confirmation
 [[ "$confirmation" == "ha" ]] || exit 0
-[[ -z "$(git status --porcelain)" ]] || { echo "Lokal git o'zgarishlar bor, to'xtatildi"; git status --short; exit 2; }
+# Keep existing untracked data/backups intact. Only tracked modifications block deployment.
+# Git itself will still refuse to overwrite an untracked file on fetch/checkout/pull.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Git tomonidan kuzatiladigan fayllarda lokal o'zgarish bor; ularni zaxiralang yoki stash qiling."
+  git status --short --untracked-files=no
+  exit 2
+fi
 
 OLD_SHA="$(git rev-parse HEAD)"
 BACKUP="$HOME/.hallaym-deploy-backups"
