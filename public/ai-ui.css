@@ -1,0 +1,73 @@
+/* HALLAYM EDU — clean, compact Groq AI interface. */
+.hai-floating{position:fixed;right:20px;bottom:88px;z-index:1035;width:58px;height:58px;touch-action:none}
+.hai-floating[hidden],.hai-panel[hidden],.hai-nav[hidden]{display:none!important}
+.hai-bubble{width:58px;height:58px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1px solid rgba(255,255,255,.4);border-radius:20px;color:#fff;background:linear-gradient(138deg,#3343cb 0%,#7258e6 62%,#9e6ef2 100%);box-shadow:0 9px 28px rgba(41,48,139,.27);cursor:grab;user-select:none;touch-action:none}
+.hai-bubble:active{cursor:grabbing}
+.hai-bubble>span{font-size:24px;line-height:27px}
+.hai-bubble>small{font-size:10px;line-height:12px;font-weight:800;letter-spacing:.1em}
+.hai-bubble:focus-visible,.hai-panel button:focus-visible,.hai-workspace button:focus-visible{outline:3px solid #87b6ff;outline-offset:2px}
+.hai-panel,.hai-workspace{--hai-bg:#fff;--hai-ink:#17213d;--hai-muted:#6d7892;--hai-line:#e6e9f3;--hai-soft:#f5f6fc;--hai-accent:#5148cb;background:var(--hai-bg);color:var(--hai-ink);border:1px solid var(--hai-line)}
+.hai-panel{position:fixed;right:16px;bottom:155px;z-index:1036;display:flex;flex-direction:column;width:min(395px,calc(100vw - 16px));height:min(620px,calc(100dvh - 28px));border-radius:19px;overflow:hidden;box-shadow:0 24px 75px rgba(13,23,51,.24)}
+.hai-panel .hai-top,.hai-workspace .hai-top{flex:none;display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--hai-line);background:var(--hai-bg)}
+.hai-star{display:grid;place-items:center;width:37px;height:37px;flex:none;border-radius:12px;background:#efedff;color:#5044c6;font-size:22px}
+.hai-top>div{display:flex;flex:1;min-width:0;flex-direction:column;line-height:1.35}
+.hai-top b{font-weight:800;font-size:14px;letter-spacing:-.01em}
+.hai-top small{color:var(--hai-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hai-top button{border:0;background:transparent;color:var(--hai-muted);font-size:23px;min-width:26px;padding:2px 5px;cursor:pointer}
+.hai-top button:hover{color:var(--hai-accent)}
+.hai-intro{display:flex;flex:none;flex-direction:column;gap:4px;padding:11px 16px 6px}
+.hai-intro b{font-size:13px}
+.hai-intro span{font-size:12px;color:var(--hai-muted);line-height:1.5}
+.hai-quick{display:flex;gap:6px;padding:6px 12px 10px;overflow-x:auto;flex:none;scrollbar-width:thin}
+.hai-quick button,.hai-gettext button{background:var(--hai-soft);color:var(--hai-accent);border:1px solid var(--hai-line);padding:7px 10px;white-space:nowrap;font-size:11px;line-height:1.1;border-radius:10px;cursor:pointer}
+.hai-quick button:hover,.hai-gettext button:hover{border-color:#989be2;background:#edeeff}
+.hai-history{overflow:auto;flex:1;min-height:70px;background:var(--hai-soft);padding:12px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.hai-empty{margin:auto;color:var(--hai-muted);font-size:12px;line-height:1.6;text-align:center;max-width:250px}
+.hai-message{max-width:96%;border-radius:13px;padding:10px 12px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--hai-bg);border:1px solid var(--hai-line);box-shadow:0 2px 7px rgba(16,30,70,.025)}
+.hai-message>b{display:block;font-size:11px;margin-bottom:5px;color:var(--hai-accent)}
+.hai-user{align-self:flex-end;background:#edf0ff;border-color:#dce3ff}
+.hai-answer{align-self:flex-start}
+.hai-message .hai-copy{font-size:10px;color:var(--hai-muted);border:0;background:transparent;margin-top:8px;padding:0;cursor:pointer;text-decoration:underline}
+.hai-form{flex:none;padding:10px 13px 12px;display:grid;gap:8px;background:var(--hai-bg);border-top:1px solid var(--hai-line)}
+.hai-form label{display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--hai-muted)}
+.hai-form select,.hai-form textarea{box-sizing:border-box;width:100%;font-family:inherit;font-size:12px;font-weight:400;line-height:1.4;border:1px solid var(--hai-line);border-radius:9px;padding:8px 10px;color:var(--hai-ink);background:var(--hai-bg);resize:vertical;outline:none}
+.hai-form textarea{min-height:44px;max-height:140px}
+.hai-form select:focus,.hai-form textarea:focus{border-color:#786cea;box-shadow:0 0 0 2px #786cea25}
+.hai-gettext,.hai-footer{display:flex;align-items:center;gap:8px}
+.hai-gettext button{padding:6px 8px}
+.hai-footer{justify-content:space-between}
+.hai-footer span{font-size:11px;color:var(--hai-muted)}
+.hai-submit{border:0!important;border-radius:10px;padding:9px 14px!important;min-height:36px;font-size:12px!important;font-weight:700!important;color:#fff!important;background:linear-gradient(120deg,#534ad0,#785fe4)!important;cursor:pointer}
+.hai-submit:disabled{opacity:.55;cursor:wait}
+.hai-page{width:100%;box-sizing:border-box}
+.hai-page-title{margin:0 0 18px}
+.hai-page-title h1{font-size:clamp(20px,3vw,28px);margin:0 0 6px}
+.hai-page-title p{margin:0;color:var(--muted,#778199);font-size:13px}
+.hai-workspace{border-radius:19px;overflow:hidden;min-height:min(75dvh,780px);max-width:1020px;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(16,30,70,.04)}
+.hai-workspace .hai-history{min-height:180px}
+.hai-workspace .hai-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 16px;padding:14px 18px}
+.hai-workspace .hai-form .hai-prompt-label,.hai-workspace .hai-form .hai-footer{grid-column:1 / -1}
+.hai-workspace .hai-form label:has(.hai-mode){grid-column:1 / -1}
+.hai-workspace .hai-form textarea{min-height:65px}
+.hai-workspace .hai-gettext{align-self:end;flex-wrap:wrap;padding-bottom:7px}
+.hai-workspace .hai-message{font-size:13px;max-width:82%}
+.hai-workspace .hai-top{padding:16px 20px}
+.hai-nav{font-weight:800!important;color:var(--brand,#5148cb)!important}
+html[data-theme="dark"] .hai-panel,html[data-theme="dark"] .hai-workspace{--hai-bg:#171d32;--hai-ink:#e7e9f6;--hai-muted:#acb5ca;--hai-line:#303852;--hai-soft:#1d2540;--hai-accent:#bcb2ff}
+html[data-theme="dark"] .hai-user{background:#333b70;border-color:#4b5587}
+html[data-theme="dark"] .hai-star{background:#363163;color:#d3c7ff}
+@media(max-width:640px){
+  .hai-floating{bottom:80px;right:12px;width:50px;height:50px}
+  .hai-bubble{width:50px;height:50px;border-radius:16px}
+  .hai-panel{width:calc(100vw - 16px);height:min(73dvh,620px);border-radius:16px}
+  .hai-workspace{min-height:72dvh}
+  .hai-workspace .hai-form{grid-template-columns:1fr;padding:12px}
+  .hai-workspace .hai-form>*{grid-column:1 / -1}
+  .hai-workspace .hai-message{max-width:96%}
+  .hai-gettext button{white-space:normal}
+}
+@media(prefers-reduced-motion:reduce){.hai-bubble,.hai-panel{transition:none!important}}
+
+.hai-inline{align-self:center;flex:none;display:inline-flex;align-items:center;gap:6px;background:#f0efff!important;color:#5149bc!important;border:1px solid #d7d6fa!important;border-radius:10px;padding:8px 12px!important;font-size:12px!important;font-weight:700!important;cursor:pointer;min-height:34px}
+.hai-inline:hover{background:#e6e4ff!important}
+html[data-theme="dark"] .hai-inline{background:#323253!important;color:#d5cfff!important;border-color:#48477c!important}

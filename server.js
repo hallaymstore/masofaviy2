@@ -30,6 +30,7 @@ import { installAcademicForms } from './academic-forms.js';
 import { installInclusion } from './inclusion.js';
 import { installTts } from './tts.js';
 import { installMyBooks } from './my-books.js';
+import { installAiAssistant } from './ai-assistant.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -414,6 +415,7 @@ app.use('/api',async(req,res,next)=>{
 const inclusionApi=installInclusion(app,{mongoose,User,Structure,Schedule,auth,audit,hasPermission,resolveScope:(u,q)=>resolveScope(u,q),resolveUserGroupId:u=>resolveUserGroupId(u),GLOBAL_SCOPE_ROLES,
   localDateKey:d=>localDateKey(d),localWeekday:d=>localWeekday(d),scheduleAccess:(u,l)=>scheduleAccess(u,l)});
 installTts(app,{auth});
+installAiAssistant(app,{auth});
 installMyBooks(app,{mongoose,User,auth,audit,resolveScope:(u,q)=>resolveScope(u,q),GLOBAL_SCOPE_ROLES});
 installLms(app,{mongoose,User,Structure,Schedule,Attendance,auth,audit,hasPermission,resolveUserGroupId,accommodationFor:inclusionApi.accommodationFor});
 const checkVideoAccess=createVideoAccess({VideoLesson,VideoProgress,Course:mongoose.models.Course,resolveUserGroupId,hasPermission});
