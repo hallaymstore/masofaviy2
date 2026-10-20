@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/a11y.css?v=20261016-voice1">
   <link rel="stylesheet" href="/audio-books.css?v=20261016-books1">
   <link rel="stylesheet" href="/voice-assistant.css?v=20261016-voice1">
-  <link rel="stylesheet" href="/ai-ui.css?v=20261020-pdf1">
+  <link rel="stylesheet" href="/ai-ui.css?v=20261020-lessonai2">
   <title>HALLAYM EDU</title>
 </head>
 <body>
@@ -404,7 +404,7 @@
             <div class="participants-head"><div><b>Qatnashuvchilar</b><small id="attendanceCheckpointInfo">Birinchi avtomatik davomat: 10-daqiqada</small></div></div>
             <div id="lessonParticipants" class="participant-list"></div>
           </section>
-          <section id="lessonChatPanel" class="chat hidden"><section id="lessonTranscript" class="lesson-transcript hidden" aria-label="Dars matni"><header><b>📝 Dars matni</b><button type="button" id="lessonTranscriptDownload" class="ghost hx-plain" title="Matnni yuklab olish">⤓ TXT</button><button type="button" id="lessonTranscriptClose" class="ghost hx-plain" aria-label="Dars matnini yopish">×</button></header><div id="lessonTranscriptLines" class="hxa-cap-history" aria-live="off"></div></section><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button aria-label="Yuborish"><span data-ico="send" data-fallback="➤"></span></button></form></section>
+          <section id="lessonChatPanel" class="chat hidden"><section id="lessonTranscript" class="lesson-transcript hidden" aria-label="Dars matni"><header><b>📝 Dars matni</b><button type="button" id="lessonTranscriptDownload" class="ghost hx-plain" title="Matnni yuklab olish">⤓ TXT</button><button type="button" id="lessonTranscriptAnalyze" class="ghost hx-plain" title="Saqlangan subtitrni AI bilan tahlil qilish">✦ AI tahlil</button><button type="button" id="lessonTranscriptClose" class="ghost hx-plain" aria-label="Dars matnini yopish">×</button></header><div id="lessonTranscriptLines" class="hxa-cap-history" aria-live="off"></div></section><h2>Dars chati</h2><div id="messages"></div><form id="chatForm"><input placeholder="Xabar yozing…"><button aria-label="Yuborish"><span data-ico="send" data-fallback="➤"></span></button></form></section>
         </aside>
       </div>
     </section>
@@ -552,5 +552,5 @@
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261016-voice1"></script><script type="module" src="/app.js?v=20261020-pdf1"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261016-voice1"></script><script type="module" src="/app.js?v=20261020-lessonai2"></script>
 </body></html>
