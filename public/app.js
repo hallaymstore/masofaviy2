@@ -1574,7 +1574,8 @@ async function loadLessonParticipants(){
     const x=await api('/live/rooms/'+activeLessonId+'/participants'),rows=x.students||[],audit=x.groupAudit||null;
     if(seq!==participantsSeq||lessonId!==activeLessonId)return; // a newer refresh or another lesson won
     renderLessonStudentRail(rows,audit);
-    if(attendanceDirty){$('#attendanceSave')?.classList.add('needs-save');return} // keep the teacher's unsaved marksconst label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
+    if(attendanceDirty){$('#attendanceSave')?.classList.add('needs-save');return} // keep the teacher's unsaved marks
+    const label={present:'Vaqtida',late:'Kechikkan',absent:'Yo‘q',excused:'Sababli',pending:'Kutilmoqda'};
     const editable=user.role==='teacher'||can('attendance.manage');
     const counts={total:rows.length,online:rows.filter(r=>r.online).length,present:rows.filter(r=>r.status==='present').length,late:rows.filter(r=>r.status==='late').length,absent:rows.filter(r=>r.status==='absent').length,face:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return p.cameraReady&&p.faceState==='present'}).length,attentionLow:rows.filter(r=>{const p=liveProctorStates.get(String(r._id))||r.proctor||{};return Number(p.observedSeconds||0)>=30&&Number(p.attentionPercent||0)<60}).length};
     const summary='<div class="attendance-summary">'+
