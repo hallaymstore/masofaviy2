@@ -529,7 +529,7 @@ app.get('/api/admin/instance-overview',auth,async(req,res)=>{
   ];
   const ready=checks.filter(x=>x.ready).length;
   const evaluation=[
-    {criterion:2,label:'Avtoproktoring tizimi',status:mods.proctoring&&proctoredQuizzes>0?'ready':'needs_data',evidence:{proctoredQuizzes},note:'Fullscreen, kamera/mikrofon, yuz holati, sahifadan chiqish va kritik qoidabuzarlikda auto-terminate mavjud.'},
+    {criterion:2,label:'Avtoproktoring tizimi',status:mods.proctoring&&proctoredQuizzes>0?'ready':'needs_data',evidence:{proctoredQuizzes},note:'Kamera + mikrofon + butun ekran ulashish (ekran nazorati), qo‘shimcha monitor aniqlash, AI yuz tahlili (yo‘q/bir nechta/burilgan), fullscreen/sahifadan chiqish, kritik qoidabuzarlikda auto-terminate, kamera va ekran rasm-dalillari (TTL saqlash) va o‘qituvchi ko‘rigi mavjud.'},
     {criterion:3,label:'Raqamli o‘qitish / virtual classroom',status:mods.live&&SFU_BRIDGE_URLS.length&&TURN_URLS.length?'ready':'needs_config',evidence:{sfuNodes:SFU_BRIDGE_URLS.length,turnServers:TURN_URLS.length},note:'WebRTC/mediasoup SFU, TURN, 1080p teacher priority va screen share.'},
     {criterion:4,label:'Umumiy, guruh va individual ta’lim shakllari',status:courses>0&&groups>0&&schedules>0?'ready':'needs_data',evidence:{courses,groups,schedules},note:'Fan, guruh, jadval, topshiriq, individual reja va mustaqil ta’lim modullari.'},
     {criterion:7,label:'Tashkiliy-me’yoriy materiallarning ochiqligi',status:row.website?'external_evidence':'needs_config',evidence:{website:row.website||''},note:'Platformada rasmiy sayt havolasi mavjud; hujjatlarning rasmiy saytda to‘liq joylashtirilgani alohida tekshiriladi.'},
@@ -594,7 +594,7 @@ app.get('/api/evaluation/readiness',auth,async(req,res)=>{
   const settings=await InstitutionSettings.findOne({key:'primary'}).lean();
   const registryNo=String(process.env.DIGITAL_GOV_REGISTRY_NUMBER||'').trim(),cyberNo=String(process.env.CYBERSECURITY_CONCLUSION_NUMBER||'').trim();
   const criteria=[
-    {no:2,title:'Avtoproktoring tizimi',ready:proctorQuizzes>0,evidence:proctorQuizzes+' ta proktoringli test · fullscreen/page/face nazorati'},
+    {no:2,title:'Avtoproktoring tizimi',ready:proctorQuizzes>0,evidence:proctorQuizzes+' ta proktoringli test · kamera, ekran, AI yuz tahlili, rasm-dalil va inson ko‘rigi'},
     {no:3,title:'Raqamli o‘qitish (virtual classroom)',ready:Boolean(SFU_BRIDGE_URLS.length&&TURN_URLS.length),evidence:'WebRTC/SFU + TURN · adaptiv 1080p teacher/screen'},
     {no:4,title:'Umumiy, guruh va individual ta’lim',ready:courses>0&&schedules>0&&studyPlans>0,evidence:courses+' fan · '+schedules+' live jadval · '+studyPlans+' individual reja'},
     {no:7,title:'Tashkiliy-me’yoriy materiallar',ready:Boolean(settings?.regulationsUrl),evidence:settings?.regulationsUrl||'Rasmiy saytdagi me’yoriy hujjatlar sahifasi URL kiritilmagan'},

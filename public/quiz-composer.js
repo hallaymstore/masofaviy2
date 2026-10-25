@@ -34,7 +34,7 @@ export function openQuizComposer({modal,api,courseId,openCourse,toast,esc,onQuiz
  '<div class="quiz-settings-grid"><label>Davomiylik (daqiqa)<input name="durationMinutes" type="number" min="1" max="240" value="30" required></label><label>Maksimal urinish<input name="maxAttempts" type="number" min="1" max="10" value="1" required></label></div>'+
  '<div class="quiz-composer-toolbar"><strong>Test savollari</strong><span id="quizCount">1 ta savol</span><button type="button" id="quizAddQuestion">+ Savol qo‘shish</button></div><div id="quizQuestionCards"></div>'+
  '<details class="quiz-import"><summary>TXT, CSV yoki jadvaldan savollar import qilish</summary><p>Har qatorda: Savol | 1-variant | 2-variant | 3-variant | To‘g‘ri javob raqami (1 dan)</p><textarea id="quizBulkInput" rows="4" placeholder="Poytaxt qayerda? | Toshkent | Samarqand | Buxoro | 1"></textarea><label>Fayl tanlash<input id="quizFileInput" type="file" accept=".txt,.csv,.tsv"></label><button type="button" id="quizImportRows">Import qilish</button></details>'+
- '<label class="quiz-proctor-option"><input name="proctorRequired" type="checkbox" value="true"> Proktoring rejimi</label><p class="quiz-composer-hint">JSON yozish shart emas: to‘g‘ri javobni doiracha orqali tanlang.</p>';
+ '<label class="quiz-proctor-option"><input name="proctorRequired" type="checkbox" value="true"> Proktoring rejimi</label><label class="quiz-proctor-option"><input name="screenRequired" type="checkbox" value="true" checked> Ekran nazorati (butun ekranni ulashish, faqat kompyuter)</label><p class="quiz-composer-hint">JSON yozish shart emas: to‘g‘ri javobni doiracha orqali tanlang.</p>';
  modal('Test tuzish',body,async d=>{
   const rows=[...document.querySelectorAll('#quizQuestionCards .quiz-question-card')].map(card=>({
    prompt:card.querySelector('.quiz-prompt').value,
@@ -42,7 +42,7 @@ export function openQuizComposer({modal,api,courseId,openCourse,toast,esc,onQuiz
    correctIndex:[...card.querySelectorAll('.quiz-option-correct')].findIndex(el=>el.checked)
   }));
   const questions=validateQuizQuestions(rows);
-  const created=await api('/lms/courses/'+courseId+'/quizzes',{method:'POST',body:JSON.stringify({title:d.title,durationMinutes:Number(d.durationMinutes)||30,maxAttempts:Number(d.maxAttempts)||1,proctorRequired:d.proctorRequired==='true',published:true,questions})});
+  const created=await api('/lms/courses/'+courseId+'/quizzes',{method:'POST',body:JSON.stringify({title:d.title,durationMinutes:Number(d.durationMinutes)||30,maxAttempts:Number(d.maxAttempts)||1,proctorRequired:d.proctorRequired==='true',screenRequired:d.screenRequired==='true',published:true,questions})});
   if(onQuizCreated)await onQuizCreated(created);setTimeout(()=>openCourse(courseId),40);toast(questions.length+' ta savolli test qo‘shildi');
  });
  const board=document.querySelector('#quizQuestionCards'),count=document.querySelector('#quizCount');if(!board)return;

@@ -30,3 +30,29 @@ test('strict proctoring requires repeated face-turn signal before termination',(
   const x=evaluateProctorTermination([{type:'face_turned'},{type:'face_turned'}]);
   assert.equal(x.terminate,true);assert.equal(x.type,'face_turned');
 });
+
+test('screen monitoring is part of readiness only when required',()=>{
+  const base=[{type:'camera_ready'},{type:'microphone_ready'}];
+  assert.equal(proctorSubmissionReady(base).ok,true);
+  assert.equal(proctorSubmissionReady(base,{requireScreen:true}).ok,false);
+  const x=proctorSubmissionReady([...base,{type:'screen_share_ready'}],{requireScreen:true});
+  assert.equal(x.ok,true);assert.equal(x.summary.screenReady,true);assert.equal(x.summary.riskScore,0);
+});
+test('stopping screen share terminates a screen-proctored attempt',()=>{
+  assert.equal(evaluateProctorTermination([{type:'screen_share_ended'}]).terminate,false);
+  const x=evaluateProctorTermination([{type:'screen_share_ended'}],{requireScreen:true});
+  assert.equal(x.terminate,true);assert.equal(x.type,'screen_share_ended');
+});
+test('second monitor is flagged for human review',()=>{
+  const x=summarizeProctorEvents([{type:'camera_ready'},{type:'microphone_ready'},{type:'screen_share_ready'},{type:'multiple_displays'}],{requireScreen:true});
+  assert.ok(x.riskScore>=25);assert.ok(x.warnings.some(w=>w.includes('monitor')));
+});
+test('evidence images are validated by content and size',async()=>{
+  const {decodeEvidenceImage,PROCTOR_EVIDENCE_MAX_BYTES}=await import('../proctoring.js');
+  const jpeg=Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]),Buffer.alloc(64)]);
+  assert.equal(decodeEvidenceImage('data:image/jpeg;base64,'+jpeg.toString('base64')).mime,'image/jpeg');
+  assert.throws(()=>decodeEvidenceImage('data:image/jpeg;base64,'+Buffer.from('<html>').toString('base64')));
+  assert.throws(()=>decodeEvidenceImage('data:text/html;base64,AAAA'));
+  const big=Buffer.concat([Buffer.from([0xff,0xd8]),Buffer.alloc(PROCTOR_EVIDENCE_MAX_BYTES)]);
+  assert.throws(()=>decodeEvidenceImage('data:image/jpeg;base64,'+big.toString('base64')));
+});

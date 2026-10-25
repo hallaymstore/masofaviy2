@@ -2753,23 +2753,36 @@ let scormListener=null;
 async function launchScorm(id,scoId=''){try{const launch=await api('/lms/scorm/'+id+'/launch',{method:'POST',body:JSON.stringify({scoId})});if(scormListener)removeEventListener('message',scormListener);const frame=document.createElement('iframe');frame.sandbox='allow-scripts';frame.referrerPolicy='no-referrer';frame.title='SCORM dars · '+(launch.sco?.title||'');frame.style.cssText='width:100%;height:65vh;border:1px solid #bbb;border-radius:10px';$('#scormPlayer').replaceChildren(frame);scormListener=event=>{if(event.source!==frame.contentWindow||event.data?.token!==launch.token)return;if(event.data.kind==='scorm-progress')api('/lms/scorm/'+id+'/progress',{method:'POST',body:JSON.stringify({token:launch.token,values:event.data.values})}).catch(e=>toast(e.message))};addEventListener('message',scormListener);frame.src=launch.url}catch(e){toast(e.message)}}
 async function startCourseQuiz(id,proctorExpected=false,videoId=''){
   if(!/^[0-9a-f]{24}$/i.test(String(id||''))){toast('Test ID topilmadi. Sahifani yangilang.');return}
-  let stop=()=>{},terminated=false,preflight=null,countdown=null;
+  let stop=()=>{},terminated=false,preflight=null,screenPreflight=null,countdown=null;
+  const stopPreflight=()=>{try{preflight?.getTracks().forEach(t=>t.stop())}catch{};try{screenPreflight?.getTracks().forEach(t=>t.stop())}catch{};preflight=null;screenPreflight=null};
   try{
     if(proctorExpected){
-      const consent=await askConfirmation('Kamera nazoratli test: kamera, mikrofon, fullscreen, sahifadan chiqish va yuz holati nazorat qilinadi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Davom etasizmi?');
+      const consent=await askConfirmation('Avtoproktoringli test: kamera, mikrofon, butun ekran (ekran ulashish), fullscreen, sahifadan chiqish va yuz holati nazorat qilinadi. Qoidabuzarlik paytida kamera va ekrandan rasm-dalil olinib, o‘qituvchi ko‘rigi uchun cheklangan muddat saqlanadi. Kritik qoidabuzarlik testni avtomatik yakunlaydi. Davom etasizmi?');
       if(!consent)return;
       if(!navigator.mediaDevices?.getUserMedia)throw Error('Bu brauzer kamerani qo‘llamaydi. HTTPS va Chrome orqali oching.');
+      // Screen picker first: it needs the fresh user gesture from the consent click.
+      if(navigator.mediaDevices.getDisplayMedia){
+        try{
+          screenPreflight=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'monitor',frameRate:{ideal:2,max:5}},audio:false,monitorTypeSurfaces:'include',surfaceSwitching:'exclude',selfBrowserSurface:'include'});
+          const surface=screenPreflight.getVideoTracks()[0]?.getSettings?.().displaySurface;
+          if(surface&&surface!=='monitor'){stopPreflight();throw Error('Ekran ulashishda “Butun ekran / Entire screen” ni tanlang (oyna yoki tab emas).')}
+        }catch(err){if(err?.message?.includes('Butun ekran'))throw err;screenPreflight=null}
+      }
       try{
         preflight=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
-      }catch(err){throw Error('Kamera/mikrofonni ochib bo‘lmadi: '+(err?.name==='NotAllowedError'?'brauzer sozlamasidan ruxsat bering':err?.message||'qurilmalarni tekshiring'))}
+      }catch(err){stopPreflight();throw Error('Kamera/mikrofonni ochib bo‘lmadi: '+(err?.name==='NotAllowedError'?'brauzer sozlamasidan ruxsat bering':err?.message||'qurilmalarni tekshiring'))}
       if(document.documentElement.requestFullscreen&&!document.fullscreenElement){
-        try{await document.documentElement.requestFullscreen()}catch(err){preflight.getTracks().forEach(t=>t.stop());preflight=null;throw Error('To‘liq ekran ochilmadi. Testni Chrome brauzerida qayta boshlang: '+(err?.message||''))}
+        // A second click gives the fresh gesture fullscreen needs after the device pickers.
+        if(!await askConfirmation('Kamera, mikrofon'+(screenPreflight?' va ekran':'')+' tayyor. Testni to‘liq ekranda boshlaymizmi?')){stopPreflight();return}
+        try{await document.documentElement.requestFullscreen()}catch(err){stopPreflight();throw Error('To‘liq ekran ochilmadi. Testni Chrome brauzerida qayta boshlang: '+(err?.message||''))}
       }
     }
-    const x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:proctorExpected?true:undefined,videoId:videoId||undefined})});
+    let x;
+    try{x=await api('/lms/quizzes/'+id+'/start',{method:'POST',body:JSON.stringify({consent:proctorExpected?true:undefined,screenShared:proctorExpected?Boolean(screenPreflight):undefined,videoId:videoId||undefined})})}
+    catch(err){stopPreflight();throw err}
     const cameraBox=x.proctorRequired?'<div class="proctor-camera-box"><video id="proctorPreviewVideo" autoplay muted playsinline></video><div><b>📷 Kamera nazorati faol</b><small id="proctorCameraStatus">Yuzni kamera markazida tuting · oynadan chiqmang</small></div></div>':'';
     const accNote=x.accommodation?.extraTimePct?'<p class="hxa-needs" role="note">⏱ <b>Sizga +'+esc(x.accommodation.extraTimePct)+'% qo‘shimcha vaqt berilgan</b> ('+esc(x.baseDurationMinutes)+' o‘rniga '+esc(x.durationMinutes)+' daqiqa)'+(x.accommodation.proctorRelaxed?' · proktoring testni to‘xtatmaydi, faqat o‘qituvchi ko‘rib chiqadi':'')+'</p>':'';
-    const fields=accNote+'<div class="proctor-exam-banner '+(x.proctorRequired?'strict':'')+'"><b>'+(x.proctorRequired?'🔒 Avtoproktoring faol':'Qisqa mavzu testi')+'</b><span>'+(x.proctorRequired?'Kamera, yuz holati, fullscreen va sahifadan chiqish real vaqtda nazorat qilinadi.':'Videodars bo‘yicha savollarni belgilang.')+'</span><strong id="examCountdown"></strong></div>'+cameraBox+x.questions.map((q,i)=>'<fieldset class="quiz-question"><legend><span>'+(i+1)+'</span>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label class="quiz-option"><input type="radio" name="q'+i+'" value="'+j+'" required><span>'+esc(option)+'</span></label>').join('')+'</fieldset>').join('');
+    const fields=accNote+'<div class="proctor-exam-banner '+(x.proctorRequired?'strict':'')+'"><b>'+(x.proctorRequired?'🔒 Avtoproktoring faol':'Qisqa mavzu testi')+'</b><span>'+(x.proctorRequired?'Kamera, butun ekran, yuz holati, fullscreen va sahifadan chiqish real vaqtda nazorat qilinadi; qoidabuzarlikda rasm-dalil olinadi.':'Videodars bo‘yicha savollarni belgilang.')+'</span><strong id="examCountdown"></strong></div>'+cameraBox+x.questions.map((q,i)=>'<fieldset class="quiz-question"><legend><span>'+(i+1)+'</span>'+esc(q.prompt)+'</legend>'+q.options.map((option,j)=>'<label class="quiz-option"><input type="radio" name="q'+i+'" value="'+j+'" required><span>'+esc(option)+'</span></label>').join('')+'</fieldset>').join('');
     modal((x.proctorRequired?'Kamera nazoratli test':'Mavzu testi')+' · '+x.durationMinutes+' daqiqa',fields,async d=>{
       if(terminated)throw Error('Test avtoproktoring tomonidan yakunlangan');
       const answers=x.questions.map((_,i)=>Number(d['q'+i]));
@@ -2789,22 +2802,66 @@ async function startCourseQuiz(id,proctorExpected=false,videoId=''){
       $('#leaveTerminatedExam')?.addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});closeEditor()});
       toast('Avtoproktoring: test yakunlandi');
     };
-    stop=x.proctorRequired?await startExamSignals(x.attemptId,x.proctorPolicy||{},onTerminate,preflight):()=>{};
-    preflight=null;
+    if(!x.proctorRequired)stopPreflight();
+    stop=x.proctorRequired?await startExamSignals(x.attemptId,x.proctorPolicy||{},onTerminate,preflight,screenPreflight):()=>{};
+    preflight=null;screenPreflight=null;
     $('#editor').addEventListener('close',()=>{if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})},{once:true});
   }catch(e){
-    try{preflight?.getTracks().forEach(t=>t.stop())}catch{}
+    stopPreflight();
     if(countdown)clearInterval(countdown);stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});console.error('Quiz start failure',e);toast('Test ochilmadi: '+(e?.message||'Noma’lum xatolik'))
   }
 }
-async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div><button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
-async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflightStream=null){
-  let camera=null,microphone=null,timer=null,detector=null,audioContext=null,analyser=null,busy=false,stopped=false,lastSound=0,turnStreak=0,missingStreak=0;
+const PROCTOR_TRIGGER_LABELS={interval:'Tasodifiy tekshiruv',face_missing:'Yuz yo‘q',multiple_faces:'Bir nechta yuz',face_turned:'Yuz burilgan',face_off_center:'Yuz markazdan chiqqan',page_hidden:'Sahifadan chiqish',window_blur:'Oyna fokusi yo‘qoldi',fullscreen_exit:'Fullscreen’dan chiqish',screenshot_attempt:'Skrinshot urinishi',clipboard_attempt:'Copy/paste',ambient_sound:'Muhit tovushi',screen_share_ended:'Ekran ulashish to‘xtadi',multiple_displays:'Qo‘shimcha monitor',camera_track_ended:'Kamera o‘chdi'};
+async function showProctorEvidence(attemptId,name=''){
+  try{
+    const x=await api('/lms/attempts/'+attemptId+'/proctor-evidence');
+    const fmt=d=>new Date(d).toLocaleString('uz-UZ',{hour:'2-digit',minute:'2-digit',second:'2-digit',day:'2-digit',month:'2-digit'});
+    const cards=x.items.map(e=>'<figure class="proctor-evidence-card '+esc(e.kind)+'"><a href="/api/lms/proctor-evidence/'+esc(e._id)+'/image" target="_blank" rel="noopener"><img loading="lazy" src="/api/lms/proctor-evidence/'+esc(e._id)+'/image" alt="'+esc(e.kind==='screen'?'Ekran':'Kamera')+' dalili"></a><figcaption><b>'+(e.kind==='screen'?'🖥 Ekran':'📷 Kamera')+'</b> · '+esc(PROCTOR_TRIGGER_LABELS[e.trigger]||e.trigger)+'<small>'+esc(fmt(e.capturedAt))+'</small></figcaption></figure>').join('');
+    const timeline=x.events.map(e=>'<li><time>'+esc(fmt(e.at))+'</time> '+esc(PROCTOR_TRIGGER_LABELS[e.type]||e.type)+'</li>').join('');
+    modal('Avtoproktoring dalillari'+(name?' · '+name:''),'<p class="quiz-composer-hint">Kamera va ekran kadrlari qoidabuzarlik signali yoki tasodifiy tekshiruv paytida olingan. Saqlash muddati: '+esc(x.retentionDays)+' kun. Har bir ko‘rish auditga yoziladi. Signal avtomatik hukm emas — inson ko‘rigi bilan qaror qiling.</p><div class="proctor-evidence-grid">'+(cards||'<p>Dalil yo‘q</p>')+'</div><details><summary>Hodisalar xronologiyasi ('+esc(x.events.length)+')</summary><ol class="proctor-evidence-timeline">'+timeline+'</ol></details>',async()=>true);
+    $('#modalSave')?.classList.add('hidden');
+  }catch(e){toast(e.message)}
+}
+async function reviewCourseQuiz(id){try{const rows=await api('/lms/quizzes/'+id+'/attempts');$('#courseDetail').innerHTML+='<article><h3>Test urinishlari</h3>'+rows.map(r=>{const s=r.proctorSummary||{};return '<div class="lesson-row"><div><b>'+esc(r.studentId?.fullName||'')+'</b><small>'+Math.round(r.score||0)+'% · '+esc(r.reviewDecision)+' · risk '+esc(s.riskScore??0)+'/100 ('+esc(s.reviewPriority||'low')+')</small><p>'+esc((s.warnings||[]).join(' · ')||'Muhim proktoring ogohlantirishi yo‘q')+'</p><small>'+esc(Object.entries(s.eventCounts||{}).map(([k,v])=>k+': '+v).join(', ')||'Signal yo‘q')+'</small></div>'+(r.evidenceCount?'<button data-evidence-attempt="'+esc(r._id)+'" data-evidence-name="'+esc(r.studentId?.fullName||'')+'">📸 Dalillar ('+esc(r.evidenceCount)+')</button>':'')+'<button data-review-attempt="'+esc(r._id)+'">Ko‘rib chiqish</button></div>'}).join('')+'</article>';all('[data-evidence-attempt]').forEach(b=>b.onclick=()=>showProctorEvidence(b.dataset.evidenceAttempt,b.dataset.evidenceName));all('[data-review-attempt]').forEach(b=>b.onclick=()=>modal('Imtihon signalini ko‘rib chiqish','<label>Qaror<select name="decision"><option value="cleared">Tekshirildi, muammo aniqlanmadi</option><option value="needs_review">Qo‘shimcha tekshiruv kerak</option></select></label><label>Izoh<textarea name="note"></textarea></label>',async d=>{await api('/lms/attempts/'+b.dataset.reviewAttempt+'/review',{method:'PATCH',body:JSON.stringify(d)});reviewCourseQuiz(id)}))}catch(e){toast(e.message)}}
+const EXAM_EVIDENCE_TRIGGERS=new Set(['face_missing','multiple_faces','face_turned','face_off_center','page_hidden','window_blur','fullscreen_exit','screenshot_attempt','clipboard_attempt','ambient_sound','screen_share_ended','multiple_displays','camera_track_ended']);
+// Draws the current frame of a playing <video> into a downscaled JPEG data URL (kept under the server's 450 KB cap).
+function examFrameDataUrl(video,maxWidth){
+  if(!video||video.readyState<2||!video.videoWidth)return '';
+  const scale=Math.min(1,maxWidth/video.videoWidth),canvas=document.createElement('canvas');
+  canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  for(const q of [.62,.45,.3]){const url=canvas.toDataURL('image/jpeg',q);if(url.length<580000)return url}
+  return '';
+}
+async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflightStream=null,screenStream=null){
+  let camera=null,microphone=null,timer=null,detector=null,audioContext=null,analyser=null,busy=false,stopped=false,lastSound=0,turnStreak=0,missingStreak=0,screenVideo=null,evidenceTimer=null;
+  const lastEvidenceAt=new Map();
   document.body.classList.add('proctored-exam-active');
+  const uploadEvidence=(kind,trigger,image)=>image?api('/lms/attempts/'+attemptId+'/proctor-evidence',{method:'POST',body:JSON.stringify({kind,trigger,image})}).catch(()=>null):null;
+  const captureEvidence=(trigger)=>{
+    if(!policy.captureEvidence)return;
+    const now=Date.now();if(now-(lastEvidenceAt.get(trigger)||0)<10000)return;lastEvidenceAt.set(trigger,now);
+    uploadEvidence('camera',trigger,examFrameDataUrl($('#proctorPreviewVideo'),480));
+    uploadEvidence('screen',trigger,examFrameDataUrl(screenVideo,1280));
+  };
   const send=async type=>{
     if(stopped)return null;
+    if(EXAM_EVIDENCE_TRIGGERS.has(type))captureEvidence(type);
     try{const x=await api('/lms/attempts/'+attemptId+'/proctor-events',{method:'POST',body:JSON.stringify({type})});if(x?.terminated){stopped=true;onTerminate(x.reason||'Nazorat qoidasi buzildi')}return x}catch{return null}
   };
+  if(screenStream?.getVideoTracks?.().length){
+    screenVideo=document.createElement('video');screenVideo.muted=true;screenVideo.playsInline=true;screenVideo.srcObject=screenStream;screenVideo.play().catch(()=>{});
+    await send('screen_share_ready');
+    screenStream.getVideoTracks()[0].addEventListener('ended',()=>{if(!stopped)send('screen_share_ended')},{once:true});
+  }else if(policy.requireScreen)await send('screen_share_unavailable');
+  const checkDisplays=()=>{if(window.screen?.isExtended===true)send('multiple_displays')};
+  checkDisplays();try{window.screen?.addEventListener?.('change',checkDisplays)}catch{}
+  if(policy.captureEvidence){
+    // Random-interval spot checks in addition to event-triggered frames.
+    const base=Math.max(20,Number(policy.evidenceIntervalSeconds)||45)*1000;
+    const spot=()=>{evidenceTimer=setTimeout(()=>{if(stopped)return;lastEvidenceAt.delete('interval');captureEvidence('interval');spot()},base*(.6+Math.random()*.8))};
+    setTimeout(()=>{if(!stopped)captureEvidence('interval')},4000);spot();
+  }
   const visibility=()=>{if(document.hidden)send('page_hidden')};
   const blur=()=>send('window_blur');
   const networkOffline=()=>send('network_offline'),networkOnline=()=>send('network_online');
@@ -2833,14 +2890,14 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
     else camera=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:24},facingMode:'user'},audio:false});
     await send('camera_ready');camera.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('camera_track_ended')},{once:true}));
   }catch{await send('camera_unavailable')}
-  if(stopped)return ()=>{try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
+  if(stopped)return ()=>{clearTimeout(evidenceTimer);screenStream?.getTracks().forEach(t=>t.stop());try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
   try{
     if(preflightStream?.getAudioTracks?.().length)microphone=new MediaStream(preflightStream.getAudioTracks());
     else microphone=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
     await send('microphone_ready');microphone.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>{if(!stopped)send('microphone_track_ended')},{once:true}));
     const AC=window.AudioContext||window.webkitAudioContext;if(AC){audioContext=new AC();analyser=audioContext.createAnalyser();analyser.fftSize=1024;audioContext.createMediaStreamSource(microphone).connect(analyser)}
   }catch{await send('microphone_unavailable')}
-  if(stopped)return ()=>{camera?.getTracks().forEach(t=>t.stop());try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
+  if(stopped)return ()=>{clearTimeout(evidenceTimer);screenStream?.getTracks().forEach(t=>t.stop());camera?.getTracks().forEach(t=>t.stop());try{preflightStream?.getTracks?.().forEach(t=>t.stop())}catch{};document.body.classList.remove('proctored-exam-active')};
   if(camera){
     const video=$('#proctorPreviewVideo')||document.createElement('video');video.srcObject=camera;video.muted=true;video.playsInline=true;await video.play().catch(()=>{});
     const status=$('#proctorCameraStatus');if(status)status.textContent='Kamera faol · yuzingiz markazda bo‘lsin';
@@ -2882,7 +2939,7 @@ async function startExamSignals(attemptId,policy={},onTerminate=()=>{},preflight
   }
   return ()=>{
     if(stopped&&document.body.classList.contains('proctored-exam-active')===false)return;
-    stopped=true;clearInterval(timer);detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});const pv=$('#proctorPreviewVideo');if(pv)pv.srcObject=null;document.body.classList.remove('proctored-exam-active');
+    stopped=true;clearInterval(timer);clearTimeout(evidenceTimer);try{window.screen?.removeEventListener?.('change',checkDisplays)}catch{};screenStream?.getTracks().forEach(t=>t.stop());if(screenVideo)screenVideo.srcObject=null;detector?.instance.close?.();camera?.getTracks().forEach(t=>t.stop());microphone?.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});const pv=$('#proctorPreviewVideo');if(pv)pv.srcObject=null;document.body.classList.remove('proctored-exam-active');
     document.removeEventListener('visibilitychange',visibility);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('blur',blur);window.removeEventListener('offline',networkOffline);window.removeEventListener('online',networkOnline);window.removeEventListener('keydown',keydown,true);document.removeEventListener('copy',copyPaste,true);document.removeEventListener('cut',copyPaste,true);document.removeEventListener('paste',copyPaste,true);document.removeEventListener('contextmenu',contextmenu,true);
   };
 }

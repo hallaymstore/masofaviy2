@@ -3175,3 +3175,14 @@ html[data-user-role="teacher"] .schedule-advanced{display:none!important}
 @media(max-width:700px){
   .learning-topic-actions{grid-column:2;align-items:stretch;width:min(100%,214px);min-width:0}
 }
+
+/* Avtoproktoring dalillari galereyasi */
+.proctor-evidence-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin:12px 0}
+.proctor-evidence-card{margin:0;border:1px solid var(--line,#d9dee7);border-radius:12px;overflow:hidden;background:var(--panel,#fff)}
+.proctor-evidence-card.screen{grid-column:span 2}
+.proctor-evidence-card img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:#111}
+.proctor-evidence-card figcaption{display:grid;gap:2px;padding:8px 10px;font-size:.85rem}
+.proctor-evidence-card figcaption small{opacity:.7}
+.proctor-evidence-timeline{max-height:260px;overflow:auto;font-size:.85rem;padding-left:20px}
+.proctor-evidence-timeline time{font-variant-numeric:tabular-nums;opacity:.75;margin-right:6px}
+@media (max-width:520px){.proctor-evidence-card.screen{grid-column:auto}}

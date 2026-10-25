@@ -126,7 +126,7 @@ test('support staff, transcripts, video subtitles and personal preferences',asyn
 test('accommodations are wired into tests, deadlines, live rooms and every page',async()=>{
   const fs=await import('node:fs');const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8');
   const lms=read('lms.js'),exams=read('remote-exams.js'),cw=read('coursework.js'),server=read('server.js'),html=read('public/index.html'),sw=read('public/sw.js'),sfu=read('media-server/server.js');
-  assert.equal((lms.match(/extendedMinutes\(quiz\.durationMinutes,row\.extraTimePct\)/g)||[]).length,3,'quiz timer checks use the personal duration');
+  assert.equal((lms.match(/extendedMinutes\(quiz\.durationMinutes,row\.extraTimePct\)/g)||[]).length,4,'quiz timer checks use the personal duration');
   assert.match(lms,/termination\.terminate&&row\.proctorRelaxed/);assert.match(lms,/personalDue\(assignment\.dueAt,acc\?\.deadlineExtraDays\)/);
   assert.match(exams,/deadlineOf\(e,a\)/);assert.match(exams,/!a\.proctorRelaxed&&/);assert.match(exams,/a\.pauseGraceMs/);
   assert.match(cw,/personalDue\(a\.dueAt,\(await accommodationFor\(req\.user\._id\)\)\?\.deadlineExtraDays\)/);
