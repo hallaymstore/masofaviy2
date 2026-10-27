@@ -17,13 +17,15 @@ MEDIA_WORKERS="${MEDIA_WORKERS:-$CPU}"
 [ "$MEDIA_WORKERS" -gt 4 ] && MEDIA_WORKERS=4
 [ "$MEDIA_WORKERS" -lt 1 ] && MEDIA_WORKERS=1
 
-# Current-node target is intentionally hardware-aware. 50-room profile lives in prepare-50-parallel.sh.
-TARGET_ROOMS=$(( MEDIA_WORKERS * 2 ))
-[ "$TARGET_ROOMS" -lt 2 ] && TARGET_ROOMS=2
-[ "$TARGET_ROOMS" -gt 8 ] && TARGET_ROOMS=8
-MAX_ACTIVE_ROOMS=$(( TARGET_ROOMS + 2 ))
-MAX_TOTAL_PEERS=$(( TARGET_ROOMS * 80 ))
-[ "$MAX_TOTAL_PEERS" -lt 160 ] && MAX_TOTAL_PEERS=160
+# Parallel lessons are no longer capped at 8-10 rooms: the SFU splits egress fairly across every viewer
+# (SFU_EGRESS_BUDGET_MBPS) and places rooms on the least loaded worker, so 40-50 groups degrade evenly
+# instead of the 11th room being refused. Worker count / RTC ports are unchanged unless MEDIA_WORKERS is set,
+# because every extra worker needs one more UDP+TCP port open in the firewall/NAT.
+TARGET_ROOMS="${TARGET_ROOMS:-50}"
+MAX_ACTIVE_ROOMS=$(( TARGET_ROOMS + 10 ))
+ROOMS_PER_WORKER=$(( (TARGET_ROOMS + MEDIA_WORKERS - 1) / MEDIA_WORKERS + 2 ))
+MAX_TOTAL_PEERS=$(( TARGET_ROOMS * 45 ))
+EGRESS_MBPS="${EGRESS_MBPS:-800}"
 
 echo "=== HALLAYM EDU PRODUCTION REPAIR ==="
 echo "CPU=$CPU RAM=${RAM_GB}GB workers=$MEDIA_WORKERS targetRooms=$TARGET_ROOMS"
@@ -59,15 +61,19 @@ set_env ANNOUNCED_IP "$PUBLIC_IP"
 set_env RTC_BASE_PORT "$RTC_BASE_PORT"
 set_env MEDIASOUP_WORKERS "$MEDIA_WORKERS"
 set_env ENABLE_RTC_TCP true
-set_env MAX_ROOMS_PER_WORKER 3
+set_env MAX_ROOMS_PER_WORKER "$ROOMS_PER_WORKER"
+set_env SFU_EGRESS_BUDGET_MBPS "$EGRESS_MBPS"
+set_env FAIR_SHARE_MIN_KBPS 300
+set_env FAIR_SHARE_STUDENT_MAX_KBPS 2000
+set_env FAIR_SHARE_TEACHER_MAX_KBPS 5000
 set_env MAX_PEERS_PER_ROOM 120
 set_env MAX_TOTAL_PEERS "$MAX_TOTAL_PEERS"
 set_env MAX_ACTIVE_ROOMS "$MAX_ACTIVE_ROOMS"
 set_env TARGET_PARALLEL_ROOMS "$TARGET_ROOMS"
 set_env TARGET_MIN_WORKERS "$MEDIA_WORKERS"
 set_env MAX_INCOMING_BITRATE 1200000
-set_env TEACHER_MAX_INCOMING_BITRATE 3000000
-set_env STUDENT_MAX_INCOMING_BITRATE 1000000
+set_env TEACHER_MAX_INCOMING_BITRATE 2500000
+set_env STUDENT_MAX_INCOMING_BITRATE 900000
 set_env MIN_LECTURE_OUTGOING_BITRATE 1200000
 set_env LECTURE_LITE_ENABLED true
 set_env LECTURE_MAX_STUDENT_AUDIO 4
@@ -141,6 +147,8 @@ pm2 save
 
 echo
 echo "REPAIR_OK"
-echo "Current node: $MEDIA_WORKERS SFU workers, $TARGET_ROOMS target rooms, UDP+TCP RTC."
+echo "Current node: $MEDIA_WORKERS SFU workers x $ROOMS_PER_WORKER rooms, target $TARGET_ROOMS parallel rooms, fair egress ${EGRESS_MBPS} Mbit/s, UDP+TCP RTC."
+echo "RTC ports that must be open (UDP+TCP): $RTC_BASE_PORT-$((RTC_BASE_PORT+MEDIA_WORKERS-1))"
+curl -fsS "http://127.0.0.1:$SFU_SIGNAL_PORT/health" | grep -o '"fairShare":{[^}]*}' || true
 echo "TURN: rtc.hallaym.com:3478 UDP/TCP with dynamic shared-secret credentials."
 echo "For 50 parallel rooms use deploy/prepare-50-parallel.sh on >=8 CPU / >=24GB RAM hardware."

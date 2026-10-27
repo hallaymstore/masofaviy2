@@ -94,6 +94,7 @@
       <details class="nav-group" open><summary><span>O‘quv jarayoni</span><i>⌄</i></summary>
         <button data-page="schedule"><span data-ico="calendar" data-fallback="▣"></span>Dars jadvali</button>
         <button data-page="live"><span data-ico="video" data-fallback="◉"></span>Guruh darslari</button>
+        <button data-page="dailyAttendance" class="hidden"><span data-ico="clipboard" data-fallback="✓"></span>Kunlik davomat</button>
         <button data-page="history" class="hidden"><span data-ico="clock" data-fallback="▣"></span>O‘tilgan darslar</button>
         <button data-page="videos"><span data-ico="play" data-fallback="▶"></span>Videodarslar</button>
         <button data-page="courses"><span data-ico="book" data-fallback="▣"></span>Fanlar va vazifalar</button>
@@ -246,6 +247,7 @@
       <div id="studentGradesPage" class="personal-grades-page"></div>
       <div id="teacherGradesPage" class="coursework-journal"></div>
     </section>
+    <section id="dailyAttendance" class="page"><div class="page-head"><div><span class="page-kicker">Guruhlar kesimida</span><h1>Kunlik davomat</h1><p>Bugungi va oldingi kunlar darslari bo‘yicha har bir talabaning holati. O‘qituvchi qo‘lda belgilaydi va saqlaydi, nazoratchilar o‘z doirasini real vaqtda ko‘radi.</p></div></div><div id="dailyAttendanceBoard" class="daily-attendance-board"></div></section>
     <section id="history" class="page"><div class="page-head"><div><span class="page-kicker">Guruhlar va davomat</span><h1>O‘tilgan darslar tarixi</h1><p>Har bir dars va ishtirokchining davomiyligi, davomat va proktor vaqtlari</p></div><button id="historyRefresh" type="button" class="secondary">Yangilash</button></div><div id="lessonHistoryBoard" class="lesson-history-board"></div></section>
     <section id="search" class="page"><div class="page-head"><div><span class="page-kicker">Butun platformada</span><h1>Umumiy qidiruv</h1><p>Fanlar, topshiriqlar, videodarslar, dars jadvali, kutubxona va ruxsat etilgan boshqa yozuvlar</p></div></div><div id="globalSearchBoard" class="global-search-board"><form id="globalSearchForm" class="global-search-form"><span class="global-search-magnifier">⌕</span><input id="globalSearchInput" type="search" placeholder="Nimani qidiramiz? Masalan, statistika, guruh nomi, mavzu…" minlength="2" maxlength="80" autocomplete="off" aria-label="Saytdan qidirish" required><button type="submit" class="primary">Qidirish</button></form><div id="globalSearchTypes" class="global-search-types" role="group" aria-label="Natija turini tanlash"></div><div id="globalSearchStatus" role="status" aria-live="polite"></div><div id="globalSearchResults" class="global-search-results"></div></div></section>
     <section id="schedule" class="page schedule-workspace">

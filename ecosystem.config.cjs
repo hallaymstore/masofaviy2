@@ -11,7 +11,7 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '10s',
       kill_timeout: 5000,
-      max_memory_restart: '700M',
+      max_memory_restart: '1500M',
       time: true,
       env: { NODE_ENV: 'production' }
     },
@@ -26,7 +26,7 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '10s',
       kill_timeout: 7000,
-      max_memory_restart: '900M',
+      max_memory_restart: '2G',
       time: true,
       env: { NODE_ENV: 'production' }
     }
