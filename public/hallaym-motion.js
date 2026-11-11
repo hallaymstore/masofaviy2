@@ -5,6 +5,7 @@
 (function(){
  'use strict';
  var root=document.documentElement;
+ root.classList.add('hx-pro'); // Pro skin (hallaym-pro.css); motion is gated separately below
  var mem=Number(navigator.deviceMemory||0),cores=Number(navigator.hardwareConcurrency||0);
  var android=Number((navigator.userAgent.match(/Android\s+(\d+)/i)||[])[1]||0);
  // ultraLite matches app.js; lite is narrower than app.js lowEndUI because

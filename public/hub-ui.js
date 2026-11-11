@@ -41,6 +41,7 @@
     var btn = wrap.querySelector('#hxBell'), panel = wrap.querySelector('.hb-panel');
     function toggle(open) {
       panel.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+      root.classList.toggle('hb-open', open);
       if (open) { renderFeed(); var f = panel.querySelector('button,a'); if (f) f.focus(); }
     }
     btn.addEventListener('click', function () { toggle(panel.hidden); });

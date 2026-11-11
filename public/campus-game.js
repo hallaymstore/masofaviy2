@@ -725,7 +725,16 @@ function createPlayground() {
   });
   if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', refresh);
   else reducedMotion.addListener(refresh);
-  const appearance = new MutationObserver(refresh);
+  // Only accessibility switches change what the robot may do; other <html>
+  // classes (scroll state, theme transitions) must not restart the show.
+  const appearanceKey = () => ['a11y-contrast', 'a11y-simple-layout', 'a11y-reduce-motion'].map(name => root.classList.contains(name) ? 1 : 0).join('');
+  let lastAppearance = appearanceKey();
+  const appearance = new MutationObserver(() => {
+    const key = appearanceKey();
+    if (key === lastAppearance) return;
+    lastAppearance = key;
+    refresh();
+  });
   appearance.observe(root, { attributes: true, attributeFilter: ['class'] });
   const auth = new MutationObserver(refresh);
   const shell = document.getElementById('shell');

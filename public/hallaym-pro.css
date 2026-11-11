@@ -1,0 +1,203 @@
+/* ==========================================================================
+   HALLAYM EDU — "Pro" skin, 2026-11
+   --------------------------------------------------------------------------
+   Sits on top of the campus skin (campus-game.css). The campus photographs
+   stay; every surface above them becomes frosted glass with a hairline edge,
+   one aurora accent (violet → sky → mint) and soft depth instead of chunky
+   game borders. Gated on `html.hx.hx-pro` (set by hallaym-motion.js) and on
+   the same accessibility guards as the campus skin, so high-contrast and
+   simple-layout modes keep their own look. The live classroom is untouched.
+   ========================================================================== */
+html.hx.hx-pro{
+ --pro-a1:#6d5dfc;--pro-a2:#3aa8ff;--pro-a3:#22d3a6;--pro-warm:#ffb627;--pro-rose:#ff5d8f;
+ --pro-accent:linear-gradient(135deg,var(--pro-a1),var(--pro-a2) 55%,var(--pro-a3));
+ --pro-glass:rgba(255,255,255,.78);--pro-glass-2:rgba(255,255,255,.62);--pro-glass-solid:#f7f9ff;
+ --pro-edge:rgba(255,255,255,.75);--pro-line:rgba(20,30,70,.10);--pro-line-2:rgba(20,30,70,.16);
+ --pro-ink:#0f1733;--pro-ink-2:#3b4468;--pro-muted:#646d90;
+ --pro-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 1px 2px rgba(16,24,64,.06),0 18px 40px -22px rgba(16,24,64,.45);
+ --pro-shadow-hover:0 1px 0 rgba(255,255,255,.9) inset,0 2px 4px rgba(16,24,64,.06),0 28px 60px -26px rgba(40,36,140,.55);
+ --pro-blur:saturate(1.6) blur(18px);
+ --pro-r:22px;--pro-r-sm:14px;
+ --pg-ink:var(--pro-ink);--pg-panel:var(--pro-glass-solid);--pg-panel-end:#eef2ff;--pg-edge:var(--pro-line-2);--pg-bottom:transparent;
+}
+html.hx.hx-pro[data-theme="dark"]{
+ --pro-glass:rgba(16,22,48,.74);--pro-glass-2:rgba(20,28,60,.6);--pro-glass-solid:#121a3a;
+ --pro-edge:rgba(160,180,255,.14);--pro-line:rgba(170,185,255,.12);--pro-line-2:rgba(170,185,255,.2);
+ --pro-ink:#eef1ff;--pro-ink-2:#c9cff0;--pro-muted:#9aa3cc;
+ --pro-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 18px 44px -20px rgba(0,0,0,.75);
+ --pro-shadow-hover:0 1px 0 rgba(255,255,255,.08) inset,0 28px 64px -24px rgba(80,70,255,.45);
+ --pg-panel:#121a3a;--pg-panel-end:#0f1630;
+}
+html.hx.hx-pro.hxm-lite,html.hx.hx-pro:not(.hxm){--pro-blur:none;--pro-glass:var(--pro-glass-solid);--pro-glass-2:var(--pro-glass-solid)}
+
+/* ---------- Canvas: photo + depth wash ------------------------------------ */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell{
+ background:radial-gradient(1200px 700px at 85% -10%,rgba(109,93,252,.22),transparent 60%),radial-gradient(900px 600px at -10% 110%,rgba(34,211,166,.18),transparent 60%),
+  linear-gradient(180deg,rgba(10,16,40,.10),rgba(10,16,40,.35)),var(--pg-scene) center/cover no-repeat fixed!important}
+html.hx.hx-pro[data-theme="dark"]:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell{
+ background:radial-gradient(1200px 700px at 85% -10%,rgba(109,93,252,.28),transparent 60%),radial-gradient(900px 600px at -10% 110%,rgba(34,211,166,.14),transparent 60%),
+  linear-gradient(180deg,rgba(4,8,24,.45),rgba(4,8,24,.7)),var(--pg-scene) center/cover no-repeat fixed!important}
+html.hx.hx-pro ::selection{background:rgba(109,93,252,.28)}
+html.hx.hx-pro{scrollbar-color:rgba(109,93,252,.45) transparent}
+
+/* ---------- Header --------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell>header{
+ background:linear-gradient(90deg,#0b1230 0 var(--hx-side),var(--pro-glass) var(--hx-side))!important;
+ -webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);
+ border-bottom:1px solid var(--pro-line)!important;box-shadow:0 10px 30px -22px rgba(16,24,64,.5)!important}
+html.hx.hx-pro #shell>header .brand{background:linear-gradient(160deg,#121c47,#0b1230)!important;border-bottom:1px solid rgba(255,255,255,.06)}
+html.hx.hx-pro #shell>header .brand-mark:not(.has-logo){background:var(--pro-accent)!important;color:#fff!important;box-shadow:0 0 0 1px rgba(255,255,255,.25) inset,0 8px 20px -6px rgba(109,93,252,.8)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) :is(#shell>header,#login) .icon-btn{
+ border:1px solid var(--pro-line)!important;border-radius:12px!important;background:var(--pro-glass-2)!important;color:var(--pro-ink)!important;box-shadow:none!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>header .icon-btn:hover{border-color:rgba(109,93,252,.45)!important;box-shadow:0 6px 18px -10px rgba(109,93,252,.8)!important}
+html.hx.hx-pro #shell>header .profile-head{border-radius:99px!important;border:1px solid var(--pro-line)!important;background:var(--pro-glass-2)!important;color:var(--pro-ink)!important;box-shadow:none!important}
+html.hx.hx-pro #shell>header #onlineBadge{border-radius:99px!important;background:rgba(34,211,166,.14)!important;color:#0d8f6f!important;border:1px solid rgba(34,211,166,.35)!important}
+html.hx.hx-pro[data-theme="dark"] #shell>header #onlineBadge{color:#7ff0cf!important}
+
+/* ---------- Sidebar -------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar{
+ background:radial-gradient(420px 300px at 0% 0%,rgba(109,93,252,.28),transparent 70%),radial-gradient(380px 300px at 100% 100%,rgba(34,211,166,.14),transparent 70%),linear-gradient(180deg,#0e1736,#0a1029)!important;
+ border-right:1px solid rgba(255,255,255,.06)!important;box-shadow:12px 0 40px -30px rgba(0,0,0,.8)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button{
+ border:1px solid transparent!important;border-radius:14px!important;color:#aeb6dc!important;background:transparent!important;box-shadow:none!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button [data-ico]{
+ width:30px!important;height:30px!important;border-radius:10px!important;background:rgba(255,255,255,.06)!important;transition:background .25s,box-shadow .25s,transform .35s cubic-bezier(.34,1.56,.64,1)}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button:hover{background:rgba(255,255,255,.06)!important;color:#fff!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button:hover [data-ico]{background:rgba(109,93,252,.35)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button.active{
+ color:#fff!important;border-color:rgba(255,255,255,.14)!important;
+ background:linear-gradient(135deg,rgba(109,93,252,.55),rgba(58,168,255,.32))!important;
+ box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 12px 26px -14px rgba(109,93,252,.9)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button.active [data-ico]{background:var(--pro-accent)!important;color:#fff!important;box-shadow:0 6px 16px -6px rgba(58,168,255,.9)}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #sidebar nav button.active::before{background:linear-gradient(180deg,var(--pro-a3),var(--pro-a2))!important;box-shadow:0 0 12px var(--pro-a2)}
+html.hx.hx-pro #sidebar .nav-group summary span{font-size:11px!important;letter-spacing:.12em!important;text-transform:uppercase;color:#7d86b3!important}
+html.hx.hx-pro #sidebar .logout{border-radius:14px!important;color:#ffb3c6!important}
+
+/* ---------- Page head: hero glass ----------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson)>.page-head{
+ overflow:hidden;padding:26px 28px!important;border:1px solid var(--pro-edge)!important;border-radius:28px!important;
+ background:radial-gradient(500px 220px at 100% 0%,rgba(109,93,252,.22),transparent 70%),radial-gradient(420px 200px at 0% 120%,rgba(34,211,166,.16),transparent 70%),
+  var(--pg-banner-art) 96% 60%/clamp(48px,6vw,92px) auto no-repeat,var(--pro-glass)!important;
+ -webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);box-shadow:var(--pro-shadow)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson)>.page-head::before{
+ left:0;right:0;top:0;height:3px;border-radius:0;background:var(--pro-accent);opacity:.9}
+html.hx.hx-pro #shell>main .page:not(#lesson)>.page-head h1{
+ font-size:clamp(26px,3.1vw,40px)!important;letter-spacing:-.035em!important;
+ background:linear-gradient(120deg,var(--pro-ink) 30%,#5b4be0 70%,#1d8fd8);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+html.hx.hx-pro[data-theme="dark"] #shell>main .page:not(#lesson)>.page-head h1{background:linear-gradient(120deg,#fff 30%,#b3a9ff 70%,#7fd3ff);-webkit-background-clip:text;background-clip:text}
+html.hx.hx-pro #shell>main .page:not(#lesson)>.page-head p{color:var(--pro-muted)!important;font-size:15px!important}
+
+/* ---------- Surfaces ------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(article,.audit-card,.editor-card,.ux-card,.in-card,.empty-state,.units-empty,.ux-empty,.ux-hero-empty,.ux-svc-card,.ef-card,.sheet-card,.stat,.gx-card,.hb-risk){
+ border:1px solid var(--pro-edge)!important;border-radius:var(--pro-r)!important;color:var(--pro-ink)!important;
+ background:var(--pro-glass)!important;-webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);
+ box-shadow:var(--pro-shadow)!important;transition:box-shadow .45s cubic-bezier(.16,1,.3,1),border-color .3s,transform .45s cubic-bezier(.16,1,.3,1)}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(article,.gx-card,.stat):hover{box-shadow:var(--pro-shadow-hover)!important;border-color:rgba(109,93,252,.35)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(article,.audit-card) :is(article,.audit-card){background:var(--pro-glass-2)!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none}
+html.hx.hx-pro #shell>main .page:not(#lesson) :is(article,.gx-card) h2{color:var(--pro-ink)!important;letter-spacing:-.02em}
+html.hx.hx-pro #shell>main .page:not(#lesson) .section-title small,html.hx.hx-pro #shell>main .page:not(#lesson) .muted{color:var(--pro-muted)!important}
+
+/* hero stat tile + numbers */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(.stats,.live-summary)>:first-child{
+ background:radial-gradient(260px 140px at 100% 0%,rgba(255,255,255,.28),transparent 60%),var(--pro-accent)!important;border-color:rgba(255,255,255,.35)!important;
+ box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 22px 44px -18px rgba(109,93,252,.85)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) .stats>.stat b{font-size:clamp(28px,2.6vw,38px)!important;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main #stats .stat[data-stat-art]:not(:first-child) b{
+ background:linear-gradient(120deg,var(--pro-ink),#4f46e5);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+html.hx.hx-pro[data-theme="dark"]:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main #stats .stat[data-stat-art]:not(:first-child) b{background:linear-gradient(120deg,#fff,#a99dff);-webkit-background-clip:text;background-clip:text}
+
+/* guide banner + university hero: midnight aurora with the tile motif */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main :is(.edu-banner,.university-hero){
+ color:#eef1ff!important;border:1px solid rgba(255,255,255,.12)!important;
+ background:radial-gradient(420px 180px at 85% 20%,rgba(109,93,252,.55),transparent 70%),radial-gradient(360px 160px at 10% 120%,rgba(34,211,166,.35),transparent 70%),linear-gradient(120deg,#121a44,#0b1230)!important;
+ box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 24px 50px -24px rgba(20,16,90,.8)!important;-webkit-backdrop-filter:none;backdrop-filter:none}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main :is(.edu-banner>div,.university-hero>div){background:transparent!important;border:0!important;padding:0!important}
+html.hx.hx-pro #shell>main .edu-banner>span{background:linear-gradient(135deg,rgba(255,182,39,.3),rgba(255,93,143,.25))!important;box-shadow:0 0 0 1px rgba(255,255,255,.12) inset}
+html.hx.hx-pro #shell>main :is(.edu-banner,.university-hero) :is(p,small,span){color:#c9cff0!important}
+html.hx.hx-pro #shell>main :is(.edu-banner,.university-hero) :is(b,h2){color:#fff!important}
+
+/* ---------- Rows, lists, empty states ------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) .lesson-row{
+ position:relative;border-radius:16px!important;border:1px solid var(--pro-line)!important;background:var(--pro-glass-2)!important;
+ transition:transform .3s cubic-bezier(.16,1,.3,1),border-color .25s,box-shadow .3s!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) .lesson-row:hover{
+ transform:translateX(3px);border-color:rgba(109,93,252,.35)!important;box-shadow:-4px 0 0 0 var(--pro-a1),0 12px 26px -18px rgba(40,36,140,.6)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) :is(.empty,p.empty){
+ padding:22px!important;border-radius:18px!important;border:1.5px dashed var(--pro-line-2)!important;text-align:center;color:var(--pro-muted)!important;
+ background:repeating-linear-gradient(135deg,transparent 0 12px,rgba(109,93,252,.04) 12px 24px)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) .avatar{background:var(--pro-accent)!important;color:#fff!important;box-shadow:0 6px 14px -6px rgba(109,93,252,.8)}
+
+/* ---------- Buttons -------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(button,.button-link):not(.hidden,.zoom-control,.video-cover,.tg-course-row,[data-reaction],.hb-item,.hb-cell){
+ border:1px solid var(--pro-line-2)!important;border-radius:12px!important;background:var(--pro-glass-2)!important;color:var(--pro-ink)!important;
+ box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 4px 12px -8px rgba(16,24,64,.35)!important;font-weight:650!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(button,.button-link):not(.hidden,.zoom-control,.video-cover,.tg-course-row,[data-reaction],.hb-item,.hb-cell,:disabled):hover{
+ border-color:rgba(109,93,252,.45)!important;box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 10px 22px -12px rgba(109,93,252,.7)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(button.primary,.join-btn,.tg-course-open,.primary.button-link){
+ color:#fff!important;border-color:rgba(255,255,255,.25)!important;background:var(--pro-accent)!important;background-size:160% 160%!important;
+ box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 12px 26px -12px rgba(109,93,252,.9)!important;text-shadow:0 1px 1px rgba(0,0,0,.18)}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(button.primary,.join-btn):not(:disabled):hover{background-position:100% 100%!important;box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 18px 34px -14px rgba(58,168,255,.9)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) button.ghost{background:transparent!important;box-shadow:none!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) :is(button,.button-link):focus-visible{outline:3px solid rgba(58,168,255,.65)!important;outline-offset:2px}
+
+/* ---------- Forms ---------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea),
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) dialog :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea){
+ border:1.5px solid var(--pro-line-2)!important;border-radius:12px!important;background:var(--pro-glass-solid)!important;color:var(--pro-ink)!important;
+ transition:border-color .2s,box-shadow .3s!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) :is(#shell>main .page:not(#lesson),dialog) :is(input,select,textarea):focus{
+ border-color:var(--pro-a1)!important;box-shadow:0 0 0 4px rgba(109,93,252,.18),0 10px 24px -14px rgba(109,93,252,.7)!important;outline:none!important}
+html.hx.hx-pro :is(input[type=checkbox],input[type=radio],input[type=range]){accent-color:var(--pro-a1)}
+
+/* ---------- Tables --------------------------------------------------------- */
+html.hx.hx-pro #shell>main .page:not(#lesson) .table-wrap{border-radius:18px!important;border:1px solid var(--pro-line)!important;overflow:auto;background:var(--pro-glass-2)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) table thead th{
+ position:sticky;top:0;z-index:1;background:var(--pro-glass-solid)!important;color:var(--pro-muted)!important;
+ font-size:11.5px!important;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--pro-line-2)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) table tbody tr{transition:background-color .2s}
+html.hx.hx-pro #shell>main .page:not(#lesson) table tbody tr:nth-child(even){background:rgba(109,93,252,.035)}
+html.hx.hx-pro #shell>main .page:not(#lesson) table tbody tr:hover{background:rgba(109,93,252,.09)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) table td{border-color:var(--pro-line)!important}
+
+/* ---------- Status chips --------------------------------------------------- */
+html.hx.hx-pro #shell>main .page:not(#lesson) :is(.status,.badge){border-radius:99px!important;font-weight:700!important;letter-spacing:.01em}
+html.hx.hx-pro #shell>main .page:not(#lesson) .status.ok{background:rgba(34,211,166,.15)!important;color:#0b8a6a!important;border-color:rgba(34,211,166,.35)!important}
+html.hx.hx-pro #shell>main .page:not(#lesson) :is(.status.blocked,.status.bad){background:rgba(255,93,143,.14)!important;color:#c42a5c!important;border-color:rgba(255,93,143,.35)!important}
+
+/* ---------- Dialogs -------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) dialog{
+ border:1px solid var(--pro-edge)!important;border-radius:26px!important;background:var(--pro-glass)!important;color:var(--pro-ink)!important;
+ -webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);box-shadow:0 40px 90px -30px rgba(10,14,40,.7)!important}
+html.hx.hx-pro dialog::backdrop{background:rgba(8,12,32,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+
+/* ---------- Mobile tab bar ------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) .hx-tabbar{
+ background:rgba(12,18,44,.82)!important;border:1px solid rgba(255,255,255,.08)!important;-webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);
+ box-shadow:0 20px 40px -14px rgba(0,0,0,.6)!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) .hx-tabbar button{color:#9aa3cc!important;background:transparent!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) .hx-tabbar button.active{color:#fff!important;background:linear-gradient(135deg,rgba(109,93,252,.75),rgba(58,168,255,.55))!important;box-shadow:0 10px 22px -10px rgba(109,93,252,.9)!important}
+
+/* ---------- Login ---------------------------------------------------------- */
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #login .login-card{
+ padding:34px 30px!important;border-radius:28px!important;border:1px solid var(--pro-edge)!important;background:var(--pro-glass)!important;
+ -webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);box-shadow:0 40px 90px -36px rgba(10,14,40,.7)!important}
+html.hx.hx-pro #login .login-card h1{background:linear-gradient(120deg,var(--pro-ink) 30%,#5b4be0);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+html.hx.hx-pro[data-theme="dark"] #login .login-card h1{background:linear-gradient(120deg,#fff 30%,#b3a9ff);-webkit-background-clip:text;background-clip:text}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #login .login-submit{background:var(--pro-accent)!important;border:0!important;box-shadow:0 16px 34px -14px rgba(109,93,252,.9)!important;color:#fff!important}
+html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #login .login-card input{border-radius:14px!important;background:var(--pro-glass-solid)!important;color:var(--pro-ink)!important}
+
+/* ---------- Achievements / hub panels pick up the accent ------------------ */
+html.hx.hx-pro .gx-ring-fill{stroke:var(--pro-a1)}
+html.hx.hx-pro .hb-panel,html.hx.hx-pro .hb-cal-card,html.hx.hx-pro .hx-tour-card{background:var(--pro-glass)!important;-webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);border-color:var(--pro-edge)!important;box-shadow:0 40px 80px -30px rgba(10,14,40,.7)!important;color:var(--pro-ink)!important}
+html.hx.hx-pro.hb-open #campusPlayground{z-index:40}
+
+@media (max-width:900px){
+ html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell>header{background:var(--pro-glass)!important}
+ html.hx.hx-pro:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main .page:not(#lesson)>.page-head{padding:20px!important;border-radius:22px!important}
+}
+@media (prefers-reduced-transparency:reduce){html.hx.hx-pro{--pro-blur:none;--pro-glass:var(--pro-glass-solid);--pro-glass-2:var(--pro-glass-solid)}}
+
+/* voice dock: follows the theme (its own sheet paints it white in dark mode) */
+html.hx.hx-pro:not(.a11y-contrast) #vaDock :is(.va-toggle,.va-panel){
+ background:var(--pro-glass)!important;color:var(--pro-ink)!important;border-color:rgba(109,93,252,.5)!important;
+ -webkit-backdrop-filter:var(--pro-blur);backdrop-filter:var(--pro-blur);box-shadow:0 14px 34px -14px rgba(40,36,140,.6)!important}
