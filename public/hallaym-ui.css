@@ -1808,3 +1808,124 @@ html.hx #shell #eduCheckin .ux-btn:hover{background:var(--hx-brand)!important;bo
 .ef-bulk[hidden]{display:none!important}.ef-bulk b{margin-right:auto}
 .ef-bulk select{height:36px;border-radius:10px;border:0;padding:0 10px;font:600 13px var(--hx-font,inherit)}
 .ef-table input[type=checkbox]{width:18px;height:18px;accent-color:var(--hx-brand)}
+
+/* Campus scenes. The same small photograph serves the entrance and portal banners. */
+html.hx {
+ --campus-shade:linear-gradient(90deg,#082c27 4%,rgba(9,44,38,.93) 38%,rgba(12,48,41,.18) 100%);
+ --campus-tint:#103e36;
+ --campus-panel:linear-gradient(145deg,var(--hx-paper) 44%,#edf6f0);
+ --campus-accent:#d8efbe;
+}
+html.hx[data-theme="dark"] {
+ --campus-shade:linear-gradient(90deg,#08182c 6%,rgba(7,22,43,.95) 38%,rgba(12,32,64,.58) 100%);
+ --campus-tint:#0b223c;
+ --campus-panel:linear-gradient(145deg,var(--hx-paper) 44%,#13263c);
+ --campus-accent:#cde6ff;
+}
+html.hx:not(.a11y-contrast) #login.hx-login {background:var(--campus-panel)!important}
+html.hx:not(.a11y-contrast) :is(#login .login-showcase,#shell>main .edu-banner,#shell>main .university-hero) {
+ background:var(--campus-shade),url('/assets/campus/library.webp') 70% 49%/cover no-repeat,var(--campus-tint)!important;
+}
+html.hx:not(.a11y-contrast) #login .login-showcase {
+ justify-content:space-between!important;
+}
+html.hx:not(.a11y-contrast) #login .showcase-copy p,
+html.hx:not(.a11y-contrast) #shell>main :is(.edu-banner p,.university-hero p) {
+ color:#e6f0f4!important;
+}
+html.hx:not(.a11y-contrast) #login .login-showcase::before {
+ inset:auto 0 0;
+ height:48%;
+ opacity:1;
+ background:linear-gradient(0deg,rgba(4,24,25,.86),transparent);
+ -webkit-mask-image:none;
+ mask-image:none;
+}
+html.hx:not(.a11y-contrast) #login .login-showcase::after {
+ content:"";
+ position:absolute;
+ z-index:-1;
+ inset:0;
+ pointer-events:none;
+ background:radial-gradient(ellipse at 93% 16%,rgba(255,212,118,.31),transparent 45%);
+}
+html.hx:not(.a11y-contrast)[data-theme="dark"] #login .login-showcase::after {
+ background:
+  url('/assets/campus/moon-crisp.webp') 95% 7%/clamp(100px,18vw,240px) auto no-repeat,
+  url('/assets/campus/night-star.webp') 79% 16%/24px auto no-repeat,
+  url('/assets/campus/night-star.webp') 96% 33%/16px auto no-repeat,
+  radial-gradient(ellipse at 90% 18%,rgba(120,177,255,.22),transparent 44%);
+}
+html.hx:not(.a11y-contrast) #login .hx-login-features li {
+ background:rgba(5,27,27,.88);
+ border:1px solid rgba(227,247,222,.22);
+ border-radius:12px;
+ padding:12px;
+}
+html.hx:not(.a11y-contrast) #login .hx-login-features svg,
+html.hx:not(.a11y-contrast) #shell>main .edu-banner>span {
+ color:var(--campus-accent)!important;
+ stroke:currentColor;
+}
+html.hx #login .login-card {position:relative}
+html.hx #login .login-card h1 {padding-inline-end:48px}
+html.hx #login .login-card .campus-theme-toggle {
+ position:absolute;
+ inset-block-start:0;
+ inset-inline-end:0;
+ width:40px;
+ height:40px;
+ padding:0;
+ border:1px solid var(--hx-line-strong);
+ border-radius:12px;
+ background:var(--hx-surface);
+ color:var(--hx-text);
+ font-size:20px;
+ cursor:pointer;
+}
+html.hx:not(.a11y-contrast) #shell>main .edu-banner {
+ min-height:132px;
+ padding-inline-end:clamp(24px,18vw,220px)!important;
+}
+html.hx:not(.a11y-contrast) #shell>main .edu-banner::after {content:none}
+html.hx:not(.a11y-contrast) #shell>main .edu-banner>div {padding:0}
+html.hx:not(.a11y-contrast) #sidebar {
+ background:linear-gradient(180deg,#0e292b,#102139 56%,#101932)!important;
+}
+html.hx:not(.a11y-contrast)[data-theme="dark"] #sidebar {
+ background:linear-gradient(180deg,#10243c,#0d142e 64%,#091221)!important;
+}
+@media (min-width:961px) and (prefers-reduced-motion:no-preference) {
+ html.hx:not(.a11y-reduce-motion):not(.a11y-contrast) #login:not(.hidden) .login-showcase::after {
+  animation:campus-light 8s ease-in-out 2 alternate;
+ }
+ html.hx:not(.a11y-reduce-motion):not(.a11y-contrast) #login:not(.hidden) .hx-login-features li {
+  animation:campus-enter 550ms var(--hx-ease) both;
+ }
+ html.hx:not(.a11y-reduce-motion):not(.a11y-contrast) #login:not(.hidden) .hx-login-features li:nth-child(2) {animation-delay:90ms}
+ html.hx:not(.a11y-reduce-motion):not(.a11y-contrast) #login:not(.hidden) .hx-login-features li:nth-child(3) {animation-delay:180ms}
+ html.hx:not(.a11y-reduce-motion):not(.a11y-contrast) #dashboard.active .edu-banner {
+  animation:campus-enter 420ms var(--hx-ease) both;
+ }
+}
+@keyframes campus-light {
+ from {opacity:.72;transform:translate3d(0,0,0)}
+ to {opacity:1;transform:translate3d(-10px,4px,0)}
+}
+@keyframes campus-enter {
+ from {opacity:0;transform:translateY(9px)}
+ to {opacity:1;transform:translateY(0)}
+}
+@media (max-width:960px) {
+ html.hx:not(.a11y-contrast) #login .login-showcase {padding-bottom:42px!important}
+ html.hx #login .login-card .campus-theme-toggle {inset-block-start:23px;inset-inline-end:20px}
+ html.hx:not(.a11y-contrast) #shell>main .edu-banner {min-height:106px}
+}
+@media (max-width:540px) {
+ html.hx:not(.a11y-contrast) #login .login-showcase {
+  --campus-shade:linear-gradient(90deg,rgba(8,44,39,.95),rgba(8,44,39,.59));
+ }
+ html.hx:not(.a11y-contrast)[data-theme="dark"] #login .login-showcase {
+  --campus-shade:linear-gradient(90deg,rgba(7,22,43,.95),rgba(7,22,43,.66));
+ }
+}

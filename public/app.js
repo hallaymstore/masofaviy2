@@ -116,7 +116,22 @@ async function runDemoFaceGate(){
   });
 }
 $('#loginForm').onsubmit=async e=>{e.preventDefault();resetPasswordVisibility();const f=new FormData(e.target),sb=e.target.querySelector('.login-submit');if(sb?.disabled)return;if(sb){sb.disabled=true;sb.setAttribute('aria-busy','true')}try{const result=await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(f))});if(result.twoFactorRequired){$('#loginOtpWrap').classList.remove('hidden');$('#loginError').textContent=result.message||'2 bosqichli kodni kiriting';e.target.elements.otp.focus();return}$('#loginOtpWrap').classList.add('hidden');$('#loginError').textContent='';if(sb){sb.disabled=false;sb.removeAttribute('aria-busy')}if(result.faceDemoRequired)await runDemoFaceGate();start()}catch(err){$('#loginError').textContent=err.message}finally{if(sb){sb.disabled=false;sb.removeAttribute('aria-busy')}}};
-all('nav button[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));all('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));$('#menuBtn').onclick=()=>{const open=$('#sidebar').classList.toggle('open');$('#sidebarBackdrop')?.classList.toggle('show',open);$('#menuBtn').setAttribute('aria-expanded',String(open))};$('#hxMenuTab')?.addEventListener('click',()=>$('#menuBtn').click());$('#passwordToggle')?.addEventListener('click',e=>{const b=e.currentTarget,inp=$('#passwordInput');if(!inp)return;const show=inp.type==='password';inp.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?'Parolni yashirish':'Parolni ko‘rsatish');inp.focus()});$('#sidebarBackdrop')?.addEventListener('click',()=>{$('#sidebar').classList.remove('open');$('#sidebarBackdrop').classList.remove('show');$('#menuBtn')?.setAttribute('aria-expanded','false')});$('#logoutBtn').onclick=logout;$('#profileBtn').onclick=()=>go('profile');const applyTheme=t=>{document.documentElement.dataset.theme=t==='dark'?'dark':'';localStorage.theme=t==='dark'?'dark':'';const b=$('#themeBtn');if(b){b.textContent=t==='dark'?'☀':'◐';b.title=t==='dark'?'Kunduzgi rejim':'Tungi rejim'}};$('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');applyTheme(localStorage.theme==='dark'?'dark':'light');
+all('nav button[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));all('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));$('#menuBtn').onclick=()=>{const open=$('#sidebar').classList.toggle('open');$('#sidebarBackdrop')?.classList.toggle('show',open);$('#menuBtn').setAttribute('aria-expanded',String(open))};$('#hxMenuTab')?.addEventListener('click',()=>$('#menuBtn').click());$('#passwordToggle')?.addEventListener('click',e=>{const b=e.currentTarget,inp=$('#passwordInput');if(!inp)return;const show=inp.type==='password';inp.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?'Parolni yashirish':'Parolni ko‘rsatish');inp.focus()});$('#sidebarBackdrop')?.addEventListener('click',()=>{$('#sidebar').classList.remove('open');$('#sidebarBackdrop').classList.remove('show');$('#menuBtn')?.setAttribute('aria-expanded','false')});$('#logoutBtn').onclick=logout;$('#profileBtn').onclick=()=>go('profile');const themeButtons=[$('#themeBtn'),$('#loginThemeBtn')].filter(Boolean);
+const applyTheme=theme=>{
+  const dark=theme==='dark';
+  document.documentElement.dataset.theme=dark?'dark':'';
+  localStorage.theme=dark?'dark':'';
+  for(const button of themeButtons){
+    const label=dark?'Kunduzgi rejim':'Tungi rejim';
+    button.textContent=dark?'☀':'◐';
+    button.title=label;
+    button.setAttribute('aria-label',label);
+  }
+};
+for(const button of themeButtons){
+  button.onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+}
+applyTheme(localStorage.theme==='dark'?'dark':'light');
 async function loadUniversity(){
   try{
     await loadBranding();
