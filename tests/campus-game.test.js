@@ -24,8 +24,8 @@ test('robot paths fit desktop, narrow phone and rotated phone viewports', () => 
 });
 
 test('one game layer persists across the LMS page changes', () => {
-  assert.ok(html.includes('/campus-game.css?v=20261111-play1'));
-  assert.ok(html.includes('/campus-game.js?v=20261111-play1'));
+  assert.ok(html.includes('/campus-game.css?v=20261111-premium1'));
+  assert.ok(html.includes('/campus-game.js?v=20261111-premium1'));
   assert.ok(html.indexOf('/campus-game.css') > html.indexOf('/hallaym-ui.css'));
   assert.ok(html.indexOf('/a11y.css') > html.indexOf('/campus-game.css'));
   assert.ok(!html.includes('science-divider-engineering'));
@@ -74,4 +74,23 @@ test('dashboard metrics and workspace interiors use local illustrated props', ()
     assert.ok(existsSync(new URL('../public/assets/campus/cards/' + art + '.webp', import.meta.url)), art);
     assert.ok(css.includes('/assets/campus/cards/' + art + '.webp'), art);
   }
+});
+
+test('premium skin serves distinct photos without a full-page wash and keeps conference hooks', () => {
+  assert.ok(!css.includes('--pg-wash'));
+  assert.ok(css.includes('background:var(--pg-scene) center/cover no-repeat fixed'));
+  for (const asset of ['atrium', 'lecture-theatre', 'reading-hall', 'media-studio', 'admin-lounge', 'seminar-room']) {
+    assert.ok(existsSync(new URL('../public/assets/campus/' + asset + '.webp', import.meta.url)));
+  }
+  for (const hook of ['callMic', 'callCamera', 'callScreen', 'callFullscreen', 'lessonDrawer']) assert.ok(html.includes('id="' + hook + '"'));
+  assert.ok(css.includes(':not(.video-cinema-fallback) #lesson .video-stage'));
+});
+
+test('propeller centers match the drone artwork and pour follows the flask tilt', () => {
+  assert.ok(css.includes('.pg-rotor-a {left:15.1%;top:10.2%}'));
+  assert.ok(css.includes('.pg-rotor-d {left:84.9%;top:83.3%}'));
+  assert.ok(css.includes('.pg-robot[data-facing="left"] .pg-held-remote'));
+  assert.ok(script.includes('M106 35 Q123 39 126 66'));
+  assert.ok(script.includes("transform:'rotate(48deg)',offset:.24"));
+  assert.ok(script.includes('destinationLiquid].map'));
 });

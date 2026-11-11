@@ -54,7 +54,7 @@ function createPlayground() {
     </div></div>
     <div class="pg-laboratory" hidden>
       <div class="pg-flask"><div class="pg-flask-mask"><i class="pg-liquid pg-liquid-teal"></i><i class="pg-liquid pg-liquid-amber"></i><i class="pg-bubble"></i><i class="pg-bubble"></i><i class="pg-bubble"></i></div><i class="pg-flask-glass"></i></div>
-      <i class="pg-liquid-stream"></i>
+      <svg class="pg-liquid-stream" viewBox="0 0 185 110" aria-hidden="true"><path d="M106 35 Q123 39 126 66"/><path d="M106 35 Q123 39 126 66"/></svg>
       <div class="pg-beaker"><div class="pg-beaker-mask"><i class="pg-liquid pg-liquid-purple"></i><i class="pg-liquid pg-liquid-teal"></i></div><i class="pg-beaker-glass"></i></div>
       <i class="pg-lab-splash"></i><i class="pg-droplet"></i><i class="pg-droplet"></i><i class="pg-droplet"></i>
     </div>`;
@@ -84,6 +84,9 @@ function createPlayground() {
   const heldRemote = stage.querySelector('.pg-held-remote');
   const lab = stage.querySelector('.pg-laboratory');
   const flask = stage.querySelector('.pg-flask');
+  const stream = stage.querySelector('.pg-liquid-stream');
+  const sourceLiquid = stage.querySelectorAll('.pg-flask .pg-liquid');
+  const destinationLiquid = stage.querySelectorAll('.pg-beaker .pg-liquid');
   const splat = stage.querySelector('.pg-robot-splat');
   const connections = navigator.connection;
   let robotPoint = { x: 0, y: 0 };
@@ -156,21 +159,26 @@ function createPlayground() {
     }
   }
 
+  function faceRobot(direction) {
+    robot.dataset.facing = direction < 0 ? 'left' : 'right';
+    robot.style.setProperty('--pg-facing', String(direction));
+  }
+
   async function walk(point, duration, signal, pose = 'walk') {
     robot.dataset.pose = pose;
-    robot.style.setProperty('--pg-facing', point.x < robotPoint.x ? '-1' : '1');
+    faceRobot(point.x < robotPoint.x ? -1 : 1);
     await animate(robotPosition, [
       { transform: `translate3d(${robotPoint.x}px,${robotPoint.y}px,0)` },
       { transform: `translate3d(${point.x}px,${point.y}px,0)` }
     ], { duration, easing: 'linear' }, signal);
     robotPoint = point;
-    robot.dataset.pose = 'idle';
+    robot.dataset.pose = pose === 'pilot-run' ? 'pilot' : 'idle';
   }
 
   async function transferRemote(pickup, signal) {
     const table = tableRemote.getBoundingClientRect();
     const hand = heldRemote.getBoundingClientRect();
-    const atHand = `translate3d(${hand.x - table.x}px,${hand.y - table.y}px,0) scale(.86)`;
+    const atHand = `translate3d(${hand.x + hand.width / 2 - table.x - table.width / 2}px,${hand.y + hand.height / 2 - table.y - table.height / 2}px,0) scale(${hand.width / table.width})`;
     const atTable = 'translate3d(0,0,0)';
     stage.dataset.remote = 'transfer';
     const frames = pickup ? [atTable, atHand] : [atHand, atTable];
@@ -197,7 +205,7 @@ function createPlayground() {
     robotPoint = point(positions.home.x + 160, positions.home.y - 12);
     place(robotPosition, robotPoint);
     await walk(positions.home, 2400, signal);
-    robot.style.setProperty('--pg-facing', '-1');
+    faceRobot(-1);
     robot.dataset.pose = 'reach';
     await sleep(750, signal);
     await transferRemote(true, signal);
@@ -227,8 +235,8 @@ function createPlayground() {
       ], 7400, ['rotateX(0deg) rotateY(0deg)', 'rotateX(18deg) rotateY(-40deg)', 'rotateX(360deg) rotateY(-60deg)', 'rotateX(360deg) rotateY(0deg)'], signal),
       walk(positions.far, 5400, signal, 'pilot-run')
     ]);
-    robot.dataset.pose = 'cheer';
-    await sleep(1500, signal);
+    robot.dataset.pose = 'pilot';
+    await sleep(850, signal);
     await Promise.all([
       fly([{ x: dronePad.x + 12, y: dronePad.y - 94 }, dronePad], 4600,
         ['rotateZ(12deg)', 'rotateZ(-8deg)', 'rotateZ(0deg)'], signal),
@@ -243,12 +251,24 @@ function createPlayground() {
     const labScale = innerWidth <= 540 ? 0.75 : 1;
     const labPoint = fitScenePoint({ x: positions.laboratory.x + 72, y: positions.laboratory.y + robotSize.height - 88 }, viewport, { width: 185 * labScale, height: 110 * labScale });
     lab.style.transform = `translate(${labPoint.x}px,${labPoint.y}px)`;
+    for (const liquid of sourceLiquid) liquid.style.transform = '';
+    for (const liquid of destinationLiquid) liquid.style.transform = 'translateY(22px)';
+    stream.style.opacity = '0';
     lab.hidden = false;
     await walk(point(labPoint.x - robotSize.width + 25, positions.laboratory.y), 4300, signal);
-    robot.style.setProperty('--pg-facing', '1');
+    faceRobot(1);
     robot.dataset.pose = 'mix';
     stage.dataset.experiment = 'mix';
-    await animate(flask, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(32deg)' }, { transform: 'rotate(32deg)' }, { transform: 'rotate(0deg)' }], { duration: 3800, easing: 'ease-in-out' }, signal);
+    const duration = 3800;
+    const pourFrames = (start, end, out = end) => [
+      {transform:start,offset:0},{transform:start,offset:.24},{transform:end,offset:.78},{transform:out,offset:1}
+    ];
+    await Promise.all([
+      animate(flask, [{transform:'rotate(0deg)',offset:0},{transform:'rotate(48deg)',offset:.24},{transform:'rotate(48deg)',offset:.78},{transform:'rotate(0deg)',offset:1}], {duration}, signal),
+      animate(stream, [{opacity:0,offset:0},{opacity:0,offset:.24},{opacity:1,offset:.3},{opacity:1,offset:.73},{opacity:0,offset:.78},{opacity:0,offset:1}], {duration}, signal),
+      ...[...sourceLiquid].map(el=>animate(el,[{transform:'translateY(0) rotate(0deg)',offset:0},{transform:'translateY(0) rotate(-48deg)',offset:.24},{transform:'translateY(25px) rotate(-48deg)',offset:.78},{transform:'translateY(25px) rotate(0deg)',offset:1}],{duration},signal)),
+      ...[...destinationLiquid].map(el=>animate(el,pourFrames('translateY(22px)','translateY(-4px)'),{duration},signal))
+    ]);
     stage.dataset.experiment = 'bubble';
     robot.dataset.pose = 'curious';
     await sleep(2400, signal);

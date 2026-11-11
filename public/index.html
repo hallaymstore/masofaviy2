@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/telegram-design.css?v=20261013-rc5">
   <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/hallaym-ui.css?v=20261111-play1">
-  <link rel="stylesheet" href="/campus-game.css?v=20261111-play1">
+  <link rel="stylesheet" href="/hallaym-ui.css?v=20261111-premium1">
+  <link rel="stylesheet" href="/campus-game.css?v=20261111-premium1">
   <link rel="stylesheet" href="/a11y.css?v=20261016-voice1">
   <link rel="stylesheet" href="/audio-books.css?v=20261016-books1">
   <link rel="stylesheet" href="/voice-assistant.css?v=20261016-voice1">
@@ -72,7 +72,7 @@
       <button id="globalSearchOpen" class="icon-btn global-search-trigger" title="Butun saytdan qidirish (Ctrl+K)" aria-label="Sayt bo‘ylab qidirish"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
       <button id="profileBtn" class="profile-head" title="Shaxsiy profil"><span class="profile-dot" aria-hidden="true">●</span><span id="headerName"></span></button>
       <span id="onlineBadge" class="badge">● Onlayn</span>
-      <button id="installPwaBtn" class="icon-btn install-pwa hidden" aria-label="Ilovani o‘rnatish" title="Ilovani o‘rnatish">↓</button>
+      <button id="installPwaBtn" class="icon-btn install-pwa hidden" aria-label="Ilovani o‘rnatish" title="Ilovani o‘rnatish"><span data-ico="download"></span></button>
       <button id="themeBtn" class="icon-btn" aria-label="Rang rejimi">◐</button>
     </div>
   </header>
@@ -346,7 +346,7 @@
       <div class="conference-shell">
         <div class="conference-main">
           <div class="video-stage"><div id="raisedHandAlert" class="raised-hand-alert hidden"><button id="raisedHandOpen" type="button">✋ <b id="raisedHandAlertText">Qo‘l ko‘tarildi</b></button><button id="raisedHandSpotlight" class="raised-hand-approve" type="button">Ekranga chiqarish</button></div><div id="liveStudentProctorStatus" class="live-proctor-status hidden" role="status" aria-live="polite"><video id="liveProctorLocalPreview" autoplay muted playsinline aria-label="Mahalliy proktor kamera"></video><span id="liveProctorStatusText">◌ Yuz nazorati yuklanmoqda…</span></div><div id="videoMount" class="video-mount"><div class="video-placeholder"><span data-ico="video" data-fallback="◉"></span><b>Video xona tayyorlanmoqda</b><small>Avval “Guruh darslari” sahifasidan darsni tanlang</small></div></div><div id="liveCaptions" class="live-captions hidden" role="status" aria-live="polite" aria-atomic="true"><b id="captionSpeaker"></b><span id="captionText"></span></div></div>
-          <section id="lessonStudentRail" class="lesson-student-rail" aria-label="Guruh ishtirokchilari"><div class="rail-title"><span>👥 Ishtirokchilar <b id="lessonStudentRailCount">0</b><small id="lessonRailGroup" class="rail-group-name"></small></span><button id="railOpenParticipants" type="button">Ro‘yxat va davomat ↗</button></div><div id="lessonStudentRailItems" class="lesson-student-rail-items" role="list"><span class="rail-loading">Ishtirokchilar yuklanmoqda…</span></div></section>
+          <section id="lessonStudentRail" class="lesson-student-rail" aria-label="Guruh ishtirokchilari"><div class="rail-title"><span data-ui-icon-label>👥 Ishtirokchilar <b id="lessonStudentRailCount">0</b><small id="lessonRailGroup" class="rail-group-name"></small></span><button id="railOpenParticipants" type="button">Ro‘yxat va davomat ↗</button></div><div id="lessonStudentRailItems" class="lesson-student-rail-items" role="list"><span class="rail-loading">Ishtirokchilar yuklanmoqda…</span></div></section>
           <div class="conference-controls zoom-dock">
             <div class="zoom-primary">
               <button id="callMic" class="zoom-control" aria-pressed="false"><span data-ico="mic" data-fallback="🎙"></span><span>Mikrofon</span></button>
@@ -365,22 +365,22 @@
               <div class="more-grid">
                 <button id="callScreen"><span data-ico="screen" data-fallback="□"></span><span>Ekran ulashish</span></button>
                 <button id="callAttendance"><span data-ico="users" data-fallback="☷"></span><span>Davomat</span><i id="participantCountBadge" class="control-badge">0</i></button>
-                <button id="callReaction"><span>👏</span><span>Reaksiya</span></button>
-                <button id="callViewMode"><span>▦</span><span>Ko‘rinish</span></button>
+                <button id="callReaction"><span data-ico="hand"></span><span>Reaksiya</span></button>
+                <button id="callViewMode"><span data-ico="grid"></span><span>Ko‘rinish</span></button>
                 <label class="more-select"><span>Sifat</span><select id="videoQuality" class="caption-lang" aria-label="Video sifati"><option value="auto">Auto</option><option value="240">240p</option><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
-                <button id="callBoard" class="hidden" title="Elektron doska — talabalarga avtomatik ko‘rsatiladi"><span>✎</span><span>Elektron doska</span></button><button id="callLab" title="Virtual laboratoriya (kamera PiP bilan)"><span>⚗</span><span>Laboratoriya</span></button><button id="callQa" title="Savollar navbati"><span>❓</span><span>Savollar</span></button><button id="callCloud" class="hidden" title="Talabalar fikri — so‘z buluti"><span>☁️</span><span>So‘z buluti</span></button><button id="callPick" class="hidden" title="Onlayn talabalardan birini tasodifiy tanlash"><span>🎲</span><span>Tasodifiy talaba</span></button><button id="callQuiz" class="hidden" title="Talabalarga tezkor savol"><span>📊</span><span>Kviz</span></button><button id="callRoomMode" class="hidden" aria-pressed="false" title="Auditoriyada bo‘lsangiz telefon ovozi o‘chadi — aks-sado va chiyillash bo‘lmaydi"><span>🏫</span><span>Auditoriyadaman</span></button><button id="echoGuard" title="Bir xonadagi qurilmalar uchun: mikrofon ON bo‘lsa karnay ovozi o‘chadi"><span>🔇</span><span>Yaqin qurilmalar</span></button>
-                <button id="callDevices"><span>⌃</span><span>Qurilmalar</span></button>
-                <button id="callFlipCamera"><span>↻</span><span>Kamera aylantirish</span></button>
-                <button id="callLowBandwidth"><span>⇣</span><span>Lite</span></button>
-                <button id="callRejoin" class="hidden"><span>↺</span><span>Qayta kirish</span></button>
+                <button id="callBoard" class="hidden" title="Elektron doska — talabalarga avtomatik ko‘rsatiladi"><span data-ico="board"></span><span>Elektron doska</span></button><button id="callLab" title="Virtual laboratoriya (kamera PiP bilan)"><span data-ico="flask"></span><span>Laboratoriya</span></button><button id="callQa" title="Savollar navbati"><span>❓</span><span>Savollar</span></button><button id="callCloud" class="hidden" title="Talabalar fikri — so‘z buluti"><span>☁️</span><span>So‘z buluti</span></button><button id="callPick" class="hidden" title="Onlayn talabalardan birini tasodifiy tanlash"><span>🎲</span><span>Tasodifiy talaba</span></button><button id="callQuiz" class="hidden" title="Talabalarga tezkor savol"><span>📊</span><span>Kviz</span></button><button id="callRoomMode" class="hidden" aria-pressed="false" title="Auditoriyada bo‘lsangiz telefon ovozi o‘chadi — aks-sado va chiyillash bo‘lmaydi"><span>🏫</span><span>Auditoriyadaman</span></button><button id="echoGuard" title="Bir xonadagi qurilmalar uchun: mikrofon ON bo‘lsa karnay ovozi o‘chadi"><span>🔇</span><span>Yaqin qurilmalar</span></button>
+                <button id="callDevices"><span data-ico="gear"></span><span>Qurilmalar</span></button>
+                <button id="callFlipCamera"><span data-ico="refresh"></span><span>Kamera aylantirish</span></button>
+                <button id="callLowBandwidth"><span data-ico="download"></span><span>Lite</span></button>
+                <button id="callRejoin" class="hidden"><span data-ico="refresh"></span><span>Qayta kirish</span></button>
                 <button id="callCaptions"><span>CC</span><span>Subtitr</span></button>
                 <label class="more-select"><span>Subtitr tili</span><select id="captionLang" class="caption-lang" aria-label="Subtitr tili"><option value="uz-UZ">UZ</option><option value="ru-RU">RU</option><option value="en-US">EN</option></select></label>
                 <button id="captionMath"><span>∑</span><span>Matematika</span></button>
                 <button id="captionSize"><span>A+</span><span>Subtitr o‘lchami</span></button>
-                <button id="callTranscript"><span>📝</span><span>Dars matni</span></button>
-                <button id="accessibilityMode"><span>♿</span><span>Qulaylik</span></button>
-                <button id="callPiP"><span>▣</span><span>PiP</span></button>
-                <button id="callFullscreen"><span>⛶</span><span>O‘qituvchi / ekran full</span></button><button id="callZoomReset"><span>↔</span><span>Zoomni tiklash</span></button>
+                <button id="callTranscript"><span data-ico="file"></span><span>Dars matni</span></button>
+                <button id="accessibilityMode"><span data-ico="access"></span><span>Qulaylik</span></button>
+                <button id="callPiP"><span data-ico="screen"></span><span>PiP</span></button>
+                <button id="callFullscreen"><span data-ico="fullscreen"></span><span>O‘qituvchi / ekran full</span></button><button id="callZoomReset"><span data-ico="swap"></span><span>Zoomni tiklash</span></button>
               </div>
             </div>
           </div>
@@ -391,12 +391,12 @@
         <div id="connectionBanner" class="connection-banner hidden">Internet uzildi · qayta ulanmoqda…</div>
         <button id="lessonDrawerBackdrop" class="lesson-drawer-backdrop" type="button" aria-label="Panelni yopish"></button>
         <aside class="lesson-side" id="lessonDrawer">
-          <div class="lesson-drawer-head"><div><b>Dars boshqaruvi</b><small>Davomat · kamera · mikrofon · chat</small></div><button id="closeLessonDrawer" class="lesson-drawer-close" type="button" aria-label="Yopish">×</button></div>
+          <div class="lesson-drawer-head"><div><b>Dars boshqaruvi</b><small>Davomat · kamera · mikrofon · chat</small></div><button id="closeLessonDrawer" class="lesson-drawer-close" type="button" aria-label="Yopish"><span data-ico="close"></span></button></div>
           <div class="lesson-side-tabs"><button id="showParticipants" class="active">Davomat</button><button id="showLessonChat">Chat</button></div>
           <div id="teacherQuickControls" class="teacher-quick-controls hidden">
-            <button id="muteAllStudents" type="button">🔇 Barchani mute</button>
-            <button id="cameraOffAllStudents" type="button">📷 Barcha kamerani o‘chir</button>
-            <button id="teacherSpotlightSelf" type="button">⭐ O‘qituvchini spotlight</button>
+            <button id="muteAllStudents" type="button" data-ui-icon-label>🔇 Barchani mute</button>
+            <button id="cameraOffAllStudents" type="button" data-ui-icon-label>📷 Barcha kamerani o‘chir</button>
+            <button id="teacherSpotlightSelf" type="button" data-ui-icon-label>⭐ O‘qituvchini spotlight</button>
           </div>
           <section id="participantsPanel" class="participants-panel">
             <div class="participants-head"><div><b>Qatnashuvchilar</b><small id="attendanceCheckpointInfo">Birinchi avtomatik davomat: 10-daqiqada</small></div></div>
@@ -550,6 +550,6 @@
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/remote-exams.js?v=20261008-1"></script>
-<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261016-voice1"></script><script type="module" src="/app.js?v=20261111-play1"></script>
-<script type="module" src="/campus-game.js?v=20261111-play1"></script>
+<script src="/socket.io/socket.io.js"></script><script src="/media-client.bundle.js?v=20261016-voice1"></script><script type="module" src="/app.js?v=20261111-premium1"></script>
+<script type="module" src="/campus-game.js?v=20261111-premium1"></script>
 </body></html>

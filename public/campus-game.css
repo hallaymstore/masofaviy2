@@ -1,7 +1,6 @@
 /* Campus game surfaces. Existing page IDs and form semantics remain the entry points. */
 html.hx {
  --pg-scene:url('/assets/campus/learning-commons-day.webp');
- --pg-wash:linear-gradient(120deg,rgba(235,248,242,.70),rgba(246,248,240,.46));
  --pg-panel:#fffef8;
  --pg-panel-end:#f0f7ee;
  --pg-edge:#99b8a6;
@@ -20,7 +19,6 @@ html.hx {
 }
 html.hx[data-theme="dark"] {
  --pg-scene:url('/assets/campus/learning-commons-night.webp');
- --pg-wash:linear-gradient(120deg,rgba(6,17,38,.82),rgba(9,27,44,.56));
  --pg-panel:#162c42;
  --pg-panel-end:#102139;
  --pg-edge:#577a93;
@@ -45,7 +43,7 @@ html.hx:not([data-theme="dark"]):is([data-page="analytics"],[data-page="reports"
 html.hx:not([data-theme="dark"])[data-page="lab"] {--pg-panel-end:#daf3eb;--pg-edge:#8fbcae;--pg-bottom:#77a997}
 html.hx[data-theme="dark"]:is([data-page="workspace"],[data-page="myRequests"],[data-page="units"],[data-page="lab"]) {--pg-panel-end:#153438;--pg-edge:#4d8078}
 html.hx:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell {
- background:var(--pg-wash),var(--pg-scene) center/cover fixed!important;
+ background:var(--pg-scene) center/cover no-repeat fixed!important;
 }
 html.hx:not(.a11y-contrast):not(.a11y-simple-layout) #shell>main {
  background:transparent!important;
@@ -288,7 +286,7 @@ html.hx #campusPlayground .pg-leg-upper {inset:0;background-image:url('/assets/c
 html.hx #campusPlayground .pg-shin {left:1px;top:27px;width:25px;height:34px;transform-origin:50% 10%}
 html.hx #campusPlayground .pg-shin-shell {inset:0;background-image:url('/assets/campus/rig/shin.webp')}
 html.hx #campusPlayground .pg-boot {left:-2px;top:26px;width:36px;height:23px;background-image:url('/assets/campus/rig/boot.webp');transform-origin:40% 20%}
-html.hx #campusPlayground .pg-held-remote {left:57px;top:103px;width:52px;height:31px;background:url('/assets/campus/rig/controller.webp') center/contain no-repeat;z-index:8;opacity:0}
+html.hx #campusPlayground .pg-held-remote {left:51px;top:117px;width:60px;height:39px;background:url('/assets/campus/rig/controller.webp') center/contain no-repeat;z-index:6;opacity:0;filter:drop-shadow(0 2px 2px #0b222b88)}
 html.hx #campusPlayground[data-remote="held"] .pg-table-remote {opacity:0}
 html.hx #campusPlayground[data-remote="held"] .pg-held-remote {opacity:1}
 html.hx #campusPlayground .pg-robot-splat {left:36px;top:44px;width:100px;height:101px;z-index:9;background:url('/assets/campus/rig/splash-teal.webp') center/contain no-repeat;opacity:0}
@@ -308,10 +306,16 @@ html.hx #campusPlayground .pg-robot[data-pose="reach"] .pg-arm.pg-right .pg-hand
 html.hx #campusPlayground .pg-robot[data-pose="reach"] .pg-head-joint {transform:rotate(18deg) translateY(5px)}
 html.hx #campusPlayground .pg-robot[data-pose="reach"] .pg-leg {transform:rotate(-12deg)}
 html.hx #campusPlayground .pg-robot[data-pose="reach"] .pg-shin {transform:rotate(24deg)}
-html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-right {transform:rotate(30deg)}
-html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-left {transform:rotate(-30deg);z-index:4}
-html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-forearm {transform:rotate(-65deg)}
-html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-left .pg-forearm {transform:rotate(65deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm {z-index:7}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-left {transform:rotate(-14deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-right {transform:rotate(18deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-left .pg-forearm {transform:rotate(-18deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-right .pg-forearm {transform:rotate(17deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-hand {transform:rotate(12deg) scale(.63)}
+html.hx #campusPlayground .pg-robot:is([data-pose="pilot"],[data-pose="pilot-run"]) .pg-arm.pg-left .pg-hand {transform:rotate(-12deg) scale(-.63,.63)}
+html.hx #campusPlayground .pg-held-remote {transform:perspective(100px) rotateX(16deg)}
+html.hx #campusPlayground .pg-robot[data-facing="left"] .pg-held-remote {transform:perspective(100px) rotateX(16deg) scaleX(-1)}
+html.hx #campusPlayground .pg-robot:is([data-pose="walk"],[data-pose="pilot-run"]) .pg-leg.pg-right .pg-boot {animation-delay:-.35s}
 html.hx #campusPlayground .pg-robot[data-pose="pilot"] .pg-head-joint {animation:pg-watch 3.8s ease-in-out infinite}
 html.hx #campusPlayground .pg-robot:is([data-pose="cheer"],[data-pose="surprise"]) .pg-arm.pg-right {transform:rotate(-135deg)}
 html.hx #campusPlayground .pg-robot:is([data-pose="cheer"],[data-pose="surprise"]) .pg-arm.pg-left {transform:rotate(135deg)}
@@ -331,13 +335,14 @@ html.hx #campusPlayground .pg-drone-position::after {content:"";position:absolut
 html.hx #campusPlayground[data-motors="on"] .pg-drone-position::after {opacity:0}
 html.hx #campusPlayground .pg-drone-attitude {position:relative;width:112px;height:88px;transform-style:preserve-3d}
 html.hx #campusPlayground .pg-drone-body {inset:0;background:url('/assets/campus/rig/drone-body.webp') center/contain no-repeat}
-html.hx #campusPlayground .pg-rotor {width:41px;height:41px;transform-origin:center}
-html.hx #campusPlayground .pg-rotor-a {left:0;top:1px}
-html.hx #campusPlayground .pg-rotor-b {right:0;top:1px}
-html.hx #campusPlayground .pg-rotor-c {left:0;bottom:0}
-html.hx #campusPlayground .pg-rotor-d {right:0;bottom:0}
-html.hx #campusPlayground .pg-rotor::before,html.hx #campusPlayground .pg-rotor::after {content:"";position:absolute;left:0;top:17px;width:41px;height:7px;border-radius:80% 30%;background:linear-gradient(#7fcec0,#1d665c);box-shadow:0 1px 1px #0005}
-html.hx #campusPlayground .pg-rotor::after {transform:rotate(90deg)}
+/* Shaft centers measured on the 256×216 rotorless drone artwork. */
+html.hx #campusPlayground .pg-rotor {width:34px;height:34px;margin:-17px 0 0 -17px;transform-origin:50% 50%}
+html.hx #campusPlayground .pg-rotor-a {left:15.1%;top:10.2%}
+html.hx #campusPlayground .pg-rotor-b {left:84.9%;top:10.2%}
+html.hx #campusPlayground .pg-rotor-c {left:15.1%;top:83.3%}
+html.hx #campusPlayground .pg-rotor-d {left:84.9%;top:83.3%}
+html.hx #campusPlayground .pg-rotor::before {content:"";position:absolute;inset:14px 0;border-radius:80% 25%;background:linear-gradient(#b7f5e9,#2a7973);box-shadow:0 1px 1px #05252388}
+html.hx #campusPlayground .pg-rotor::after {content:"";position:absolute;inset:13px;border-radius:50%;background:radial-gradient(circle at 36% 33%,#fff0a6,#8d5d2f 68%)}
 html.hx #campusPlayground[data-motors="spool"] .pg-rotor {animation:pg-rotor .35s linear infinite}
 html.hx #campusPlayground[data-motors="on"] .pg-rotor {animation:pg-rotor .095s linear infinite}
 html.hx #campusPlayground[data-motors="on"] :is(.pg-rotor-b,.pg-rotor-c) {animation-direction:reverse}
@@ -348,7 +353,7 @@ html.hx #campusPlayground .pg-laboratory {position:absolute;left:0;top:0;width:1
 html.hx #campusPlayground .pg-flask {position:absolute;left:0;top:0;width:85px;height:102px;transform-origin:50% 90%;isolation:isolate}
 html.hx #campusPlayground .pg-flask-glass {inset:0;background:url('/assets/campus/rig/flask-empty.webp') center/contain no-repeat}
 html.hx #campusPlayground .pg-flask-mask {position:absolute;inset:5px 14px 8px;clip-path:polygon(39% 0,61% 0,61% 35%,98% 95%,91% 100%,9% 100%,2% 95%,39% 35%);overflow:hidden;z-index:1;mix-blend-mode:multiply}
-html.hx #campusPlayground .pg-liquid {left:-35%;bottom:-20%;width:170%;height:76%;border-radius:42% 46% 8% 8%;opacity:.85;transform-origin:center}
+html.hx #campusPlayground .pg-liquid {left:-35%;bottom:-20%;width:170%;height:76%;border-radius:50% 50% 0 0 / 5% 5% 0 0;opacity:.82;transform-origin:center}
 html.hx #campusPlayground .pg-liquid-teal {background:linear-gradient(#4ee5be,#098c9a);transform:rotate(-7deg)}
 html.hx #campusPlayground .pg-liquid-amber {background:linear-gradient(#ffde7d,#ffac57);height:38%;opacity:.60;transform:rotate(10deg)}
 html.hx #campusPlayground .pg-liquid-purple {background:linear-gradient(#dbaaff,#895cd4);height:65%}
@@ -356,10 +361,10 @@ html.hx #campusPlayground .pg-beaker {position:absolute;left:95px;top:33px;width
 html.hx #campusPlayground .pg-beaker-glass {inset:0;background:url('/assets/campus/rig/beaker-empty.webp') center/contain no-repeat}
 html.hx #campusPlayground .pg-beaker-mask {position:absolute;inset:10px 13px 8px;overflow:hidden;border-radius:0 0 8px 8px;z-index:1;mix-blend-mode:multiply}
 html.hx #campusPlayground .pg-beaker .pg-liquid-teal {height:37%;opacity:.55}
-html.hx #campusPlayground .pg-liquid-stream {left:76px;top:27px;width:42px;height:6px;background:#67d9bf;border-radius:50%;transform:rotate(34deg);opacity:0}
-html.hx #campusPlayground[data-experiment="mix"] .pg-liquid-stream {animation:pg-pour 3.8s ease-in-out both}
-html.hx #campusPlayground[data-experiment="mix"] .pg-liquid {animation:pg-slosh 1.3s ease-in-out infinite alternate}
-html.hx #campusPlayground[data-experiment="bubble"] .pg-liquid {animation:pg-slosh .6s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-liquid-stream {position:absolute;inset:0;width:100%;height:100%;opacity:0;z-index:3;overflow:visible}
+html.hx #campusPlayground .pg-liquid-stream path {fill:none;stroke:#17a995;stroke-width:4.4;stroke-linecap:round}
+html.hx #campusPlayground .pg-liquid-stream path+path {stroke:#b6f5dc;stroke-width:1.25;stroke-dasharray:4 5;animation:pg-stream-flow .25s linear infinite}
+@keyframes pg-stream-flow {to{stroke-dashoffset:-9}}
 html.hx #campusPlayground .pg-bubble {left:40%;bottom:18px;width:7px;height:7px;border:1px solid #fff9;border-radius:50%;opacity:0}
 html.hx #campusPlayground .pg-bubble:nth-last-child(2) {left:60%;animation-delay:-.5s!important}
 html.hx #campusPlayground .pg-bubble:last-child {left:25%;animation-delay:-1s!important}
@@ -388,8 +393,6 @@ html.hx .pg-motion-toggle:focus-visible {outline:3px solid var(--pg-gold);outlin
 @keyframes pg-giggle {0%,100%{transform:rotate(-5deg) translateY(0)}50%{transform:rotate(5deg) translateY(-5px)}}
 @keyframes pg-blink {0%,44%,48%,100%{opacity:0}46%{opacity:1}}
 @keyframes pg-rotor {to{transform:rotate(360deg)}}
-@keyframes pg-slosh {from{transform:translateY(3px) rotate(-10deg)}to{transform:translateY(-3px) rotate(11deg)}}
-@keyframes pg-pour {0%,20%,85%,100%{opacity:0}30%,75%{opacity:.85}}
 @keyframes pg-bubble {0%{opacity:0;transform:translateY(0) scale(.5)}20%{opacity:1}100%{opacity:0;transform:translateY(-38px) scale(1.1)}}
 @keyframes pg-splash {0%{opacity:0;transform:scale(.1) rotate(20deg)}35%{opacity:1;transform:scale(1.1) rotate(-10deg)}100%{opacity:0;transform:translate(-40px,20px) scale(.9) rotate(-22deg)}}
 @keyframes pg-droplet {0%{opacity:0;transform:translate(0,0)}20%{opacity:1;transform:translate(-35px,-40px)}100%{opacity:0;transform:translate(-80px,70px)}}
@@ -413,3 +416,123 @@ html.hx .pg-motion-toggle:focus-visible {outline:3px solid var(--pg-gold);outlin
  html.hx #campusPlayground,html.hx #campusMotionToggle,html.hx .pg-station-anchor {display:none!important}
  html.hx:not(.a11y-contrast):not(.a11y-simple-layout):not(.video-cinema-fallback) #shell {background:#fff!important}
 }
+
+/* Unfiltered photography with contrast provided by the foreground surfaces. */
+@font-face {
+ font-family:"DM Sans Campus";
+ src:url('/fonts/dm-sans-latin-variable.woff') format("woff");
+ font-weight:100 1000;
+ font-style:normal;
+ font-display:swap;
+}
+html.hx:not(.a11y-contrast):not(.a11y-simple-layout):not([class*="a11y-font-"]) {
+ --hx-font:"DM Sans Campus","Onest Hx",system-ui,sans-serif;
+}
+html.hx:not(.a11y-contrast):not([class*="a11y-font-"]) :is(#shell>main .page-head h1,#login .showcase-copy h1,#login h1,#lesson .lesson-drawer-head b) {
+ font-family:var(--hx-display)!important;
+ font-weight:790!important;
+ letter-spacing:-.045em!important;
+}
+html.hx:not(.a11y-contrast) #shell>main :is(.section-title h2,.ux-ws-sec h3,.ef-card>b,.stat>b,.lesson-info>b) {font-family:var(--hx-display);font-weight:720;letter-spacing:-.022em}
+html.hx:not(.a11y-contrast) #shell>main :is(.stat b,.ef-nums i,.ef-table td:first-child,.lesson-time,.lesson-time-left) {font-variant-numeric:tabular-nums}
+html.hx[data-page="university"] {--pg-scene:url('/assets/campus/atrium.webp')}
+html.hx:is([data-page="schedule"],[data-page="dailyAttendance"]) {--pg-scene:url('/assets/campus/lecture-theatre.webp')}
+html.hx:is([data-page="library"],[data-page="myBooks"],[data-page="libraryManage"],[data-page="search"]) {--pg-scene:url('/assets/campus/reading-hall.webp')}
+html.hx:is([data-page="videos"],[data-page="live"],[data-page="lesson"]) {--pg-scene:url('/assets/campus/media-studio.webp')}
+html.hx:is([data-page="units"],[data-page="structure"],[data-page="settings"],[data-page="users"]) {--pg-scene:url('/assets/campus/admin-lounge.webp')}
+html.hx:is([data-page="eduForms"],[data-page="courses"],[data-page="curriculum"]) {--pg-scene:url('/assets/campus/seminar-room.webp')}
+html.hx:not(.a11y-contrast) #login .login-showcase {background:var(--campus-photo) center/cover no-repeat,var(--campus-tint)!important}
+html.hx:not(.a11y-contrast) #login .login-showcase::before,
+html.hx:not(.a11y-contrast) #login .login-showcase::after {content:none!important}
+html.hx:not(.a11y-contrast) #login .login-showcase :is(.showcase-brand,.showcase-copy,.showcase-foot) {
+ background:#102e34!important;
+ border:1px solid #7aaca273!important;
+ padding:clamp(12px,2vw,25px)!important;
+ border-radius:17px!important;
+}
+html.hx:not(.a11y-contrast) #login .showcase-brand {align-self:flex-start}
+html.hx:not(.a11y-contrast) #login .showcase-copy {max-width:min(100%,650px)}
+html.hx:not(.a11y-contrast) #login .showcase-copy h1 {font-size:clamp(32px,3.5vw,60px)!important}
+html.hx:not(.a11y-contrast) #login .showcase-foot {padding:10px 16px!important}
+html.hx:not(.a11y-contrast) #shell>main :is(.edu-banner,.university-hero) {
+ background:var(--pg-scene) center/cover no-repeat!important;
+}
+html.hx:not(.a11y-contrast) #shell>main :is(.edu-banner>div,.university-hero>div) {
+ background:#102e34!important;
+ border:1px solid #81aba984;
+ border-radius:14px;
+ padding:12px 16px!important;
+}
+html.hx .pg-icon-glyph {display:inline-grid;vertical-align:-.17em;place-items:center;color:currentColor}
+html.hx .pg-inline-icon {width:1.12em;height:1.12em;display:inline-block;vertical-align:-.16em;flex:none}
+html.hx :is(.ef-ico,.ux-ico,.ef-ci-ico,.ux-hero-ico,.ux-doc-ico) .pg-inline-icon {width:72%;height:72%;min-width:18px;min-height:18px}
+html.hx:not(.a11y-contrast) #sidebar nav button [data-ico] {
+ background:linear-gradient(155deg,#31565b,#19353f)!important;
+ border:1px solid #83aaa15e!important;
+ color:#d3f1e6!important;
+ box-shadow:inset 0 1px 0 #b6f4dd33,0 2px 0 #0c252d!important;
+}
+html.hx:not(.a11y-contrast) #sidebar nav button.active [data-ico] {
+ background:linear-gradient(155deg,#e0f5d5,#9eceb5)!important;
+ border-color:#e4fbe4!important;
+ color:#173e36!important;
+}
+html.hx #sidebar nav button [data-ico] .ui-icon {width:18px;height:18px;stroke-width:1.65}
+html.hx #shell>header #themeBtn::before {content:none!important}
+html.hx :is(#themeBtn,#loginThemeBtn,#installPwaBtn) .ui-icon {width:20px;height:20px}
+html.hx:not(.a11y-contrast) #eduForms .ef-card .ef-ico {
+ display:grid;place-items:center;width:46px;height:46px;margin-bottom:8px;
+ border-radius:13px;border:1px solid #a7c6b6;background:#dbf0e4;color:#246758;
+}
+html.hx:not(.a11y-contrast) #eduForms .ef-kechki .ef-ico {background:#e9e5f9;color:#5e5190;border-color:#bfb5da}
+html.hx:not(.a11y-contrast) #eduForms .ef-sirtqi .ef-ico {background:#f8e8c9;color:#7d571e;border-color:#dfc294}
+html.hx:not(.a11y-contrast) #eduForms .ef-masofaviy .ef-ico {background:#daeefa;color:#265d81;border-color:#a3c5db}
+
+/* Conference skin only changes surfaces, typography and state colors. */
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson .video-stage {
+ border:1px solid #537b85!important;
+ border-radius:18px!important;
+ background:#081723!important;
+ box-shadow:inset 0 0 0 1px #92c1b92b,0 8px 22px #09162545!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson :is(.lesson-student-rail,.live-more-panel) {
+ background:#102534!important;border-color:#537b85!important;color:#ecf7f5!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson .rail-title {
+ font-family:var(--hx-display);font-weight:730;color:#eefaf8!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson :is(.ms-label,.zoom-status,.live-popover) {
+ border-color:#698d96!important;background:#122c3a!important;color:#eefaf8!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson .lesson-drawer-head {
+ background:linear-gradient(125deg,var(--pg-panel),var(--pg-panel-end));border-bottom:1px solid var(--pg-edge);
+}
+html.hx:not(.a11y-contrast) #lesson .zoom-control[aria-pressed="true"]:not(.danger) {
+ color:#103b34!important;background:#b5e7d2!important;box-shadow:inset 0 1px 0 #f2fff6,0 2px 0 #467a73!important;
+}
+html.hx:not(.a11y-contrast) #lesson .zoom-control.danger {
+ color:#fff!important;background:#aa3f50!important;box-shadow:inset 0 1px 0 #ec9ca8,0 2px 0 #632936!important;
+}
+html.hx:not(.a11y-contrast) #lesson .lesson-side-tabs button.active {background:#237566!important;color:#fff!important;border-color:#72b4a4!important}
+@media(max-width:650px) {
+ html.hx:not(.a11y-contrast) #login .showcase-copy h1 {font-size:clamp(27px,7.5vw,36px)!important}
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson>.page-head {
+ border:1px solid var(--pg-edge)!important;
+ border-inline-start:4px solid #529d8e!important;
+ border-radius:14px!important;
+ background:linear-gradient(135deg,var(--pg-panel),var(--pg-panel-end))!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson :is(.participants-head,#lessonChatPanel>h2) {
+ border-bottom:1px solid var(--pg-edge);
+ color:var(--hx-text);
+ font-family:var(--hx-display);
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson #chatForm input {
+ background:var(--pg-panel)!important;color:var(--hx-text)!important;
+ border:1px solid var(--pg-edge)!important;border-radius:12px!important;
+}
+html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson #chatForm button {
+ background:#237566!important;color:#fff!important;border:1px solid #72b4a4!important;border-radius:12px!important;
+}
+html.hx:not(.a11y-contrast) #lesson .lesson-time-left {font-family:var(--hx-display);letter-spacing:.025em}
