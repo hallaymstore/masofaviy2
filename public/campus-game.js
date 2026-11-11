@@ -153,6 +153,7 @@ function createPlayground() {
     stage.dataset.activity = '';
     stage.dataset.dizzy = '';
     stage.dataset.hang = '';
+    stage.dataset.lean = '';
     stage.dataset.rocket = '';
     stage.dataset.volcano = '';
     stage.dataset.plant = '';
@@ -214,7 +215,7 @@ function createPlayground() {
       { transform: `translate3d(${point.x}px,${point.y}px,0)` }
     ], { duration, easing: 'linear' }, signal);
     robotPoint = point;
-    robot.dataset.pose = pose === 'pilot-run' ? 'pilot' : 'idle';
+    robot.dataset.pose = pose === 'pilot-run' ? 'pilot' : pose === 'carry-walk' ? 'carry' : 'idle';
   }
 
   async function transferRemote(pickup, signal) {
@@ -339,6 +340,78 @@ function createPlayground() {
     robotPoint = point;
   }
 
+  // ---- Fetching props from the workbench ----------------------------------
+  // The prop materialises on the table, the robot leans in and takes it,
+  // carries it to the spot, bends down, sets it on the floor, then plays.
+  function handPoint() {
+    const r = stage.querySelector('.pg-arm.pg-right .pg-hand').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  async function lean(on, signal) {
+    const facing = Number(robot.style.getPropertyValue('--pg-facing')) || 1;
+    stage.dataset.lean = 'true';
+    const bent = `rotate(${facing * 18}deg)`;
+    await animate(flip, on ? [{ transform: 'rotate(0deg)' }, { transform: bent }] : [{ transform: bent }, { transform: 'rotate(0deg)' }],
+      { duration: on ? 380 : 320, easing: 'ease-in-out' }, signal);
+    if (!on) { flip.style.transform = ''; stage.dataset.lean = ''; }
+  }
+
+  function carry(el, size, signal) {
+    let held = true;
+    const tick = () => {
+      if (!held || signal.aborted) return;
+      const hand = handPoint();
+      el.style.transform = at({ x: hand.x - size.w / 2, y: hand.y - size.h * 0.8 });
+      requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { held = false; };
+  }
+
+  async function fetchProp(positions, el, target, size, signal, spot, { resize = true, keep = false } = {}) {
+    const s = positions.scale, table = positions.bench;
+    if (resize) { el.style.width = `${size.w}px`; el.style.height = `${size.h}px`; }
+    const onTable = { x: table.x + table.width * 0.4 - size.w / 2, y: table.y + 14 - size.h };
+    el.style.opacity = '1';
+    el.style.transform = at(onTable);
+    el.hidden = false;
+    burst(onTable.x + size.w / 2, onTable.y + size.h / 2, 'spark', 8, 46);
+    await animate(el, [
+      { transform: `${at(onTable)} scale(0)`, opacity: '0' },
+      { transform: `${at(onTable)} scale(1.15)`, opacity: '1', offset: 0.7 },
+      { transform: `${at(onTable)} scale(1)`, opacity: '1' }
+    ], { duration: 560, easing: 'ease-out' }, signal);
+    el.style.transform = at(onTable);
+    const stand = fitScenePoint({ x: onTable.x + size.w / 2 - positions.robotSize.width * 0.12, y: positions.home.y }, positions.viewport, positions.robotSize);
+    await walkTo(stand, signal);
+    faceRobot(-1);
+    robot.dataset.pose = 'reach-low';
+    await lean(true, signal);
+    const grab = handPoint();
+    await animate(el, [{ transform: at(onTable) }, { transform: at({ x: grab.x - size.w / 2, y: grab.y - size.h * 0.8 }) }], { duration: 300, easing: 'ease-out' }, signal);
+    robot.dataset.pose = 'carry';
+    await lean(false, signal);
+    const release = carry(el, size, signal);
+    try {
+      const goal = spot || fitScenePoint({ x: target.x + size.w / 2 - positions.robotSize.width * 0.95, y: arena(positions).y }, positions.viewport, positions.robotSize);
+      await walkTo(goal, signal, 'carry-walk', 95);
+      robot.dataset.pose = 'carry';
+      faceRobot(target.x + size.w / 2 < robotPoint.x + positions.robotSize.width / 2 ? -1 : 1);
+      if (keep) return release;
+      robot.dataset.pose = 'reach-low';
+      await lean(true, signal);
+    } catch (error) { release(); throw error; }
+    release();
+    const from = el.style.transform;
+    await animate(el, [{ transform: from }, { transform: at(target) }], { duration: 320, easing: 'ease-in' }, signal);
+    el.style.transform = at(target);
+    burst(target.x + size.w / 2, target.y + size.h, 'dust', 5, 30);
+    await lean(false, signal);
+    robot.dataset.pose = 'idle';
+    return null;
+  }
+
   // ---- Activities ----------------------------------------------------------
   async function droneShow(positions, signal) {
     const { bench: table, dronePad } = positions;
@@ -397,8 +470,9 @@ function createPlayground() {
     for (const liquid of sourceLiquid) liquid.style.transform = '';
     for (const liquid of destinationLiquid) liquid.style.transform = 'translateY(22px)';
     stream.style.opacity = '0';
-    lab.hidden = false;
-    await walk(point(labPoint.x - robotSize.width + 25, positions.laboratory.y), 4300, signal);
+    const labSpot = point(labPoint.x - robotSize.width + 25, positions.laboratory.y);
+    await fetchProp(positions, lab, labPoint, { w: 185 * labScale, h: 110 * labScale }, signal, labSpot, { resize: false });
+    await walkTo(labSpot, signal);
     faceRobot(1);
     robot.dataset.pose = 'mix';
     stage.dataset.experiment = 'mix';
@@ -440,12 +514,11 @@ function createPlayground() {
     const robotWidth = positions.robotSize.width;
     const ballY = a.floor - size;
     const start = a.point(a.x0);
+    let ballX = start.x + robotWidth * 0.74;
+    speak('Futbol vaqti!');
+    await fetchProp(positions, ball, { x: ballX, y: ballY }, { w: size, h: size }, signal, start);
     await walkTo(start, signal);
     faceRobot(1);
-    let ballX = start.x + robotWidth * 0.74;
-    show(ball, ballX, ballY - 180, size, size);
-    speak('Futbol vaqti!');
-    await animate(ball, bounceFrames(ballX, ballX, ballY, 180, 1.5, 200).slice(10), { duration: 900 }, signal);
     robot.dataset.pose = 'kick';
     await sleep(320, signal);
     robot.dataset.pose = 'kick-follow';
@@ -640,7 +713,7 @@ function createPlayground() {
     idle: 'idle', walk: 'idle', wave: 'happy', cheer: 'happy', laugh: 'laugh', bow: 'happy', dance: 'happy',
     surprise: 'surprised', curious: 'curious', sleep: 'sleep', kick: 'determined', 'kick-follow': 'happy',
     tuck: 'excited', pilot: 'focus', 'pilot-run': 'focus', mix: 'focus', reach: 'focus', push: 'determined',
-    sit: 'idle', hang: 'excited', squat: 'determined', skate: 'excited', pull: 'determined',
+    sit: 'idle', hang: 'excited', squat: 'determined', skate: 'excited', pull: 'determined', 'reach-low': 'focus', carry: 'happy', 'carry-walk': 'happy',
     'dance-disco': 'excited', 'dance-robot': 'focus', 'dance-twist': 'happy', 'dance-floss': 'laugh', 'dance-lazgi': 'love', 'dance-kick': 'excited', moonwalk: 'wink'
   };
   let faceLock = 0;
@@ -827,10 +900,10 @@ function createPlayground() {
   async function rocketLaunch(positions, signal) {
     const a = arena(positions), s = a.scale, size = { w: 34 * s + 8, h: 70 * s + 14 };
     const spot = a.point(a.x0 + 40);
+    const x = spot.x + positions.robotSize.width * 0.95, y = a.floor - size.h;
+    await fetchProp(positions, rocket, { x, y }, size, signal, spot);
     await walkTo(spot, signal);
     faceRobot(1);
-    const x = spot.x + positions.robotSize.width * 0.95, y = a.floor - size.h;
-    show(rocket, x, y, size.w, size.h);
     speak('Raketa tayyor!', 1400);
     robot.dataset.pose = 'reach';
     await sleep(900, signal);
@@ -856,10 +929,10 @@ function createPlayground() {
   async function volcano(positions, signal) {
     const a = arena(positions), s = a.scale, w = 74 * s + 14, h = 46 * s + 8;
     const spot = a.point(a.x0 + 20);
+    const x = spot.x + positions.robotSize.width * 0.85, y = a.floor - h;
+    await fetchProp(positions, volcanoEl, { x, y }, { w, h }, signal, spot);
     await walkTo(spot, signal);
     faceRobot(1);
-    const x = spot.x + positions.robotSize.width * 0.85, y = a.floor - h;
-    show(volcanoEl, x, y, w, h);
     speak('Vulqon tajribasi!', 1500);
     robot.dataset.pose = 'mix';
     await sleep(1600, signal);
@@ -879,13 +952,14 @@ function createPlayground() {
 
   async function paperPlane(positions, signal) {
     const a = arena(positions), s = a.scale;
-    await walkTo(a.point(a.x0), signal);
-    faceRobot(1);
-    robot.dataset.pose = 'reach';
+    const planeSize = { w: 38 * s + 10, h: 22 * s + 6 };
     speak('Qog‘oz samolyot!', 1400);
-    await sleep(700, signal);
-    const start = { x: robotPoint.x + 120 * s, y: robotPoint.y + 70 * s };
-    show(plane, start.x, start.y, 38 * s + 10, 22 * s + 6);
+    const release = await fetchProp(positions, plane, { x: innerWidth, y: 0 }, planeSize, signal, a.point(a.x0), { keep: true });
+    faceRobot(1);
+    await sleep(400, signal);
+    release();
+    const hand = handPoint();
+    const start = { x: hand.x - planeSize.w / 2, y: hand.y - planeSize.h };
     robot.dataset.pose = 'kick-follow';
     const w = innerWidth, h = innerHeight;
     await animate(plane, [
@@ -919,10 +993,11 @@ function createPlayground() {
 
   async function plantGrow(positions, signal) {
     const a = arena(positions), s = a.scale, w = 44 * s + 10, h = 70 * s + 16;
-    await walkTo(a.point(a.x0 + 30), signal);
+    const spot = a.point(a.x0 + 30);
+    const x = spot.x + positions.robotSize.width * 0.85, y = a.floor - h;
+    await fetchProp(positions, plant, { x, y }, { w, h }, signal, spot);
+    await walkTo(spot, signal);
     faceRobot(1);
-    const x = robotPoint.x + positions.robotSize.width * 0.85, y = a.floor - h;
-    show(plant, x, y, w, h);
     stage.dataset.plant = 'seed';
     speak('Gul ekamiz', 1300);
     robot.dataset.pose = 'mix';

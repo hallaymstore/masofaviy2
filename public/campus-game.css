@@ -835,3 +835,22 @@ html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-shin {animation:pg
 html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-leg.pg-right .pg-shin {animation-delay:-.35s}
 html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-arm.pg-right {transform:rotate(-20deg)}
 html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-head-joint {transform:rotate(-6deg)}
+
+/* fetching props from the workbench: lean, reach, carry, set down */
+html.hx #campusPlayground[data-lean="true"] .pg-robot-flip {transform-origin:50% 96%}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-arm.pg-right {transform:rotate(-58deg)}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-arm.pg-left {transform:rotate(-30deg)}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-forearm {transform:rotate(-14deg)}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-head-joint {transform:rotate(14deg) translateY(4px)}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-leg.pg-left {transform:rotate(-16deg)}
+html.hx #campusPlayground .pg-robot[data-pose="reach-low"] .pg-leg.pg-left .pg-shin {transform:rotate(30deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="carry"],[data-pose="carry-walk"]) .pg-arm {transform:rotate(-72deg);z-index:7}
+html.hx #campusPlayground .pg-robot:is([data-pose="carry"],[data-pose="carry-walk"]) .pg-forearm {transform:rotate(-48deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="carry"],[data-pose="carry-walk"]) .pg-head-joint {transform:rotate(-6deg)}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-leg {animation:pg-thigh .78s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-leg.pg-right {animation-delay:-.39s}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-shin {animation:pg-knee .78s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-leg.pg-right .pg-shin {animation-delay:-.39s}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-boot {animation:pg-ankle .78s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-leg.pg-right .pg-boot {animation-delay:-.39s}
+html.hx #campusPlayground .pg-robot[data-pose="carry-walk"] .pg-head-joint {animation:pg-head-step .78s ease-in-out infinite}

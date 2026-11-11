@@ -38,3 +38,11 @@ test('new experiments are in the playlist and hidden for reduced motion', () => 
   for (const name of ['rocket', 'volcano', 'plane', 'bubbles', 'plant', 'perch', 'push', 'tug']) assert.ok(js.includes(`'${name}'`), name);
   assert.ok(css.includes(':is(.pg-skate,.pg-slide,.pg-portal,.pg-rocket,.pg-volcano,.pg-plane,.pg-plant) {display:none!important}'));
 });
+
+test('experiments start at the workbench: materialise, lean, carry, set down', () => {
+  assert.ok(js.includes('async function fetchProp('));
+  for (const step of ["robot.dataset.pose = 'reach-low'", "robot.dataset.pose = 'carry'", "'carry-walk'", 'await lean(true, signal)'])
+    assert.ok(js.includes(step), step);
+  for (const prop of ['rocket,', 'ball,', 'volcanoEl,', 'plant,', 'lab,', 'plane,']) assert.ok(js.includes(`fetchProp(positions, ${prop}`), prop);
+  assert.ok(css.includes('[data-pose="carry-walk"] .pg-leg'));
+});
