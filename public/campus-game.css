@@ -642,3 +642,196 @@ html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-eye-blink {opacity:1;
 @media (prefers-reduced-motion:reduce) {
  html.hx #campusPlayground :is(.pg-fx,.pg-say,.pg-ball,.pg-block,.pg-tramp) {display:none!important}
 }
+
+/* ==========================================================================
+   Desktop mate: face, card stunts, page-to-page travel and extra props.
+   ========================================================================== */
+/* Face: repaints the visor and draws expressive eyes that follow the pointer. */
+html.hx #campusPlayground .pg-eye-blink {display:none}
+html.hx #campusPlayground .pg-face {left:35%;top:44%;width:56%;height:37%;border-radius:42% 46% 44% 40%;z-index:2;
+ background:radial-gradient(120% 90% at 30% 20%,#1d2a33,#071014 70%);box-shadow:inset 0 0 6px #000}
+html.hx #campusPlayground .pg-eye {top:24%;width:16%;height:40%;border-radius:45%;background:#5ff4ff;
+ box-shadow:0 0 5px #3fe6ff,0 0 10px #18c3ff88;transform:translate(var(--lx,0px),var(--ly,0px));transition:transform .18s ease-out,height .18s,border-radius .18s,top .18s;
+ animation:pg-eye-blink 4.6s infinite}
+html.hx #campusPlayground .pg-eye-l {left:22%}
+html.hx #campusPlayground .pg-eye-r {left:58%}
+html.hx #campusPlayground .pg-mouth {left:38%;top:68%;width:22%;height:14%;border:2px solid #5ff4ff;border-top:0;border-radius:0 0 40px 40px;
+ box-shadow:0 2px 4px #3fe6ff66;transform:translate(calc(var(--lx,0px) * .5),0);transition:all .2s}
+html.hx #campusPlayground .pg-blush {left:6%;right:6%;top:58%;height:18%;opacity:0;transition:opacity .3s;
+ background:radial-gradient(circle at 12% 50%,#ff7aa8aa 0 18%,transparent 30%),radial-gradient(circle at 88% 50%,#ff7aa8aa 0 18%,transparent 30%)}
+/* expressions */
+html.hx #campusPlayground .pg-face:is([data-face="happy"],[data-face="laugh"],[data-face="love"],[data-face="wink"]) .pg-blush {opacity:1}
+html.hx #campusPlayground .pg-face:is([data-face="happy"],[data-face="laugh"]) .pg-eye {height:18%;top:30%;border-radius:50% 50% 0 0;background:transparent;border:2px solid #5ff4ff;border-bottom:0;box-shadow:0 -2px 5px #3fe6ff66;animation:none}
+html.hx #campusPlayground .pg-face[data-face="laugh"] .pg-mouth {height:24%;width:26%;left:36%;background:#5ff4ff;border-radius:2px 2px 40px 40px;animation:pg-chatter .25s ease-in-out infinite}
+html.hx #campusPlayground .pg-face[data-face="love"] .pg-eye {width:20%;height:34%;background:none;box-shadow:none;animation:pg-heartbeat .7s ease-in-out infinite}
+html.hx #campusPlayground .pg-face[data-face="love"] .pg-eye::before {content:"♥";position:absolute;inset:-30% -10% 0;display:grid;place-items:center;color:#ff5d8f;font:900 13px/1 system-ui;text-shadow:0 0 6px #ff5d8f}
+html.hx #campusPlayground .pg-face[data-face="wink"] .pg-eye-r {height:6%;top:42%;border-radius:4px;animation:none}
+html.hx #campusPlayground .pg-face[data-face="surprised"] .pg-eye {width:19%;height:50%;top:18%;border-radius:50%;animation:none}
+html.hx #campusPlayground .pg-face[data-face="surprised"] .pg-mouth {width:14%;height:20%;left:42%;border:2px solid #5ff4ff;border-radius:50%}
+html.hx #campusPlayground .pg-face[data-face="sleep"] .pg-eye {height:5%;top:44%;border-radius:4px;animation:none;box-shadow:none;opacity:.8}
+html.hx #campusPlayground .pg-face[data-face="sleep"] .pg-mouth {width:10%;left:44%;height:8%;border-radius:50%;border:2px solid #5ff4ff88}
+html.hx #campusPlayground .pg-face[data-face="determined"] .pg-eye {height:30%;top:30%;border-radius:20% 20% 45% 45%;clip-path:polygon(0 25%,100% 0,100% 100%,0 100%)}
+html.hx #campusPlayground .pg-face[data-face="determined"] .pg-eye-r {clip-path:polygon(0 0,100% 25%,100% 100%,0 100%)}
+html.hx #campusPlayground .pg-face[data-face="determined"] .pg-mouth {height:4%;border-radius:2px;border-bottom:2px solid #5ff4ff}
+html.hx #campusPlayground .pg-face[data-face="curious"] .pg-eye-l {height:28%;top:32%}
+html.hx #campusPlayground .pg-face[data-face="curious"] .pg-eye-r {height:46%;top:18%}
+html.hx #campusPlayground .pg-face[data-face="curious"] .pg-mouth {width:12%;left:46%;height:6%;border-radius:2px;transform:rotate(-10deg)}
+html.hx #campusPlayground .pg-face[data-face="excited"] .pg-eye {width:18%;height:46%;top:20%;box-shadow:0 0 8px #5ff4ff,0 0 16px #18c3ff}
+html.hx #campusPlayground .pg-face[data-face="excited"] .pg-mouth {height:22%;background:#5ff4ff33}
+html.hx #campusPlayground .pg-face[data-face="focus"] .pg-eye {height:26%;top:34%}
+html.hx #campusPlayground[data-dizzy="true"] .pg-eye {background:none;box-shadow:none;animation:pg-spin-eye .6s linear infinite}
+html.hx #campusPlayground[data-dizzy="true"] .pg-eye::before {content:"@";position:absolute;inset:-20% -20% 0;display:grid;place-items:center;color:#5ff4ff;font:800 11px/1 system-ui}
+@keyframes pg-eye-blink {0%,46%,50%,100%{scale:1 1}48%{scale:1 .1}}
+@keyframes pg-chatter {50%{height:14%}}
+@keyframes pg-heartbeat {50%{transform:translate(var(--lx,0px),var(--ly,0px)) scale(1.25)}}
+@keyframes pg-spin-eye {to{transform:rotate(360deg)}}
+
+/* new poses */
+html.hx #campusPlayground .pg-robot[data-pose="sit"] .pg-leg {transform:rotate(-78deg)}
+html.hx #campusPlayground .pg-robot[data-pose="sit"] .pg-shin {transform:rotate(78deg)}
+html.hx #campusPlayground .pg-robot[data-pose="sit"] .pg-arm {transform:rotate(18deg)}
+html.hx #campusPlayground[data-activity="sit"] .pg-robot[data-pose="sit"] .pg-shin {animation:pg-swing-shin 1.1s ease-in-out infinite alternate}
+html.hx #campusPlayground[data-activity="sit"] .pg-robot[data-pose="sit"] .pg-leg.pg-right .pg-shin {animation-delay:-.55s}
+html.hx #campusPlayground .pg-robot[data-pose="push"] .pg-arm {transform:rotate(-88deg)}
+html.hx #campusPlayground .pg-robot[data-pose="push"] .pg-forearm {transform:rotate(-8deg)}
+html.hx #campusPlayground .pg-robot[data-pose="push"] .pg-leg.pg-left {transform:rotate(22deg)}
+html.hx #campusPlayground .pg-robot[data-pose="push"] .pg-leg.pg-right {transform:rotate(-14deg)}
+html.hx #campusPlayground .pg-robot[data-pose="push"] .pg-head-joint {transform:rotate(-8deg) translateX(3px)}
+html.hx #campusPlayground .pg-robot:is([data-pose="hang"],[data-pose="pull"]) .pg-arm.pg-right {transform:rotate(-172deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="hang"],[data-pose="pull"]) .pg-arm.pg-left {transform:rotate(172deg)}
+html.hx #campusPlayground .pg-robot[data-pose="hang"] .pg-leg {animation:pg-dangle .9s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="hang"] .pg-leg.pg-right {animation-direction:alternate-reverse}
+html.hx #campusPlayground .pg-robot[data-pose="pull"] .pg-leg {transform:rotate(-20deg)}
+html.hx #campusPlayground .pg-robot[data-pose="pull"] .pg-shin {transform:rotate(38deg)}
+html.hx #campusPlayground[data-hang="true"] .pg-robot-flip {transform-origin:50% 14%}
+html.hx #campusPlayground .pg-robot[data-pose="squat"] .pg-leg {transform:rotate(-46deg);transition-duration:.12s}
+html.hx #campusPlayground .pg-robot[data-pose="squat"] .pg-shin {transform:rotate(86deg);transition-duration:.12s}
+html.hx #campusPlayground .pg-robot[data-pose="squat"] .pg-arm.pg-right {transform:rotate(-40deg)}
+html.hx #campusPlayground .pg-robot[data-pose="squat"] .pg-arm.pg-left {transform:rotate(40deg)}
+html.hx #campusPlayground .pg-robot:is([data-pose="squat"]) {translate:0 12px;transition:translate .12s}
+html.hx #campusPlayground .pg-robot[data-pose="skate"] .pg-leg.pg-left {transform:rotate(-30deg)}
+html.hx #campusPlayground .pg-robot[data-pose="skate"] .pg-leg.pg-right {transform:rotate(26deg)}
+html.hx #campusPlayground .pg-robot[data-pose="skate"] .pg-shin {transform:rotate(30deg)}
+html.hx #campusPlayground .pg-robot[data-pose="skate"] .pg-arm.pg-right {transform:rotate(-95deg)}
+html.hx #campusPlayground .pg-robot[data-pose="skate"] .pg-arm.pg-left {transform:rotate(80deg)}
+html.hx #campusPlayground[data-activity="skate"] .pg-robot-flip {animation:pg-surf .5s ease-in-out infinite alternate}
+@keyframes pg-swing-shin {from{transform:rotate(62deg)}to{transform:rotate(98deg)}}
+@keyframes pg-dangle {from{transform:rotate(-10deg)}to{transform:rotate(12deg)}}
+@keyframes pg-surf {from{transform:rotate(-3deg) translateY(0)}to{transform:rotate(3deg) translateY(-3px)}}
+
+/* props */
+html.hx #campusPlayground :is(.pg-skate,.pg-slide,.pg-portal,.pg-rocket,.pg-volcano,.pg-plane,.pg-plant) {left:0;top:0;z-index:4;will-change:transform}
+html.hx #campusPlayground .pg-skate {border-radius:40px;background:linear-gradient(180deg,#ff6b9d,#7b5cff);box-shadow:inset 0 2px 0 #ffffff66,0 4px 0 #3a2a8a;height:12px!important}
+html.hx #campusPlayground .pg-skate::before,html.hx #campusPlayground .pg-skate::after {content:"";position:absolute;top:10px;width:12px;height:12px;border-radius:50%;
+ background:radial-gradient(circle at 40% 35%,#fff9c4,#ffb627 60%,#a86b00);box-shadow:0 0 0 2px #2a2f4a;animation:pg-wheel .3s linear infinite}
+html.hx #campusPlayground .pg-skate::before {left:14%}
+html.hx #campusPlayground .pg-skate::after {right:14%}
+html.hx #campusPlayground .pg-slide {height:16px;border-radius:12px;z-index:3;
+ background:linear-gradient(180deg,#ffd166,#ff9f1c 60%,#e07b00);box-shadow:0 6px 0 #b35f00,0 14px 24px -10px #0008,inset 0 2px 0 #fff8}
+html.hx #campusPlayground .pg-slide::after {content:"";position:absolute;left:0;right:0;top:-10px;height:6px;border-radius:4px;background:#ff6b6b;box-shadow:0 0 0 1px #0002}
+html.hx #campusPlayground .pg-portal {border-radius:50%;z-index:2;
+ background:radial-gradient(ellipse at center,#0b1230 0 35%,transparent 36%),conic-gradient(from 0deg,#6d5dfc,#22d3a6,#3aa8ff,#ff5d8f,#6d5dfc);
+ box-shadow:0 0 22px #6d5dfc,0 0 40px #22d3a688;animation:pg-portal .6s linear infinite}
+html.hx #campusPlayground .pg-rocket {border-radius:50% 50% 12% 12% / 70% 70% 10% 10%;
+ background:radial-gradient(circle at 50% 34%,#9fe8ff 0 12%,#2a6f8f 13% 17%,transparent 18%),linear-gradient(90deg,#d9dde8,#ffffff 45%,#b9c0d4);box-shadow:inset 0 -6px 0 #ff5d5d}
+html.hx #campusPlayground .pg-rocket::before {content:"";position:absolute;left:-30%;right:-30%;bottom:-4%;height:30%;
+ background:linear-gradient(135deg,transparent 45%,#ff5d5d 46%) left/50% 100% no-repeat,linear-gradient(225deg,transparent 45%,#ff5d5d 46%) right/50% 100% no-repeat}
+html.hx #campusPlayground .pg-rocket::after {content:"";position:absolute;left:25%;right:25%;top:100%;height:0;border-radius:0 0 50% 50%;
+ background:linear-gradient(180deg,#fff7ae,#ffb627 40%,#ff5d5d 80%,transparent);filter:blur(1px);transition:height .2s}
+html.hx #campusPlayground[data-rocket="fire"] .pg-rocket::after {height:90%;animation:pg-flame .08s linear infinite alternate}
+html.hx #campusPlayground .pg-volcano {clip-path:polygon(32% 0,68% 0,100% 100%,0 100%);background:linear-gradient(180deg,#8d5a3b,#5a3824)}
+html.hx #campusPlayground .pg-volcano i {left:30%;right:30%;top:0;height:22%;border-radius:0 0 50% 50%;background:linear-gradient(#ff7a1a,#ffcc4d)}
+html.hx #campusPlayground[data-volcano="rumble"] .pg-volcano {animation:pg-rumble .08s linear infinite}
+html.hx #campusPlayground[data-volcano="erupt"] .pg-volcano i {box-shadow:0 -10px 20px #ff7a1a}
+html.hx #campusPlayground .pg-plane {clip-path:polygon(0 50%,100% 0,62% 100%,48% 62%);background:linear-gradient(135deg,#ffffff,#cfd8ea);filter:drop-shadow(0 3px 2px #0004)}
+html.hx #campusPlayground .pg-pot {left:18%;right:18%;bottom:0;height:30%;border-radius:4px 4px 10px 10px;background:linear-gradient(180deg,#e07a5f,#b4533c);box-shadow:inset 0 3px 0 #ffffff44}
+html.hx #campusPlayground .pg-stem {left:47%;width:6%;bottom:28%;height:0;border-radius:3px;background:#2e9e5b;transition:height 1.6s cubic-bezier(.16,1,.3,1)}
+html.hx #campusPlayground .pg-leaf {left:50%;bottom:45%;width:26%;height:14%;border-radius:0 100% 0 100%;background:#3cc274;transform:scale(0);transform-origin:0 100%;transition:transform .8s .8s cubic-bezier(.34,1.56,.64,1)}
+html.hx #campusPlayground .pg-bloom {left:32%;top:2%;width:36%;height:26%;border-radius:50%;transform:scale(0);transition:transform .7s cubic-bezier(.34,1.56,.64,1);
+ background:radial-gradient(circle,#ffd166 0 26%,transparent 27%),conic-gradient(#ff5d8f 0 12%,#ff9fbe 0 25%,#ff5d8f 0 37%,#ff9fbe 0 50%,#ff5d8f 0 62%,#ff9fbe 0 75%,#ff5d8f 0 87%,#ff9fbe 0);
+ box-shadow:0 0 10px #ff5d8f88}
+html.hx #campusPlayground:is([data-plant="grow"],[data-plant="bloom"]) .pg-stem {height:56%}
+html.hx #campusPlayground:is([data-plant="grow"],[data-plant="bloom"]) .pg-leaf {transform:scale(1)}
+html.hx #campusPlayground[data-plant="bloom"] .pg-bloom {transform:scale(1) rotate(30deg)}
+@keyframes pg-wheel {to{transform:rotate(360deg)}}
+@keyframes pg-portal {to{filter:hue-rotate(360deg)}}
+@keyframes pg-flame {from{transform:scaleY(.8)}to{transform:scaleY(1.15)}}
+@keyframes pg-rumble {0%{translate:-1px 0}50%{translate:1px -1px}100%{translate:0 1px}}
+
+/* extra particles */
+html.hx #campusPlayground .pg-fx-dust {color:#c9c2b4;font-size:10px;text-shadow:0 0 4px #fff8;animation-duration:.7s}
+html.hx #campusPlayground .pg-fx-smoke {color:#e8ecf3;font-size:22px;text-shadow:0 0 10px #fff;animation-duration:1.4s}
+html.hx #campusPlayground .pg-fx-lava {color:#ff7a1a;font-size:12px;text-shadow:0 0 6px #ffcc4d;animation-duration:1s}
+html.hx #campusPlayground .pg-fx-drop {color:#4fc3f7;font-size:9px}
+html.hx #campusPlayground .pg-fx-bubble {color:#bfefff;font-size:26px;font-weight:300;text-shadow:0 0 8px #8fdcff,inset 0 0 4px #fff;animation-duration:2.6s}
+@media (prefers-reduced-motion:reduce) {
+ html.hx #campusPlayground :is(.pg-skate,.pg-slide,.pg-portal,.pg-rocket,.pg-volcano,.pg-plane,.pg-plant) {display:none!important}
+}
+
+/* dance styles: each pose animates its own joints (bob comes from data-activity="dance") */
+html.hx #campusPlayground .pg-robot[data-pose="dance-disco"] .pg-arm.pg-right {animation:pg-disco-point .96s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-disco"] .pg-arm.pg-left {transform:rotate(28deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-disco"] .pg-arm.pg-left .pg-forearm {transform:rotate(-70deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-disco"] .pg-leg.pg-right {animation:pg-disco-knee .96s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-disco"] .pg-head-joint {animation:pg-disco-head .96s ease-in-out infinite}
+@keyframes pg-disco-point {0%,45%{transform:rotate(-160deg)}55%,100%{transform:rotate(35deg)}}
+@keyframes pg-disco-knee {0%,45%{transform:rotate(0)}55%,100%{transform:rotate(-24deg)}}
+@keyframes pg-disco-head {0%,45%{transform:rotate(-12deg)}55%,100%{transform:rotate(8deg)}}
+
+html.hx #campusPlayground .pg-robot[data-pose="dance-robot"] .pg-arm.pg-right {animation:pg-bot-arm 1.2s steps(1) infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-robot"] .pg-arm.pg-left {animation:pg-bot-arm 1.2s steps(1) infinite reverse}
+html.hx #campusPlayground .pg-robot[data-pose="dance-robot"] .pg-forearm {transform:rotate(-90deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-robot"] .pg-head-joint {animation:pg-bot-head 1.2s steps(1) infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-robot"] .pg-leg {animation:pg-bot-leg 1.2s steps(1) infinite}
+@keyframes pg-bot-arm {0%{transform:rotate(-90deg)}25%{transform:rotate(-20deg)}50%{transform:rotate(-120deg)}75%{transform:rotate(0)}}
+@keyframes pg-bot-head {0%{transform:rotate(0)}25%{transform:rotate(12deg)}50%{transform:rotate(0)}75%{transform:rotate(-12deg)}}
+@keyframes pg-bot-leg {0%,50%{transform:rotate(0)}25%{transform:rotate(-14deg)}75%{transform:rotate(10deg)}}
+
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-leg {animation:pg-twist-leg .4s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-shin {transform:rotate(30deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-arm.pg-right {animation:pg-twist-arm .4s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-arm.pg-left {animation:pg-twist-arm .4s ease-in-out infinite alternate-reverse}
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-forearm {transform:rotate(-80deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-twist"] .pg-torso {animation:pg-twist-body .4s ease-in-out infinite alternate}
+@keyframes pg-twist-leg {from{transform:rotate(-22deg)}to{transform:rotate(14deg)}}
+@keyframes pg-twist-arm {from{transform:rotate(-60deg)}to{transform:rotate(10deg)}}
+@keyframes pg-twist-body {from{transform:skewX(-4deg)}to{transform:skewX(4deg)}}
+
+html.hx #campusPlayground .pg-robot[data-pose="dance-floss"] .pg-arm {animation:pg-floss .36s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-floss"] .pg-hips {animation:pg-floss-hip .36s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-floss"] .pg-leg {animation:pg-floss-leg .36s ease-in-out infinite alternate}
+@keyframes pg-floss {from{transform:rotate(-38deg)}to{transform:rotate(38deg)}}
+@keyframes pg-floss-hip {from{transform:translateX(5px)}to{transform:translateX(-5px)}}
+@keyframes pg-floss-leg {from{transform:rotate(8deg)}to{transform:rotate(-8deg)}}
+
+/* Lazgi: arms raised, wrists circling, small quick steps */
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-arm.pg-right {transform:rotate(-150deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-arm.pg-left {transform:rotate(150deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-forearm {animation:pg-lazgi-wrist .5s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-hand {animation:pg-lazgi-hand .25s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-head-joint {animation:pg-lazgi-head .5s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-leg {animation:pg-lazgi-step .25s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance-lazgi"] .pg-leg.pg-right {animation-direction:alternate-reverse}
+@keyframes pg-lazgi-wrist {from{transform:rotate(-30deg)}to{transform:rotate(30deg)}}
+@keyframes pg-lazgi-hand {from{transform:rotate(-25deg)}to{transform:rotate(25deg)}}
+@keyframes pg-lazgi-head {from{transform:translateX(-4px) rotate(-4deg)}to{transform:translateX(4px) rotate(4deg)}}
+@keyframes pg-lazgi-step {from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+
+/* Kazachok: deep squat with alternating kicks */
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] {translate:0 18px}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-arm.pg-right {transform:rotate(-90deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-arm.pg-left {transform:rotate(90deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-leg {animation:pg-cossack .6s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-leg.pg-right {animation-delay:-.3s}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-shin {animation:pg-cossack-shin .6s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="dance-kick"] .pg-leg.pg-right .pg-shin {animation-delay:-.3s}
+@keyframes pg-cossack {0%,45%{transform:rotate(-40deg)}55%,100%{transform:rotate(-82deg)}}
+@keyframes pg-cossack-shin {0%,45%{transform:rotate(95deg)}55%,100%{transform:rotate(0deg)}}
+
+/* Moonwalk: legs walk forward while the body glides back */
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-leg {animation:pg-thigh .7s ease-in-out infinite reverse}
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-leg.pg-right {animation-delay:-.35s}
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-shin {animation:pg-knee .7s ease-in-out infinite reverse}
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-leg.pg-right .pg-shin {animation-delay:-.35s}
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-arm.pg-right {transform:rotate(-20deg)}
+html.hx #campusPlayground .pg-robot[data-pose="moonwalk"] .pg-head-joint {transform:rotate(-6deg)}
