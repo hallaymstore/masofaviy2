@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sertifikat · HALLAYM EDU</title>
+<link rel="icon" href="/api/brand-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/certificate.css?v=20261111-hub1">
+</head>
+<body>
+<main>
+  <div class="toolbar" role="toolbar" aria-label="Sertifikat amallari">
+    <span id="status" class="status" role="status">Tekshirilmoqda…</span>
+    <button type="button" id="printBtn" disabled>Chop etish / PDF</button>
+  </div>
+  <article id="cert" class="cert is-loading" aria-live="polite">
+    <svg class="frame" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7d774"/><stop offset=".5" stop-color="#c8962c"/><stop offset="1" stop-color="#f7d774"/></linearGradient>
+        <pattern id="girih" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M20 2 38 20 20 38 2 20Z" fill="none" stroke="#c8962c" stroke-opacity=".28"/><circle cx="20" cy="20" r="5" fill="none" stroke="#0f6e66" stroke-opacity=".25"/></pattern>
+      </defs>
+      <rect x="10" y="10" width="980" height="680" rx="22" fill="url(#girih)"/>
+      <rect x="10" y="10" width="980" height="680" rx="22" fill="none" stroke="url(#gold)" stroke-width="6"/>
+      <rect x="30" y="30" width="940" height="640" rx="14" fill="none" stroke="#0f6e66" stroke-width="1.5" stroke-dasharray="2 6"/>
+    </svg>
+    <div class="inner">
+      <div class="brand"><span class="mark">HE</span><div><b>HALLAYM EDU</b><small id="inst">Masofaviy ta’lim platformasi</small></div></div>
+      <p class="kicker">Sertifikat</p>
+      <h1>Muvaffaqiyatli yakunlagani uchun</h1>
+      <p class="lead">Ushbu sertifikat</p>
+      <p id="name" class="name">&nbsp;</p>
+      <p class="lead">quyidagi fanni muvaffaqiyatli o‘zlashtirganini tasdiqlaydi:</p>
+      <p id="course" class="course">&nbsp;</p>
+      <dl class="facts">
+        <div><dt>Umumiy ball</dt><dd id="score">—</dd></div>
+        <div><dt>Baho</dt><dd id="grade">—</dd></div>
+        <div><dt>Kredit</dt><dd id="credits">—</dd></div>
+        <div><dt>O‘quv yili</dt><dd id="year">—</dd></div>
+      </dl>
+      <div class="foot">
+        <div class="seal" aria-hidden="true"><svg viewBox="0 0 120 120"><defs><path id="ring" d="M60 60m-44 0a44 44 0 1 1 88 0a44 44 0 1 1-88 0"/></defs><circle cx="60" cy="60" r="56" fill="url(#sealGold)"/><radialGradient id="sealGold" cx=".35" cy=".3"><stop offset="0" stop-color="#fff4c2"/><stop offset="1" stop-color="#d49b1f"/></radialGradient><circle cx="60" cy="60" r="34" fill="none" stroke="#7a5200" stroke-width="2"/><text font-size="10.5" font-weight="700" fill="#5a3c00" letter-spacing="2"><textPath href="#ring">HALLAYM EDU · TASDIQLANGAN · HALLAYM EDU ·</textPath></text><path d="m48 61 8 8 17-18" fill="none" stroke="#5a3c00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="verify"><div id="qr" class="qr"></div><small>Haqiqiyligini tekshirish uchun<br>QR-kodni skanerlang</small><code id="issued"></code></div>
+      </div>
+    </div>
+  </article>
+</main>
+<script src="/vendor/qrcode.js"></script>
+<script src="/certificate.js?v=20261111-hub1"></script>
+</body>
+</html>
