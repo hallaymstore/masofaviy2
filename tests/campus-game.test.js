@@ -24,7 +24,7 @@ test('robot paths fit desktop, narrow phone and rotated phone viewports', () => 
 });
 
 test('one game layer persists across the LMS page changes', () => {
-  assert.ok(html.includes('/campus-game.css?v=20261111-premium1'));
+  assert.ok(html.includes('/campus-game.css?v=20261111-premium2'));
   assert.ok(html.includes('/campus-game.js?v=20261111-premium1'));
   assert.ok(html.indexOf('/campus-game.css') > html.indexOf('/hallaym-ui.css'));
   assert.ok(html.indexOf('/a11y.css') > html.indexOf('/campus-game.css'));
@@ -78,6 +78,7 @@ test('dashboard metrics and workspace interiors use local illustrated props', ()
 
 test('premium skin serves distinct photos without a full-page wash and keeps conference hooks', () => {
   assert.ok(!css.includes('--pg-wash'));
+  assert.ok(!read('public/hallaym-ui.css').includes('--campus-shade'));
   assert.ok(css.includes('background:var(--pg-scene) center/cover no-repeat fixed'));
   for (const asset of ['atrium', 'lecture-theatre', 'reading-hall', 'media-studio', 'admin-lounge', 'seminar-room']) {
     assert.ok(existsSync(new URL('../public/assets/campus/' + asset + '.webp', import.meta.url)));

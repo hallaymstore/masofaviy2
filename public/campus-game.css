@@ -454,7 +454,7 @@ html.hx:not(.a11y-contrast) #login .showcase-brand {align-self:flex-start}
 html.hx:not(.a11y-contrast) #login .showcase-copy {max-width:min(100%,650px)}
 html.hx:not(.a11y-contrast) #login .showcase-copy h1 {font-size:clamp(32px,3.5vw,60px)!important}
 html.hx:not(.a11y-contrast) #login .showcase-foot {padding:10px 16px!important}
-html.hx:not(.a11y-contrast) #shell>main :is(.edu-banner,.university-hero) {
+html.hx:not(.a11y-contrast) :is(#shell>main .edu-banner,#shell>main .university-hero) {
  background:var(--pg-scene) center/cover no-repeat!important;
 }
 html.hx:not(.a11y-contrast) #shell>main :is(.edu-banner>div,.university-hero>div) {
