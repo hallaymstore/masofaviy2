@@ -675,6 +675,16 @@ function createPlayground() {
     speak(pick(POKE_LINES), 1800);
   });
 
+  // Other modules (achievements, tour) can make the robot speak and celebrate.
+  window.addEventListener('hallaym:robot', event => {
+    if (stage.hidden || stage.dataset.paused === 'true') return;
+    const { text, kind } = event.detail || {};
+    if (text) speak(String(text).slice(0, 90), 3400);
+    hopOnce(40);
+    const head = robotHead();
+    burst(head.x, head.y, kind === 'heart' ? 'heart' : 'star', 12, 90);
+  });
+
   new MutationObserver(() => {
     const page = root.dataset.page;
     if (stage.hidden || stage.dataset.paused === 'true' || page === 'lesson' || !PAGE_LINES[page]) return;

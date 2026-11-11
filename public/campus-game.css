@@ -551,7 +551,7 @@ html.hx[data-page="lesson"] #campusPlayground .pg-robot-hit {pointer-events:none
 
 /* speech bubble rides with the robot but never mirrors with it */
 html.hx #campusPlayground .pg-say {
- left:calc(80px * var(--pg-scale,.86));top:-4px;z-index:12;max-width:220px;white-space:nowrap;
+ left:calc(80px * var(--pg-scale,.86));top:-4px;z-index:12;width:max-content;max-width:200px;white-space:normal;text-align:center;
  transform:translate(calc(-50% + var(--say-shift,0px)),-100%);transform-origin:50% 100%;
  padding:7px 13px;border-radius:15px;border:1.5px solid var(--pg-edge);background:linear-gradient(180deg,var(--pg-panel),var(--pg-panel-end));
  color:var(--pg-ink);font:750 13px/1.2 var(--hx-font,system-ui);box-shadow:0 3px 0 var(--pg-bottom),0 12px 22px -12px #0007}

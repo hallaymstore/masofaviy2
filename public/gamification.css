@@ -1,0 +1,127 @@
+/* Student achievements: level ring, streak, badges, group leaderboard and the
+   header chip. Built on the campus skin tokens so day and night themes match. */
+html.hx .gx{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;margin:16px 0}
+html.hx .gx-card{position:relative;overflow:hidden;border-radius:22px;padding:20px;color:var(--pg-ink,var(--hx-text));
+ background:linear-gradient(160deg,var(--pg-panel,#fff),var(--pg-panel-end,#f3f6fb));border:1.5px solid var(--pg-edge,var(--hx-line));
+ box-shadow:var(--pg-card-shadow,var(--hx-shadow));transition:transform .45s cubic-bezier(.16,1,.3,1),box-shadow .45s}
+html.hx .gx-card>*{position:relative;z-index:1}
+html.hx .gx-card h2{margin:2px 0 6px;font:800 22px/1.15 var(--hx-display,system-ui);letter-spacing:-.02em;color:inherit}
+html.hx .gx-kicker{font:750 11.5px/1 var(--hx-font,system-ui);letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+html.hx .gx-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+html.hx .gx-head h2{font-size:18px;margin:0}
+html.hx .gx-head span{font:650 13px/1.2 var(--hx-font,system-ui);opacity:.75}
+
+/* level ring with a holographic edge */
+html.hx .gx-level{display:flex;gap:22px;align-items:center;
+ background:radial-gradient(120% 140% at 0% 0%,color-mix(in srgb,var(--hx-brand,#0b4fd8) 22%,transparent),transparent 55%),linear-gradient(160deg,var(--pg-panel,#fff),var(--pg-panel-end,#f3f6fb))}
+html.hx .gx-ring{position:relative;flex:none;width:132px;height:132px;display:grid;place-items:center}
+html.hx .gx-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+html.hx .gx-ring circle{fill:none;stroke-width:10;stroke-linecap:round}
+html.hx .gx-ring-track{stroke:color-mix(in srgb,currentColor 12%,transparent)}
+html.hx .gx-ring-fill{stroke:#7b5cff;filter:drop-shadow(0 0 6px #7b5cff88);transition:stroke-dashoffset 1.4s cubic-bezier(.16,1,.3,1)}
+html.hx .gx-ring::before{content:"";position:absolute;inset:16px;border-radius:50%;
+ background:conic-gradient(from 0deg,#ffd166,#ff6b9d,#7b5cff,#2ec4b6,#ffd166);opacity:.16;animation:gx-spin 9s linear infinite}
+html.hx .gx-ring>div{position:relative;text-align:center;line-height:1}
+html.hx .gx-ring small{display:block;font:700 11px/1 var(--hx-font,system-ui);text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+html.hx .gx-ring b{display:block;margin-top:4px;font:850 44px/1 var(--hx-display,system-ui);
+ background:linear-gradient(135deg,#ffb627,#ff6b9d 45%,#7b5cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+html.hx .gx-level-text{min-width:0;flex:1}
+html.hx .gx-level-text p{margin:8px 0 0;font-size:14px;opacity:.85}
+html.hx .gx-xpbar{position:relative;height:12px;border-radius:99px;overflow:hidden;background:color-mix(in srgb,currentColor 10%,transparent)}
+html.hx .gx-xpbar i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:linear-gradient(90deg,#2ec4b6,#7b5cff,#ff6b9d);
+ animation:gx-fill 1.4s cubic-bezier(.16,1,.3,1) both}
+html.hx .gx-xpbar i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+ transform:translateX(-100%);animation:gx-sheen 2.8s 1.4s ease-in-out infinite}
+html.hx .gx-rules{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0;padding:0;list-style:none}
+html.hx .gx-rules li{padding:4px 9px;border-radius:99px;font-size:12px;background:color-mix(in srgb,currentColor 8%,transparent)}
+html.hx .gx-rules b{color:#18a999}
+
+/* streak */
+html.hx .gx-streak{display:flex;gap:18px;align-items:center}
+html.hx .gx-streak h2 b{font-size:38px;font-family:var(--hx-display,system-ui)}
+html.hx .gx-streak p{margin:0 0 4px;font-size:14px}
+html.hx .gx-streak small{opacity:.7}
+html.hx .gx-flame{flex:none;width:76px;height:76px;display:grid;place-items:center;border-radius:24px;background:color-mix(in srgb,currentColor 8%,transparent)}
+html.hx .gx-flame svg{width:48px;height:48px;fill:#c8cede;stroke:#9aa3bd;stroke-width:1.2}
+html.hx .gx-streak.is-hot .gx-flame{background:radial-gradient(circle at 50% 70%,#ffb62755,transparent 70%)}
+html.hx .gx-streak.is-hot .gx-flame svg{fill:#ff8a3d;stroke:#ffd166;filter:drop-shadow(0 0 10px #ff8a3d);transform-origin:50% 90%;animation:gx-flicker 1.2s ease-in-out infinite alternate}
+
+/* badges */
+html.hx .gx-badges{grid-column:1/-1}
+html.hx .gx-badges ul{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;margin:0;padding:0;list-style:none}
+html.hx .gx-badge{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px 12px;border-radius:18px;text-align:center;
+ background:color-mix(in srgb,currentColor 5%,transparent);border:1px dashed color-mix(in srgb,currentColor 22%,transparent);transition:transform .35s cubic-bezier(.16,1,.3,1)}
+html.hx .gx-badge svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.38}
+html.hx .gx-badge b{font-size:12.5px;line-height:1.2}
+html.hx .gx-badge small{font-size:11.5px;opacity:.65}
+html.hx .gx-badge>i{position:absolute;left:0;bottom:0;height:3px;background:#7b5cff;border-radius:0 3px 3px 0}
+html.hx .gx-badge.is-on{border:1px solid transparent;
+ background:linear-gradient(var(--pg-panel,#fff),var(--pg-panel,#fff)) padding-box,linear-gradient(135deg,#ffd166,#ff6b9d,#7b5cff,#2ec4b6) border-box}
+html.hx .gx-badge.is-on svg{opacity:1;stroke:#ffb627;filter:drop-shadow(0 0 6px #ffb62766)}
+html.hx .gx-badge.is-on::after{content:"";position:absolute;inset:0;pointer-events:none;
+ background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.45) 50%,transparent 65%);transform:translateX(-120%);animation:gx-sheen 5s ease-in-out infinite}
+html.hx .gx-badge.is-on:nth-child(3n+2)::after{animation-delay:1.3s}
+html.hx .gx-badge.is-on:nth-child(3n)::after{animation-delay:2.6s}
+
+/* leaderboard */
+html.hx .gx-board{grid-column:1/-1}
+html.hx .gx-board ol{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+html.hx .gx-board li{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:9px 12px;border-radius:14px;background:color-mix(in srgb,currentColor 5%,transparent)}
+html.hx .gx-board li b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+html.hx .gx-board li em{font-style:normal;opacity:.65;font-weight:600}
+html.hx .gx-board li small{opacity:.65;font-size:12px}
+html.hx .gx-board li strong{font:800 14px/1 var(--hx-display,system-ui)}
+html.hx .gx-rank{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;font:800 13px/1 var(--hx-display,system-ui);background:color-mix(in srgb,currentColor 10%,transparent)}
+html.hx .gx-top-1 .gx-rank{background:linear-gradient(135deg,#ffe08a,#f4b400);color:#5a3d00;box-shadow:0 0 12px #f4b40066}
+html.hx .gx-top-2 .gx-rank{background:linear-gradient(135deg,#f1f4f9,#aeb6c4);color:#2c3442}
+html.hx .gx-top-3 .gx-rank{background:linear-gradient(135deg,#ffcfa3,#cd7f32);color:#4a2604}
+html.hx .gx-board li.is-me{outline:2px solid #7b5cff;background:color-mix(in srgb,#7b5cff 14%,transparent)}
+html.hx .gx-empty{margin:0;opacity:.7}
+
+/* level-up flash */
+html.hx .gx-levelup .gx-level{animation:gx-glow 1.6s ease-out 2}
+
+/* header chip */
+html.hx .gx-chip{display:inline-flex!important;align-items:center;gap:6px;height:36px;padding:0 12px 0 8px!important;border-radius:99px!important;cursor:pointer;
+ border:1px solid transparent!important;color:var(--pg-ink,var(--hx-text))!important;font:700 13px/1 var(--hx-font,system-ui)!important;
+ background:linear-gradient(var(--pg-panel,#fff),var(--pg-panel,#fff)) padding-box,linear-gradient(135deg,#ffd166,#ff6b9d,#7b5cff) border-box!important}
+html.hx .gx-chip svg{width:16px;height:16px;fill:#ffb627;stroke:#e08a00;stroke-width:1}
+html.hx .gx-chip>b{display:grid;place-items:center;min-width:22px;height:22px;border-radius:8px;background:linear-gradient(135deg,#7b5cff,#ff6b9d);color:#fff;font-size:12px}
+html.hx .gx-chip em{display:inline-flex;align-items:center;gap:2px;font-style:normal;color:#ff8a3d}
+html.hx .gx-chip em svg{fill:#ff8a3d;stroke:none}
+@media (max-width:700px){html.hx .gx-chip span{display:none}html.hx .gx{grid-template-columns:1fr}html.hx .gx-level{flex-direction:column;text-align:center}html.hx .gx-rules{justify-content:center}}
+
+/* the robot gets a new look as the student levels up */
+html.hx[data-robot-tier="1"] #campusPlayground .pg-robot{filter:drop-shadow(0 0 6px #2ec4b688)}
+html.hx[data-robot-tier="2"] #campusPlayground .pg-robot{filter:hue-rotate(250deg) saturate(1.3) drop-shadow(0 0 8px #7b5cffaa)}
+html.hx[data-robot-tier="3"] #campusPlayground .pg-robot{filter:sepia(.55) saturate(2.2) hue-rotate(-12deg) brightness(1.08) drop-shadow(0 0 10px #ffd166)}
+
+@keyframes gx-spin{to{transform:rotate(360deg)}}
+@keyframes gx-fill{from{width:0}}
+@keyframes gx-sheen{0%{transform:translateX(-120%)}35%,100%{transform:translateX(120%)}}
+@keyframes gx-flicker{0%{transform:scale(1) rotate(-2deg)}100%{transform:scale(1.08,1.12) rotate(2deg)}}
+@keyframes gx-glow{0%{box-shadow:0 0 0 0 #7b5cffaa}100%{box-shadow:0 0 0 22px #7b5cff00}}
+@media (prefers-reduced-motion:reduce){html.hx .gx *,html.hx .gx *::before,html.hx .gx *::after{animation:none!important;transition:none!important}}
+html.a11y-reduce-motion .gx *,html.a11y-reduce-motion .gx *::before,html.a11y-reduce-motion .gx *::after{animation:none!important}
+
+/* first-visit tour */
+.hx-tour{position:fixed;inset:0;z-index:2000}
+.hx-tour-hole{position:fixed;border-radius:16px;box-shadow:0 0 0 9999px rgba(6,12,30,.66),0 0 0 3px #ffd166,0 0 28px 6px #ffd16688;
+ transition:top .45s cubic-bezier(.16,1,.3,1),left .45s cubic-bezier(.16,1,.3,1),width .45s cubic-bezier(.16,1,.3,1),height .45s cubic-bezier(.16,1,.3,1);pointer-events:none}
+.hx-tour-card{position:fixed;padding:18px 18px 14px;border-radius:20px;color:var(--pg-ink,#10203a);font-family:var(--hx-font,system-ui);
+ background:linear-gradient(165deg,var(--pg-panel,#fff),var(--pg-panel-end,#eef3fa));border:1.5px solid var(--pg-edge,#c9d3e6);box-shadow:0 5px 0 var(--pg-bottom,#a9b6cc),0 30px 60px -20px #000a}
+.hx-tour-card.in{animation:hx-tour-in .45s cubic-bezier(.34,1.56,.64,1) both}
+.hx-tour-step{font:750 12px/1 var(--hx-font,system-ui);letter-spacing:.06em;opacity:.65}
+.hx-tour-card h2{margin:6px 0 6px;font:800 19px/1.2 var(--hx-display,system-ui);color:inherit}
+.hx-tour-card p{margin:0;font-size:14.5px;line-height:1.5}
+.hx-tour-dots{display:flex;gap:5px;margin:14px 0 12px}
+.hx-tour-dots i{width:7px;height:7px;border-radius:99px;background:currentColor;opacity:.2;transition:width .3s,opacity .3s}
+.hx-tour-dots i.on{width:22px;opacity:.9;background:linear-gradient(90deg,#7b5cff,#ff6b9d)}
+.hx-tour-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.hx-tour-actions button{min-height:38px;padding:0 14px;border-radius:12px;font:700 13.5px/1 var(--hx-font,system-ui);cursor:pointer;border:1px solid var(--pg-edge,#c9d3e6);background:transparent;color:inherit}
+.hx-tour-actions .hx-tour-skip{margin-right:auto;border:0;opacity:.7;padding:0 4px}
+.hx-tour-actions .hx-tour-next{border:0;color:#fff;background:linear-gradient(135deg,#7b5cff,#ff6b9d);box-shadow:0 8px 18px -8px #7b5cff}
+.hx-tour-actions button:focus-visible{outline:3px solid #ffd166;outline-offset:2px}
+.hx-tour-actions [hidden]{display:none}
+@keyframes hx-tour-in{from{opacity:0;transform:translateY(12px) scale(.94)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.hx-tour-hole{transition:none}.hx-tour-card.in{animation:none}}
