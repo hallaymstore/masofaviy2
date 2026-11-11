@@ -220,12 +220,19 @@ $('#instanceSettingsForm')?.addEventListener('submit',async e=>{
 });
 loadBranding();
 
+const dashboardStatArt = new Map([
+  ['Talaba','study'], ['Fanlar','study'], ['O‘qituvchi','teach'],
+  ['Guruh','team'], ['Guruhlar','team'], ['Bugun qatnashdi','team'], ['Foydalanuvchi','team'],
+  ['Dars','calendar'], ['Bugungi dars','calendar'], ['Haftalik dars','calendar'], ['Mening darslarim','calendar'],
+  ['Onlayn','signal']
+]);
+
 async function loadDashboard(){
   const x=await api('/dashboard'),role=x.role||user.role;
   const cfg=role==='staff'?['Xodim ish stoli','Bo‘limingizdagi murojaatlar, vazifalar va e’lonlar','Yangi murojaatlarni «Ish joyim» sahifasida qabul qiling va muddatida yoping.']:role==='teacher'?['O‘qituvchi ish stoli','Bugungi darslaringiz, guruhlaringiz va davomat holati','Darsga kirishdan oldin kamera va mikrofonni bir ko‘rib oling.']:role==='student'?['Talaba bosh sahifasi','Bugungi darslar va shaxsiy davomat ko‘rsatkichlaringiz','Bugungi dars vaqtlarini shu yerda tekshirib olasiz.']:['Boshqaruv markazi',x.scope?x.scope+' bo‘yicha bugungi ta’lim jarayoni':'Bugungi ta’lim jarayonini bir joydan kuzating','Avval tuzilma va akkauntlarni tayyorlang, so‘ng jadvalni biriktiring.'];
   $('#dashboardTitle').textContent=cfg[0];$('#dashboardSubtitle').textContent=cfg[1];$('#dashboardGuide').textContent=cfg[2];
   if(role==='student')formsUi().mountStudentCheckin($('#eduCheckin'));else if($('#eduCheckin'))$('#eduCheckin').hidden=true;
-  $('#stats').innerHTML=(x.stats||[]).map(i=>'<div class="stat"><b>'+esc(i.value)+'</b><span>'+esc(i.label)+'</span></div>').join('');
+  $('#stats').innerHTML=(x.stats||[]).map(i=>'<div class="stat" data-stat-art="'+(dashboardStatArt.get(i.label)||'folder')+'"><b>'+esc(i.value)+'</b><span>'+esc(i.label)+'</span></div>').join('');
   $('#todayLessons').innerHTML=(x.today||[]).slice(0,8).map(scheduleRow).join('')||'<p>Bugun uchun dars topilmadi.</p>';bindScheduleActions();
   const q=$('#quickManagement');
   q.innerHTML=role==='staff'?'<button data-go="workspace"><b>'+icon('clipboard','📋')+' Ish joyim</b><span>Murojaatlar, vazifalar va e’lonlar</span></button><button data-go="units"><b>'+icon('grid','▦')+' Universitet bo‘limlari</b><span>Barcha bo‘lim va xizmatlar</span></button><button data-go="myRequests"><b>'+icon('layers','▤')+' Murojaatlarim</b><span>Yuborgan arizalaringiz holati</span></button>':role==='teacher'?'<button data-go="schedule"><b>'+icon('calendar','📅')+' Mening jadvalim</b><span>Haftalik darslaringiz</span></button><button data-go="live"><b>'+icon('video','🎥')+' Guruh darslari</b><span>Jonli xonalarni boshlash va boshqarish</span></button><button data-go="videos"><b>'+icon('library','▶')+' Videodarslar</b><span>Kurs va guruhlarga materiallar</span></button>':role==='student'?'<button data-go="schedule"><b>'+icon('calendar','📅')+' Dars jadvalim</b><span>Guruhingiz haftalik rejasi</span></button><button data-go="live"><b>'+icon('video','🎥')+' Jonli darslar</b><span>Faqat o‘z guruhingiz xonasiga kirish</span></button><button data-go="videos"><b>'+icon('library','▶')+' Tavsiya videolar</b><span>Kurs va yo‘nalishingizga mos</span></button>':'<button data-go="analytics"><b>'+icon('chart','📈')+' Statistika markazi</b><span>Davomat, guruh va o‘qituvchi ko‘rsatkichlari</span></button><button data-go="live"><b>'+icon('video','🎥')+' Jonli guruhlar</b><span>Parallel darslarni real vaqtda ko‘rish</span></button><button data-go="videos"><b>'+icon('library','▶')+' Videodarslar</b><span>Kurs va yo‘nalishlarga kontent</span></button>';

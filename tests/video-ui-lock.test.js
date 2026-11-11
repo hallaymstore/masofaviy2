@@ -49,9 +49,9 @@ test('no role may bypass learning-page lock, staff must use separate preview act
  assert.ok(app.includes('openVideoLesson(b.dataset.videoPreview,true,true)'));
 });
 test('old cached layout invalidated in PWA and HTML',()=>{
- assert.ok(sw.includes("const CACHE='m2-v134-campus'"));
- assert.ok(sw.includes('/app.js?v=20261111-campus1'));
- assert.ok(html.includes('app.js?v=20261111-campus1'));
+ assert.ok(sw.includes("const CACHE='m2-v135-playground'"));
+ assert.ok(sw.includes('/app.js?v=20261111-play1'));
+ assert.ok(html.includes('app.js?v=20261111-play1'));
  assert.ok(html.includes('premium-ui.css?v=20261025-proctor1'));
  assert.ok(html.includes('ai-ui.css?v=20261020-lessonai2'));
  assert.ok(sw.includes('/ai-ui.js'));
