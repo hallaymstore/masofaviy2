@@ -24,8 +24,8 @@ test('robot paths fit desktop, narrow phone and rotated phone viewports', () => 
 });
 
 test('one game layer persists across the LMS page changes', () => {
-  assert.ok(html.includes('/campus-game.css?v=20261111-premium2'));
-  assert.ok(html.includes('/campus-game.js?v=20261111-premium1'));
+  assert.ok(html.includes('/campus-game.css?v=20261111-robot1'));
+  assert.ok(html.includes('/campus-game.js?v=20261111-robot1'));
   assert.ok(html.indexOf('/campus-game.css') > html.indexOf('/hallaym-ui.css'));
   assert.ok(html.indexOf('/a11y.css') > html.indexOf('/campus-game.css'));
   assert.ok(!html.includes('science-divider-engineering'));

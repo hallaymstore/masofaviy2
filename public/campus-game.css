@@ -536,3 +536,109 @@ html.hx:not(.a11y-contrast):not(.video-cinema-fallback) #lesson #chatForm button
  background:#237566!important;color:#fff!important;border:1px solid #72b4a4!important;border-radius:12px!important;
 }
 html.hx:not(.a11y-contrast) #lesson .lesson-time-left {font-family:var(--hx-display);letter-spacing:.025em}
+
+/* ==========================================================================
+   Robot playground: props, speech, particles and the extra poses.
+   Props live in the same fixed stage, so they inherit its pause, print and
+   reduced-motion rules. Only the robot body is clickable.
+   ========================================================================== */
+html.hx #campusPlayground :is(.pg-robot-hop,.pg-robot-flip) {position:relative;width:160px;height:210px;transform-origin:50% 62%}
+html.hx #campusPlayground .pg-robot-position .pg-robot-hit {
+ left:calc(44px * var(--pg-scale,.86));top:0;width:calc(72px * var(--pg-scale,.86));height:calc(150px * var(--pg-scale,.86));
+ border-radius:40%;pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent}
+html.hx #campusPlayground[data-paused="true"] .pg-robot-hit,
+html.hx[data-page="lesson"] #campusPlayground .pg-robot-hit {pointer-events:none;cursor:default}
+
+/* speech bubble rides with the robot but never mirrors with it */
+html.hx #campusPlayground .pg-say {
+ left:calc(80px * var(--pg-scale,.86));top:-4px;z-index:12;max-width:220px;white-space:nowrap;
+ transform:translate(calc(-50% + var(--say-shift,0px)),-100%);transform-origin:50% 100%;
+ padding:7px 13px;border-radius:15px;border:1.5px solid var(--pg-edge);background:linear-gradient(180deg,var(--pg-panel),var(--pg-panel-end));
+ color:var(--pg-ink);font:750 13px/1.2 var(--hx-font,system-ui);box-shadow:0 3px 0 var(--pg-bottom),0 12px 22px -12px #0007}
+html.hx #campusPlayground .pg-say::after {content:"";position:absolute;left:calc(50% - var(--say-shift,0px));bottom:-7px;width:12px;height:12px;margin-left:-6px;
+ background:var(--pg-panel-end);border-right:1.5px solid var(--pg-edge);border-bottom:1.5px solid var(--pg-edge);transform:rotate(45deg)}
+html.hx #campusPlayground .pg-say.pg-say-in {animation:pg-say-pop .42s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes pg-say-pop {from{scale:.3;opacity:0}to{scale:1;opacity:1}}
+
+/* dizzy after five quick pokes */
+html.hx #campusPlayground .pg-dizzy-ring {left:calc(80px * var(--pg-scale,.86));top:calc(4px * var(--pg-scale,.86));z-index:11;opacity:0;
+ color:#f8d270;font:700 16px/1 system-ui;letter-spacing:10px;white-space:nowrap;text-shadow:0 0 6px #fff6;transform:translate(-50%,-50%)}
+html.hx #campusPlayground[data-dizzy="true"] .pg-dizzy-ring {opacity:1;animation:pg-orbit .7s linear infinite}
+html.hx #campusPlayground[data-dizzy="true"] .pg-head-joint {animation:pg-giggle .28s ease-in-out infinite}
+@keyframes pg-orbit {from{transform:translate(-50%,-50%) scaleY(.38) rotate(0deg)}to{transform:translate(-50%,-50%) scaleY(.38) rotate(360deg)}}
+
+/* props */
+html.hx #campusPlayground :is(.pg-ball,.pg-block,.pg-tramp) {left:0;top:0;z-index:4;will-change:transform}
+html.hx #campusPlayground .pg-ball {border-radius:50%;
+ background:radial-gradient(circle at 32% 28%,#ffffffb0 0 10%,transparent 32%),conic-gradient(#ff5d5d 0 25%,#ffd166 0 50%,#2ec4b6 0 75%,#3a86ff 0);
+ box-shadow:inset -4px -5px 9px #0003,0 7px 7px -5px #0006}
+html.hx #campusPlayground .pg-block {border-radius:7px;background:linear-gradient(145deg,var(--pg-b1),var(--pg-b2));
+ box-shadow:inset 0 -4px 0 #00000024,inset 0 2px 0 #ffffff70,0 4px 5px -3px #0007}
+html.hx #campusPlayground .pg-block::before {content:attr(data-l);position:absolute;inset:0;display:grid;place-items:center;
+ color:#fff;font:850 calc(19px * var(--pg-scale,.86) + 2px)/1 var(--hx-display,system-ui);text-shadow:0 2px 0 #0003}
+html.hx #campusPlayground .pg-block-a {--pg-b1:#ff9a6b;--pg-b2:#e8553e}
+html.hx #campusPlayground .pg-block-b {--pg-b1:#5fd4f5;--pg-b2:#277da1}
+html.hx #campusPlayground .pg-block-c {--pg-b1:#ffd86b;--pg-b2:#f4a261}
+html.hx #campusPlayground .pg-tramp {transform-origin:50% 100%}
+html.hx #campusPlayground .pg-tramp-legs {left:9%;right:9%;top:30%;bottom:0;border-left:4px solid #3d4a5c;border-right:4px solid #3d4a5c;border-radius:2px}
+html.hx #campusPlayground .pg-tramp-legs::after {content:"";position:absolute;left:30%;right:30%;bottom:0;height:4px;border-radius:2px;background:#3d4a5c}
+html.hx #campusPlayground .pg-tramp-mat {left:0;right:0;top:0;height:46%;border-radius:50%;transform-origin:50% 0;
+ background:radial-gradient(ellipse at 50% 35%,#4b51b0,#1d2259 70%);border:3px solid #ff6b9d;box-shadow:0 4px 0 #c94b7a}
+
+/* particles */
+html.hx #campusPlayground .pg-fx {position:absolute;inset:0;z-index:13}
+html.hx #campusPlayground .pg-fx-bit {position:absolute;width:auto;height:auto;font:800 19px/1 system-ui,sans-serif;opacity:0;
+ transform:translate(-50%,-50%);animation:pg-fx-burst 1.15s cubic-bezier(.2,.7,.3,1) both}
+html.hx #campusPlayground .pg-fx-heart {color:#ff4d6d;text-shadow:0 2px 0 #a5173a55}
+html.hx #campusPlayground .pg-fx-star {color:#f8d270;text-shadow:0 0 8px #ffe9a0}
+html.hx #campusPlayground .pg-fx-spark {color:#fff;font-size:15px;text-shadow:0 0 6px #8ff0ff,0 0 12px #2ec4b6}
+html.hx #campusPlayground :is(.pg-fx-note,.pg-fx-zzz) {animation:pg-fx-rise 1.9s ease-out both}
+html.hx #campusPlayground .pg-fx-note {color:#7b5cff;font-size:22px;text-shadow:0 2px 0 #fff8}
+html.hx #campusPlayground .pg-fx-note:nth-child(even) {color:#18a999}
+html.hx #campusPlayground .pg-fx-zzz {color:#9fb7ff;font:italic 800 22px/1 var(--hx-display,system-ui);text-shadow:0 0 8px #3a4fa8}
+@keyframes pg-fx-burst {
+ 0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}
+ 18%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
+ 100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--r)) scale(.7)}}
+@keyframes pg-fx-rise {
+ 0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}
+ 20%{opacity:1}
+ 100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--r)) scale(1.25)}}
+
+/* poses */
+html.hx #campusPlayground :is(.pg-leg,.pg-shin,.pg-head-joint) {transition:transform .22s ease-out}
+html.hx #campusPlayground .pg-robot[data-pose="kick"] .pg-leg.pg-right {transform:rotate(30deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick"] .pg-leg.pg-right .pg-shin {transform:rotate(45deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick"] .pg-arm.pg-left {transform:rotate(-35deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick-follow"] .pg-leg.pg-right {transform:rotate(-72deg);transition-duration:.12s}
+html.hx #campusPlayground .pg-robot[data-pose="kick-follow"] .pg-leg.pg-right .pg-shin {transform:rotate(-6deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick-follow"] .pg-arm.pg-left {transform:rotate(50deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick-follow"] .pg-arm.pg-right {transform:rotate(-45deg)}
+html.hx #campusPlayground .pg-robot[data-pose="kick-follow"] .pg-head-joint {transform:rotate(-8deg)}
+html.hx #campusPlayground .pg-robot[data-pose="tuck"] .pg-leg {transform:rotate(-58deg)}
+html.hx #campusPlayground .pg-robot[data-pose="tuck"] .pg-shin {transform:rotate(84deg)}
+html.hx #campusPlayground .pg-robot[data-pose="tuck"] .pg-arm.pg-right {transform:rotate(-150deg)}
+html.hx #campusPlayground .pg-robot[data-pose="tuck"] .pg-arm.pg-left {transform:rotate(150deg)}
+html.hx #campusPlayground .pg-robot[data-pose="dance"] .pg-arm.pg-right {animation:pg-dance-r .48s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance"] .pg-arm.pg-left {animation:pg-dance-l .48s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance"] .pg-leg {animation:pg-dance-leg .48s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="dance"] .pg-leg.pg-right {animation-direction:alternate-reverse}
+html.hx #campusPlayground .pg-robot[data-pose="dance"] .pg-head-joint {animation:pg-giggle .48s ease-in-out infinite}
+html.hx #campusPlayground[data-activity="dance"] .pg-robot-flip {animation:pg-bob .24s ease-in-out infinite alternate}
+html.hx #campusPlayground .pg-robot[data-pose="bow"] .pg-head-joint {transform:rotate(26deg) translateY(9px)}
+html.hx #campusPlayground .pg-robot[data-pose="bow"] .pg-arm.pg-right {transform:rotate(-100deg)}
+html.hx #campusPlayground .pg-robot[data-pose="bow"] .pg-arm.pg-right .pg-forearm {transform:rotate(-60deg)}
+html.hx #campusPlayground[data-activity="sleep"] .pg-robot-flip {transform:translateY(24px)}
+html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-leg {transform:rotate(-82deg)}
+html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-shin {transform:rotate(86deg)}
+html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-arm {transform:rotate(12deg)}
+html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-head-joint {animation:pg-breathe 2.6s ease-in-out infinite}
+html.hx #campusPlayground .pg-robot[data-pose="sleep"] .pg-eye-blink {opacity:1;animation:none}
+@keyframes pg-dance-r {from{transform:rotate(-150deg)}to{transform:rotate(-25deg)}}
+@keyframes pg-dance-l {from{transform:rotate(25deg)}to{transform:rotate(150deg)}}
+@keyframes pg-dance-leg {from{transform:rotate(-16deg)}to{transform:rotate(14deg)}}
+@keyframes pg-bob {from{transform:translateY(0)}to{transform:translateY(-9px)}}
+@keyframes pg-breathe {0%,100%{transform:rotate(14deg) translateY(4px)}50%{transform:rotate(19deg) translateY(6px)}}
+@media (prefers-reduced-motion:reduce) {
+ html.hx #campusPlayground :is(.pg-fx,.pg-say,.pg-ball,.pg-block,.pg-tramp) {display:none!important}
+}
