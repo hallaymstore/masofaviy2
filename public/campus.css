@@ -1,0 +1,129 @@
+/* Artwork is scoped to the sign-in screen and dashboard. */
+html.hx {
+  --campus-scene: url('/assets/campus/day.webp');
+  --campus-wash: linear-gradient(90deg, #0a352e 0%, #123f36eb 42%, #123f3670 78%, #123f362b);
+  --campus-banner-wash: linear-gradient(90deg, #123d35 0%, #123d35f5 54%, #123d3560 100%);
+  --campus-detail: #d6eade;
+  --campus-gold: #f1d5a0;
+}
+html.hx[data-theme="dark"] {
+  --campus-scene: url('/assets/campus/night.webp');
+  --campus-wash: linear-gradient(90deg, #08152a 0%, #0b1a30e6 44%, #0b1a3060 84%, #0b1a3026);
+  --campus-banner-wash: linear-gradient(90deg, #101e35 0%, #101e35ed 53%, #101e3566 100%);
+  --campus-detail: #d2e2ef;
+}
+html.hx #login .login-showcase::before {
+  background: var(--campus-wash), var(--campus-scene) right center / cover no-repeat;
+  opacity: 1;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+html.hx #login .showcase-copy h1 {
+  text-shadow: 0 2px 16px #061712a0;
+}
+html.hx #login :is(.showcase-copy p, .showcase-brand small, .hx-login-features small, .showcase-foot) {
+  color: var(--campus-detail) !important;
+}
+html.hx #login .hx-login-features svg {
+  stroke: var(--campus-gold);
+}
+.campus-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.campus-art::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: clamp(84px, 15vw, 208px);
+  height: clamp(84px, 15vw, 208px);
+  background: url('/assets/campus/botanical.webp') right top / contain no-repeat;
+  opacity: .88;
+  transform-origin: top right;
+  animation: campus-sway 11s ease-in-out infinite;
+}
+html[data-theme="dark"] .campus-art::before {
+  top: 8%;
+  right: 7%;
+  background-image: url('/assets/campus/moon.webp');
+  opacity: .82;
+  animation: none;
+}
+.campus-art::after {
+  content: "";
+  position: absolute;
+  right: 20%;
+  bottom: 27%;
+  width: 44px;
+  height: 44px;
+  background: url('/assets/campus/spark.webp') center / contain no-repeat;
+  animation: campus-drift 7s ease-in-out infinite alternate;
+}
+@keyframes campus-sway {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes campus-drift {
+  from { transform: translate(0, 0); opacity: .3; }
+  to { transform: translate(22px, -34px); opacity: .9; }
+}
+html.hx #login .campus-theme {
+  align-self: flex-start;
+  min-height: 42px;
+  padding: 6px 13px;
+  margin-bottom: 20px;
+  border: 1px solid var(--hx-line, #96a9a0);
+  border-radius: 8px;
+  background: var(--hx-sunken, transparent);
+  color: var(--hx-text);
+  font: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+}
+html.hx #login .campus-theme:focus-visible {
+  outline: 2px solid var(--hx-brand);
+  outline-offset: 3px;
+}
+html.hx #shell>main #dashboard .edu-banner {
+  background: var(--campus-banner-wash), var(--campus-scene) right 52% / cover no-repeat !important;
+}
+html.hx #shell>main #dashboard .edu-banner::after {
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(26%, 150px);
+  transform: none;
+  background: url('/assets/campus/botanical.webp') right center / contain no-repeat;
+}
+html.hx[data-theme="dark"] #shell>main #dashboard .edu-banner::after {
+  background-image: url('/assets/campus/moon.webp');
+}
+html.hx #shell>main #dashboard .edu-banner p {
+  color: var(--campus-detail) !important;
+}
+@media (max-width: 760px) {
+  html.hx #login .login-showcase {
+    --campus-wash: linear-gradient(90deg, #0b3029f7, #123f36b5);
+  }
+  html.hx[data-theme="dark"] #login .login-showcase {
+    --campus-wash: linear-gradient(90deg, #08152af8, #0b1a309e);
+  }
+  .campus-art::before { opacity: .64; }
+  .campus-art::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce), (update: slow), (max-width: 760px) {
+  .campus-art::before, .campus-art::after { animation: none; }
+}
+html.a11y-contrast #login .login-showcase::before,
+html.a11y-contrast #dashboard .edu-banner::after,
+html.a11y-contrast .campus-art {
+  display: none;
+}
+html.low-end-device .campus-art::before,
+html.low-end-device .campus-art::after {
+  animation: none;
+}
