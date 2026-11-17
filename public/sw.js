@@ -1,19 +1,36 @@
-const CACHE='m2-v143-workbench';
-const CORE=['/hallaym-pro.css?v=20261111-pro1','/hub.css?v=20261111-hub1','/hub-ui.js?v=20261111-pro1','/gamification.css?v=20261111-gx1','/gamification-ui.js?v=20261111-gx1','/robot-tour.js?v=20261111-gx1','/hallaym-motion.css?v=20261111-gx1','/hallaym-motion.js?v=20261111-pro1','/campus-icons.js','/campus-game.css?v=20261111-mate2','/campus-game.js?v=20261111-mate2','/accessible-confirm.js','/voice-recognition.js','/voice-controls.js','/voice-assistant.css?v=20261016-voice1','/speech.js','/tts-rules.js','/reader-rules.js','/pdf-text.js','/audio-reader.js','/my-books-ui.js','/library-manager-ui.js','/voice-assistant.js','/voice-commands.js','/ai-ui.js','/ai-document-client.js','/ai-ui.css','/ai-ui.js','/ai-document-client.js','/ai-ui.css?v=20261020-lessonai2','/audio-books.css?v=20261016-books1','/','/styles.css?v=20261008-21','/premium-ui.css?v=20261025-proctor1','/app.js?v=20261111-premium1','/media-client.bundle.js?v=20261016-voice1','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/daily-attendance-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/vendor/qrcode.js','/a11y-boot.js?v=20261016-voice1','/a11y.css?v=20261016-voice1','/a11y.js','/inclusion-ui.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css?v=20261012-compact1','/telegram-design.css?v=20261013-rc5','/hallaym-ui.css?v=20261111-premium2','/terms.html','/privacy.html','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg'];
+const CACHE='m2-v144-fast-assets';
+const CORE=['/','/styles.css?v=20261008-21'];
 const STATIC_PATHS=new Set(['/hallaym-pro.css','/hub.css','/hub-ui.js','/certificate.css','/certificate.js','/gamification.css','/gamification-ui.js','/robot-tour.js','/hallaym-motion.css','/hallaym-motion.js','/campus-icons.js','/campus-game.css','/campus-game.js','/accessible-confirm.js','/voice-recognition.js','/voice-controls.js','/voice-assistant.css','/speech.js','/tts-rules.js','/reader-rules.js','/pdf-text.js','/audio-reader.js','/my-books-ui.js','/library-manager-ui.js','/voice-assistant.js','/voice-commands.js','/audio-books.css','/styles.css','/premium-ui.css','/app.js','/media-client.bundle.js','/live-proctor-logic.js','/coursework-ui.js','/personal-grades-ui.js','/video-playback-state.js','/lesson-history-ui.js','/daily-attendance-ui.js','/global-search-ui.js','/academic-entry-wizard.js','/quiz-composer.js','/whiteboard.js','/virtual-lab.js','/units-ui.js','/forms-ui.js','/vendor/qrcode.js','/a11y-boot.js','/a11y.css','/a11y.js','/inclusion-ui.js','/course-plan-ui.js','/resource-center-ui.js','/mobile-ui-compact.css','/telegram-design.css','/hallaym-ui.css','/assets/campus/learning-commons-day.webp','/assets/campus/learning-commons-night.webp','/assets/campus/moon-crisp.webp','/assets/campus/night-star.webp','/timetable.html','/timetable.js','/manifest.webmanifest','/favicon.svg','/terms.html','/privacy.html']);
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>Promise.allSettled(CORE.map(url=>c.add(url)))))});
 self.addEventListener('activate',e=>{e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))]))});
+// API requests are always live and never cached. Static photos/fonts and versioned
+// assets are served from local cache after first visit, without network blocking.
+const assetPath=/^\\/(?:assets\\/campus\\/.*\\.webp|fonts\\/.*\\.woff2)$/i;
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
   const u=new URL(e.request.url);
   if(u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;
   if(e.request.mode==='navigate'){
-    e.respondWith(fetch(e.request,{cache:'no-store'}).catch(()=>caches.match('/')));
+    e.respondWith(fetch(e.request).catch(()=>caches.match('/')));
     return;
   }
-  if(!STATIC_PATHS.has(u.pathname)&&!/^\/assets\/campus\/[a-z0-9/-]+\.webp$/.test(u.pathname))return;
-  e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{
-    if(r.ok&&Number(r.headers.get('content-length')||0)<2*1024*1024){const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy))}
-    return r;
-  }).catch(()=>caches.match(e.request)));
+  const staticAsset=STATIC_PATHS.has(u.pathname)||assetPath.test(u.pathname);
+  if(!staticAsset)return;
+  const cacheFirst=assetPath.test(u.pathname)||u.searchParams.has('v');
+  e.respondWith((async()=>{
+    const cache=await caches.open(CACHE);
+    const stored=await cache.match(e.request);
+    if(cacheFirst&&stored)return stored;
+    try{
+      const response=await fetch(e.request);
+      if(response.ok&&response.type==='basic'){
+        const len=Number(response.headers.get('content-length')||0);
+        if(!len||len<8*1024*1024)e.waitUntil(cache.put(e.request,response.clone()).catch(()=>{}));
+      }
+      return response;
+    }catch(error){
+      if(stored)return stored;
+      throw error;
+    }
+  })());
 });
