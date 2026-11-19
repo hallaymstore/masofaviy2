@@ -88,6 +88,16 @@ const GROUPS = {
 // Faqat manbasi tekshirilgan aniq YouTube video IDlari.
 // Bu akademik tasdiqlangan universitet kurslari degani emas.
 const VIDEOS = [
+ {id:'NLrfm2p2RtA',title:'Qurilish konstruksiyalarini hisoblash va loyihalash — 1-ma’ruza',source:'TUACE',language:'O‘zbekcha',groups:['qurilish'],tags:['60730300','60730100']},
+ {id:'TSeigxPwkiA',title:'Gidrotexnika inshootlari osti konstruksiyasi',source:'Buxoro tabiiy resurslarni boshqarish instituti',language:'O‘zbekcha',groups:['suv'],tags:['60811300','60730600']},
+ {id:'RZ4STGNrmVw',title:'Materialshunoslik faniga kirish — 1-ma’ruza',source:'Fidoyiy ustozlar',language:'O‘zbekcha',groups:['sanoat'],tags:['60720300','60711200']},
+ {id:'4bbAD_f4wmY',title:'Oziq-ovqat mahsulotlarini sertifikatlashtirish asoslari',source:'Academy Infinite',language:'O‘zbekcha',groups:['oziqovqat'],tags:['60720100','60810700']},
+ {id:'g019K8iBm38',title:'Logistika — 1-dars: Logistika nima?',source:'Milliy ta’lim resurslari',language:'O‘zbekcha',groups:['transport'],tags:['61010400','60711400']},
+ {id:'beJX6aoOwsg',title:'Logistika — 2-dars: Dispatching',source:'Milliy ta’lim resurslari',language:'O‘zbekcha',groups:['transport'],tags:['61010400']},
+ {id:'gwyTV-gUDyg',title:'Circuits and Electronics — Lecture 1',source:'MIT (lecture recording)',language:'Inglizcha',groups:['energetika'],tags:['60710500','60710700']},
+ {id:'W3LcNXWuOdM',title:'Fluid Mechanics — Fundamentals, Lecture 1',source:'Dr. Bagus Muljadi, University of Nottingham',language:'Inglizcha',groups:['suv','sanoat','kimyo','energetika'],tags:['60710600','60730600','60712300']},
+ {id:'Gb5BKmGtz2E',title:'Introduction to Tourism and Hospitality Management — Lecture 1',source:'Tourism Management',language:'Inglizcha',groups:['turizm'],tags:['61010100']},
+ {id:'i9WxfUBqljg',title:'Engineering Thermodynamics — Lecture 1',source:'University course reading list',language:'Inglizcha',groups:['sanoat','energetika'],tags:['60712300','60710400']},
  {id:'67i5vzIEhMk',title:'Buxgalteriya hisobini tashkil etish va hisob siyosati',source:'B. Y. Menglikulov',language:'O‘zbekcha',groups:['iqtisod'],tags:['60410200','60410500']},
  {id:'-JYgcfkeRRY',title:'Buxgalteriya hisobi fanining predmeti va metodi',source:'B. Y. Menglikulov',language:'O‘zbekcha',groups:['iqtisod'],tags:['60410200','60410100']},
  {id:'heBErnN3ZPk',title:'Introduction to Macroeconomics — Lecture 1',source:'MIT OpenCourseWare',language:'Inglizcha',groups:['iqtisod'],tags:['60410100','60410500','60410700']},
