@@ -92,6 +92,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const norm = s => String(s||'').toLocaleLowerCase('uz').replace(/[‘’ʻʼ´\u0060]/g,"'").replace(/\s+/g,' ').trim();
 const youtubeSearch = q => 'https://www.youtube.com/results?search_query='+encodeURIComponent(q);
 let initialized = false, selected = '', searchText = '', visible = 0, loadObserver = null, allVideoObserver = null, lastTrigger = null;
+window.qdtuOpenLessonList=UZBEK_LESSONS;
 const PER_BATCH = 12;
 function pickDirection(direction) {
   const candidate = norm(direction);
@@ -204,6 +205,11 @@ function appendNext(){
  const more=document.getElementById('qv-load-more');if(more)more.hidden=visible>=all.length;
  if(!all.length)el.innerHTML='<div class="qv-empty">So‘rovga mos yo‘nalish topilmadi. Qidiruvni o‘zgartiring.</div>';
 }
+document.addEventListener('qdtu:catalog-open',event=>{
+ const id=String(event.detail?.id||'');
+ const video=UZBEK_LESSONS.find(v=>v.id===id);
+ if(video)document.dispatchEvent(new CustomEvent('qdtu:open-video',{detail:{video,programCode:event.detail?.programCode||'',saveHistory:event.detail?.saveHistory!==false}}));
+});
 document.addEventListener('hx:navigate',event=>{
  if(event.detail?.page==='videos')mount();
 });
