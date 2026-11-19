@@ -2073,6 +2073,7 @@ async function renderWatchPlayer(v){
 }
 let videoOpenRequestSerial=0;
 async function openVideoLesson(id,pushHistory=true,preview=false){
+  if(qdtuExternalVideoId)stopQdtuExternalVideo();
   const requestSerial=++videoOpenRequestSerial;
   if(!videoLessonsCache.length)videoLessonsCache=await api('/videos');
   const v=videoLessonsCache.find(x=>String(x._id)===String(id));if(!v)return toast('Videodars topilmadi');
@@ -2120,6 +2121,82 @@ async function openVideoLesson(id,pushHistory=true,preview=false){
   bindVideoActions($('#watchRelated'));hydrateIcons($('#videoWatch'));
   await loadVideoComments(activeVideoId);
 }
+// QDTU open Uzbek video catalog. Reuse the original #videoWatch UI, YouTube
+// IFrame API and error handling. Do not create a competing modal or player page.
+let qdtuExternalVideoId='',qdtuExternalVideoPlayer=null,qdtuExternalVideoSerial=0;
+function stopQdtuExternalVideo(){
+  qdtuExternalVideoSerial++;
+  try{qdtuExternalVideoPlayer?.stopVideo?.();qdtuExternalVideoPlayer?.destroy?.()}catch{}
+  qdtuExternalVideoPlayer=null;
+  qdtuExternalVideoId='';
+  $('#videoWatch')?.classList.remove('qv-external-viewer');
+  const container=$('#watchPlayer');
+  container?.querySelectorAll('iframe').forEach(frame=>{try{frame.src='about:blank';frame.remove()}catch{}});
+  container?.replaceChildren();
+}
+document.addEventListener('qdtu:open-video',async event=>{
+  const {video,programCode='',saveHistory=true}=event.detail||{};
+  if(!video||!/^[a-zA-Z0-9_-]{11}$/.test(String(video.id||'')))return;
+  if(activeVideoId)clearWatchPage();
+  if(qdtuExternalVideoId)stopQdtuExternalVideo();
+  const serial=++qdtuExternalVideoSerial;
+  qdtuExternalVideoId=video.id;
+  go('videoWatch');
+  const watch=$('#videoWatch'),container=$('#watchPlayer');
+  watch.classList.add('qv-external-viewer');
+  if(saveHistory!==false&&location.hash!=='#qdtu-video='+encodeURIComponent(video.id))history.pushState({qdtuVideoId:video.id},'',location.pathname+location.search+'#qdtu-video='+encodeURIComponent(video.id));
+  const direct='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);
+  const title=String(video.title||'O‘zbekcha videodars');
+  const source=String(video.source||'YouTube');
+  $('#watchTitle').textContent=title;
+  $('#watchVideoTitle').textContent=title;
+  $('#watchMeta').textContent=[source,video.language||'O‘zbekcha'].filter(Boolean).join(' · ');
+  $('#watchStats').innerHTML='<span>Ochiq videodars</span><span>O‘zbekcha</span>';
+  $('#watchTeacher').innerHTML='<div class="avatar">YT</div><div><b>'+esc(source)+'</b><small>Ochiq YouTube videodarsi</small></div>';
+  $('#watchDescription').innerHTML='<p>Universitet yo‘nalishlari uchun tanlangan ochiq videodars. Muallif videosini boshqa saytda ijro etishni cheklagan bo‘lsa, YouTube’da ko‘rishingiz mumkin.</p><a class="qv-native-youtube-link" href="'+esc(direct)+'" target="_blank" rel="noopener noreferrer">▶ YouTube’da ko‘rish ↗</a>';
+  const related=(window.qdtuOpenLessonList||[]).filter(v=>v.id!==video.id&&v.groups?.some(g=>video.groups?.includes(g))).slice(0,8);
+  $('#watchRelated').innerHTML=related.map(v=>'<button class="related-card qv-related-native" type="button" data-qdtu-watch-id="'+esc(v.id)+'"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(v.id)+'/mqdefault.jpg" loading="lazy" alt=""><span><b>'+esc(v.title)+'</b><small>'+esc(v.source||'YouTube')+'</small></span></button>').join('')||'<p class="muted">Hozircha boshqa tavsiyalar yo‘q.</p>';
+  $('#watchRelated').querySelectorAll('[data-qdtu-watch-id]').forEach(btn=>btn.onclick=()=>{
+    document.dispatchEvent(new CustomEvent('qdtu:catalog-open',{detail:{id:btn.dataset.qdtuWatchId,programCode}}));
+  });
+  container.innerHTML='<div class="watch-loading">YouTube pleyeri yuklanmoqda…</div>';
+  // Always show a playable fallback link instead of leaving a black iframe.
+  const fallback=(message)=>{
+    if(serial!==qdtuExternalVideoSerial||qdtuExternalVideoId!==video.id)return;
+    try{qdtuExternalVideoPlayer?.destroy?.()}catch{}
+    qdtuExternalVideoPlayer=null;
+    container.innerHTML='<div class="qv-native-player-error"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(video.id)+'/hqdefault.jpg" alt="" loading="lazy"><div><b>'+esc(message||'Bu videoni ichki pleyerda ko‘rib bo‘lmadi.')+'</b><p>Muallif YouTube’dan tashqarida ijroni cheklagan yoki pleyer yuklanmagan.</p><a href="'+esc(direct)+'" target="_blank" rel="noopener noreferrer">▶ YouTube’da videoni ochish ↗</a></div></div>';
+  };
+  try{
+    const YT=await loadYouTubePlayerApi(); // original, previously working player loader
+    if(serial!==qdtuExternalVideoSerial||qdtuExternalVideoId!==video.id||!watch.classList.contains('active'))return;
+    container.innerHTML='<div id="qdtuNativeYoutubePlayer"></div>';
+    qdtuExternalVideoPlayer=new YT.Player('qdtuNativeYoutubePlayer',{
+      videoId:video.id,
+      playerVars:{autoplay:1,rel:0,playsinline:1,modestbranding:1},
+      events:{
+        onReady:e=>{
+          if(serial!==qdtuExternalVideoSerial||qdtuExternalVideoId!==video.id){try{e.target.destroy()}catch{};return}
+          try{e.target.playVideo()}catch{}
+        },
+        onError:e=>fallback('YouTube pleyer xatosi ('+String(e.data||'noma’lum')+').')
+      }
+    });
+  }catch(e){fallback('YouTube pleyeri yuklanmadi.')}
+});
+document.addEventListener('hx:navigate',event=>{
+  if(event.detail?.page!=='videoWatch'&&qdtuExternalVideoId)stopQdtuExternalVideo();
+});
+window.addEventListener('popstate',()=>{
+  const external=location.hash.startsWith('#qdtu-video=')?decodeURIComponent(location.hash.slice('#qdtu-video='.length)):'';
+  if(external){
+    if(qdtuExternalVideoId!==external)document.dispatchEvent(new CustomEvent('qdtu:catalog-open',{detail:{id:external,saveHistory:false}}));
+  }else if(qdtuExternalVideoId){
+    stopQdtuExternalVideo();
+    if(!location.hash.startsWith('#video='))go('videos');
+  }
+});
+
 function clearWatchPage(){
   videoOpenRequestSerial++;
   stopWatchTracking(true);activeVideoId='';commentReplyTo=null;$('#watchPlayer').innerHTML='';$('#commentsList').innerHTML='';$('#commentReplyState').classList.add('hidden');
