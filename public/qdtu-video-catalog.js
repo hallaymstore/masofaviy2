@@ -1,7 +1,7 @@
 // QDTU 2026/2027 kunduzgi qabul yo'nalishlari asosidagi ochiq videodarslar katalogi.
 // Manba: 2026/2027 bakalavriat kunduzgi qabul jadvali, 21-band.
 // Tashqi videolar LMS baholashi / majburiy ko'rish progressiga qo'shilmaydi.
-const RAW_PROGRAMS = String.raw\`
+const RAW_PROGRAMS = String.raw`
 60410100|Iqtisodiyot|iqtisod
 60410200|Buxgalteriya hisobi|iqtisod
 60410300|Soliqlar va soliqqa tortish|iqtisod
@@ -65,7 +65,7 @@ const RAW_PROGRAMS = String.raw\`
 60720100|Oziq-ovqat texnologiyasi|oziqovqat
 60811100|Dorivor o'simliklarni yetishtirish va qayta ishlash texnologiyasi|agro
 61010100|Turizm va mehmondo'stlik|turizm
-\`;
+`;
 const PROGRAMS = RAW_PROGRAMS.trim().split('\n').map(line => {
   const [code, name, group] = line.split('|');
   return {code, name, group};
@@ -178,7 +178,7 @@ function renderAllVideos(){
  if(el)el.innerHTML=VIDEOS.map(cardVideo).join('')+COURSES.map(cardCourse).join('');
 }
 function matchingPrograms(){
- return PROGRAMS.filter(p=>(!searchText || norm(p.name+' '+p.code+' '+GROUPS[p.group].label).includes(searchText))&&(!selected||p.code===selected));
+ return PROGRAMS.filter(p=>(!searchText || norm(p.name+' '+p.code+' '+GROUPS[p.group].label).includes(searchText)));
 }
 function renderMajors(){
  visible=0;const el=document.getElementById('qv-majors');if(!el)return;el.replaceChildren();
