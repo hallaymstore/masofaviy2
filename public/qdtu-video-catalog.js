@@ -1,3 +1,4 @@
+import {UZBEK_LESSONS,lessonsForProgram,LESSONS_PER_MAJOR} from './qdtu-uz-lessons.js';
 // QDTU 2026/2027 kunduzgi qabul yo'nalishlari asosidagi ochiq videodarslar katalogi.
 // Manba: 2026/2027 bakalavriat kunduzgi qabul jadvali, 21-band.
 // Tashqi videolar LMS baholashi / majburiy ko'rish progressiga qo'shilmaydi.
@@ -87,36 +88,10 @@ const GROUPS = {
 };
 // Faqat manbasi tekshirilgan aniq YouTube video IDlari.
 // Bu akademik tasdiqlangan universitet kurslari degani emas.
-const VIDEOS = [
- {id:'PtNoZphQSYw',title:'Petroleum Refining — Course Introduction',source:'Chemical Engineering Guy',language:'Inglizcha',groups:['neftgaz','kimyo'],tags:['60720600','60720500','60710100']},
- {id:'IPPMPN9AkR8',title:'Fundamentals of Agronomy — Lecture 1',source:'Agri Examhub',language:'Inglizcha / hindcha',groups:['agro'],tags:['60810400','60811700']},
- {id:'9dAcEBXAFoo',title:'Introduction to Ecology',source:'Professor Dave Explains',language:'Inglizcha',groups:['ekologiya'],tags:['60520200','60711800']},
- {id:'GlnFylwdYH4',title:'Introduction to Ecology — Ecosystems',source:"Teacher's Pet",language:'Inglizcha',groups:['ekologiya'],tags:['60520200','60711800']},
- {id:'NLrfm2p2RtA',title:'Qurilish konstruksiyalarini hisoblash va loyihalash — 1-ma’ruza',source:'TUACE',language:'O‘zbekcha',groups:['qurilish'],tags:['60730300','60730100']},
- {id:'TSeigxPwkiA',title:'Gidrotexnika inshootlari osti konstruksiyasi',source:'Buxoro tabiiy resurslarni boshqarish instituti',language:'O‘zbekcha',groups:['suv'],tags:['60811300','60730600']},
- {id:'RZ4STGNrmVw',title:'Materialshunoslik faniga kirish — 1-ma’ruza',source:'Fidoyiy ustozlar',language:'O‘zbekcha',groups:['sanoat'],tags:['60720300','60711200']},
- {id:'4bbAD_f4wmY',title:'Oziq-ovqat mahsulotlarini sertifikatlashtirish asoslari',source:'Academy Infinite',language:'O‘zbekcha',groups:['oziqovqat'],tags:['60720100','60810700']},
- {id:'g019K8iBm38',title:'Logistika — 1-dars: Logistika nima?',source:'Milliy ta’lim resurslari',language:'O‘zbekcha',groups:['transport'],tags:['61010400','60711400']},
- {id:'beJX6aoOwsg',title:'Logistika — 2-dars: Dispatching',source:'Milliy ta’lim resurslari',language:'O‘zbekcha',groups:['transport'],tags:['61010400']},
- {id:'gwyTV-gUDyg',title:'Circuits and Electronics — Lecture 1',source:'MIT (lecture recording)',language:'Inglizcha',groups:['energetika'],tags:['60710500','60710700']},
- {id:'W3LcNXWuOdM',title:'Fluid Mechanics — Fundamentals, Lecture 1',source:'Dr. Bagus Muljadi, University of Nottingham',language:'Inglizcha',groups:['suv','sanoat','kimyo','energetika'],tags:['60710600','60730600','60712300']},
- {id:'Gb5BKmGtz2E',title:'Introduction to Tourism and Hospitality Management — Lecture 1',source:'Tourism Management',language:'Inglizcha',groups:['turizm'],tags:['61010100']},
- {id:'i9WxfUBqljg',title:'Engineering Thermodynamics — Lecture 1',source:'University course reading list',language:'Inglizcha',groups:['sanoat','energetika'],tags:['60712300','60710400']},
- {id:'67i5vzIEhMk',title:'Buxgalteriya hisobini tashkil etish va hisob siyosati',source:'B. Y. Menglikulov',language:'O‘zbekcha',groups:['iqtisod'],tags:['60410200','60410500']},
- {id:'-JYgcfkeRRY',title:'Buxgalteriya hisobi fanining predmeti va metodi',source:'B. Y. Menglikulov',language:'O‘zbekcha',groups:['iqtisod'],tags:['60410200','60410100']},
- {id:'heBErnN3ZPk',title:'Introduction to Macroeconomics — Lecture 1',source:'MIT OpenCourseWare',language:'Inglizcha',groups:['iqtisod'],tags:['60410100','60410500','60410700']},
- {id:'HUogSIxtrRk',title:'Kompyuter tarmoqlari: Packet Tracer — 1-dars',source:'Computer Networks',language:'O‘zbekcha',groups:['it'],tags:['60610100','60610300','60610600','60611000']},
- {id:'2WtPyqwTLKM',title:'CS50: Computer Science — Lecture 0',source:'Harvard CS50',language:'Inglizcha',groups:['it'],tags:['60610400','60610500','60610300']}
-];
-const COURSES = [
- {name:'Python dasturlash: 78 ta o‘zbekcha videodars',url:'https://www.youtube.com/playlist?list=PLTWoFaxHL_JuxZilhnY7uEQyNNEFqjdk9',source:'Sirojiddin Yokubov | IT',group:'it',language:'O‘zbekcha'},
- {name:'MIT — Principles of Macroeconomics',url:'https://ocw.mit.edu/courses/14-02-principles-of-macroeconomics-spring-2023/resources/lecture-videos/',source:'MIT OpenCourseWare',group:'iqtisod',language:'Inglizcha'},
- {name:'MIT — Electrical Engineering and Computer Science',url:'https://ocw.mit.edu/courses/6-01sc-introduction-to-electrical-engineering-and-computer-science-i-spring-2011/resources/lecture-videos/',source:'MIT OpenCourseWare',group:'energetika',language:'Inglizcha'}
-];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = s => String(s||'').toLocaleLowerCase('uz').replace(/[‘’ʻʼ´\u0060]/g,"'").replace(/\s+/g,' ').trim();
 const youtubeSearch = q => 'https://www.youtube.com/results?search_query='+encodeURIComponent(q);
-let initialized = false, selected = '', searchText = '', visible = 0, loadObserver = null, lastTrigger = null;
+let initialized = false, selected = '', searchText = '', visible = 0, loadObserver = null, allVideoObserver = null, lastTrigger = null;
 const PER_BATCH = 12;
 function pickDirection(direction) {
   const candidate = norm(direction);
@@ -131,9 +106,6 @@ function pickDirection(direction) {
 function cardVideo(video) {
   return '<article class="qv-video"><button class="qv-cover" type="button" data-qv-play="'+esc(video.id)+'" aria-label="'+esc(video.title)+' videoni ko‘rish"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(video.id)+'/hqdefault.jpg" loading="lazy" decoding="async" alt=""><span aria-hidden="true">▶</span></button><div class="qv-body"><small>'+esc(video.language)+' · '+esc(video.source)+'</small><h3>'+esc(video.title)+'</h3><button class="qv-open" type="button" data-qv-play="'+esc(video.id)+'">▶ Videoni ko‘rish</button></div></article>';
 }
-function cardCourse(course) {
-  return '<article class="qv-video qv-course"><div class="qv-course-art">📚<small>Video kurs / pleylist</small></div><div class="qv-body"><small>'+esc(course.language)+' · '+esc(course.source)+'</small><h3>'+esc(course.name)+'</h3><a class="qv-open" target="_blank" rel="noopener noreferrer" href="'+esc(course.url)+'">Kursni ochish ↗</a></div></article>';
-}
 function cardSearch(p) {
   const group=GROUPS[p.group]||GROUPS.it;
   return '<article class="qv-major"><span class="qv-symbol" aria-hidden="true">'+group.icon+'</span><div class="qv-major-info"><small>'+esc(p.code)+' · '+esc(group.label)+'</small><h3>'+esc(p.name)+'</h3></div><div class="qv-major-actions"><button type="button" data-qv-select="'+esc(p.code)+'">Tavsiyalar</button><a href="'+esc(youtubeSearch(p.name+' videodars maʼruza o‘zbek'))+'" target="_blank" rel="noopener noreferrer" aria-label="'+esc(p.name)+' bo‘yicha YouTubedan qidirish">YouTube qidiruv ↗</a></div></article>';
@@ -143,12 +115,12 @@ function mount() {
  if (!page || initialized) return;
  initialized = true;
  const panel = document.createElement('div'); panel.id='qdtuVideoCatalog'; panel.className='qv-shell';
- panel.innerHTML = '<div class="qv-hero"><div><span class="qv-eyebrow">QDTU • 2026/2027 bakalavriat katalogi</span><h2>Yo‘nalishingizga mos videodarslar</h2><p>Avval o‘z yo‘nalishingiz bo‘yicha tavsiyalar, pastda esa barcha yo‘nalishlar va ochiq video manbalar. Videolar faqat ochilganda yuklanadi.</p></div><div class="qv-counter"><b>'+PROGRAMS.length+'</b><span>ta yo‘nalish</span></div></div>'+
+ panel.innerHTML = '<div class="qv-hero"><div><span class="qv-eyebrow">QDTU • 2026/2027 bakalavriat katalogi</span><h2>Yo‘nalishingizga mos videodarslar</h2><p>Har bir QDTU yo‘nalishiga 5 tadan o‘zbekcha dars tanlangan. Quyida jami '+UZBEK_LESSONS.length+' ta noyob ochiq videodars mavjud; videolar faqat bosilganda ijro etiladi.</p></div><div class="qv-counter"><b>'+PROGRAMS.length+'</b><span>ta yo‘nalish</span></div></div>'+
   '<div class="qv-filters"><label for="qv-direction">Ta’lim yo‘nalishi <select id="qv-direction"><option value="">Barcha yo‘nalishlar</option>'+PROGRAMS.map(p=>'<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>').join('')+'</select></label><label for="qv-search">Yo‘nalish yoki mavzu qidirish<input id="qv-search" type="search" placeholder="Masalan: energetika, 60610400..."></label></div>'+
-  '<div class="qv-heading"><div><h3 id="qv-recommend-title">Siz uchun ochiq videodarslar</h3><p id="qv-recommend-note">YouTube va ochiq kurslar katalogidan</p></div></div><div id="qv-recommendations" class="qv-video-grid"></div>'+
-  '<div class="qv-heading qv-heading-all"><div><h3>Ommaviy videodarslar va ochiq kurslar</h3><p>Tekshirilgan video havolalari va pleylistlar</p></div></div><div id="qv-all-videos" class="qv-video-grid"></div>'+
+  '<div class="qv-heading"><div><h3 id="qv-recommend-title">Siz uchun ochiq videodarslar</h3><p id="qv-recommend-note">O‘zbek tilidagi videoma’ruzalar katalogidan</p></div></div><div id="qv-recommendations" class="qv-video-grid"></div>'+
+  '<div class="qv-heading qv-heading-all"><div><h3>Ommaviy o‘zbekcha videodarslar</h3><p>Ochiq ma’ruzalar bo‘yicha umumiy kutubxona · scroll orqali yuklanadi</p></div></div><div id="qv-all-videos" class="qv-video-grid"></div>'+
   '<div class="qv-heading qv-heading-all"><div><h3>Barcha QDTU yo‘nalishlari</h3><p>Har biri uchun alohida tavsiyalar va YouTube qidiruvi</p></div><span id="qv-visible-count"></span></div><div id="qv-majors" class="qv-major-grid"></div><div id="qv-sentinel" class="qv-sentinel" aria-hidden="true"></div><button type="button" id="qv-load-more" class="qv-load-more">Yana 12 ta yo‘nalishni ko‘rsatish</button>'+
-  '<p class="qv-disclaimer">Manba: QDTU 2026/2027 kunduzgi qabul yo‘nalishlari. Ochiq videolar tashqi mualliflarga tegishli; har bir yo‘nalishda tayyor videodars topilmasa, aniq YouTube qidiruv havolasi beriladi. Ushbu ochiq materiallar platformadagi rasmiy baholash va davomatga qo‘shilmaydi.</p>';
+  '<p class="qv-disclaimer">Manba: QDTU 2026/2027 kunduzgi qabul yo‘nalishlari. O‘zbekcha videodarslar boshqa ta’lim muassasalari va mualliflarga tegishli bo‘lishi mumkin. Tor ixtisosliklarda tayanch fanlar ma’ruzalaridan foydalanilgan; qo‘shimcha mavzular uchun YouTube qidiruv havolasi bor. Ochiq materiallar rasmiy davomat, baho yoki majburiy video-progressga qo‘shilmaydi.</p>';
  page.querySelector('.video-toolbar')?.after(panel);
  const modal=document.createElement('dialog'); modal.id='qv-player-modal'; modal.className='qv-player-dialog'; modal.innerHTML='<div class="qv-player-head"><h2 id="qv-player-title">Videodars</h2><button type="button" data-qv-close aria-label="Videoni yopish">✕</button></div><div id="qv-player-frame"></div><div class="qv-player-foot"><span>YouTube rasmiy pleyeri</span><a id="qv-player-link" target="_blank" rel="noopener noreferrer">YouTube’da ochish ↗</a></div>';
  document.body.appendChild(modal);
@@ -158,7 +130,7 @@ function mount() {
  modal.querySelector('[data-qv-close]').addEventListener('click',()=>modal.close());
  panel.addEventListener('click',event=>{
    const play=event.target.closest('[data-qv-play]');
-   if(play){const video=VIDEOS.find(v=>v.id===play.dataset.qvPlay);if(!video)return;lastTrigger=play;modal.querySelector('#qv-player-title').textContent=video.title;modal.querySelector('#qv-player-link').href='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(video.id)+'?autoplay=1&rel=0';iframe.title=video.title;iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share';iframe.referrerPolicy='strict-origin-when-cross-origin';iframe.allowFullscreen=true;modal.querySelector('#qv-player-frame').replaceChildren(iframe);modal.showModal();return;}
+   if(play){const video=UZBEK_LESSONS.find(v=>v.id===play.dataset.qvPlay);if(!video)return;lastTrigger=play;modal.querySelector('#qv-player-title').textContent=video.title;modal.querySelector('#qv-player-link').href='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(video.id)+'?autoplay=1&rel=0';iframe.title=video.title;iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share';iframe.referrerPolicy='strict-origin-when-cross-origin';iframe.allowFullscreen=true;modal.querySelector('#qv-player-frame').replaceChildren(iframe);modal.showModal();return;}
    const select=event.target.closest('[data-qv-select]');if(select){selected=select.dataset.qvSelect;panel.querySelector('#qv-direction').value=selected;renderRecommendations();panel.querySelector('#qv-recommend-title').scrollIntoView({behavior:'smooth',block:'start'});}
  });
  panel.querySelector('#qv-direction').addEventListener('change',event=>{selected=event.target.value;renderRecommendations();renderMajors();});
@@ -177,19 +149,47 @@ function mount() {
   selected=code;panel.querySelector('#qv-direction').value=code;renderRecommendations();
  }).catch(()=>{});
 }
+
 function renderRecommendations(){
  const container=document.getElementById('qv-recommendations');if(!container)return;
  const program=PROGRAMS.find(p=>p.code===selected);
- document.getElementById('qv-recommend-title').textContent=program?program.name+' — tavsiyalar':'Siz uchun ochiq videodarslar';
- document.getElementById('qv-recommend-note').textContent=program?'Yo‘nalish fanlariga yaqin ochiq manbalar; xususiy o‘quv dasturi o‘rnini bosmaydi':'Yo‘nalishingizni tanlang yoki profilingizda belgilang';
- const matched=program?VIDEOS.filter(v=>v.tags.includes(program.code)).concat(VIDEOS.filter(v=>v.groups.includes(program.group)&&!v.tags.includes(program.code))).slice(0,4):VIDEOS.slice(0,4);
- const courses=program?COURSES.filter(c=>c.group===program.group).slice(0,1):COURSES.slice(0,1);
- container.innerHTML=matched.map(cardVideo).join('')+courses.map(cardCourse).join('')+(program?'<article class="qv-search-card"><div class="qv-search-icon">⌕</div><h3>'+esc(program.name)+'</h3><p>Yo‘nalishga xos qo‘shimcha video ma’ruzalarni YouTube’dan izlang.</p><a target="_blank" rel="noopener noreferrer" href="'+esc(youtubeSearch(program.name+' videodars maʼruza o‘zbek'))+'">Yo‘nalish videolarini qidirish ↗</a></article>':'');
- if(!matched.length && !courses.length && !program)container.innerHTML='<p>Ochiq videodarslar topilmadi.</p>';
+ const matched=lessonsForProgram(program,LESSONS_PER_MAJOR);
+ document.getElementById('qv-recommend-title').textContent=program?program.name+' — '+matched.length+' ta o‘zbekcha videodars':'Siz uchun ochiq o‘zbekcha videodarslar';
+ document.getElementById('qv-recommend-note').textContent=program?'Avval bevosita tegishli fanlar, keyin yo‘nalishning tayanch fanlari. Manbalari videokartada ko‘rsatiladi.':'Profilingizdagi yo‘nalish yoki yuqoridagi ro‘yxatdan tanlang';
+ container.innerHTML=matched.map(cardVideo).join('')+(program?'<article class="qv-search-card"><div class="qv-search-icon">⌕</div><h3>'+esc(program.name)+'</h3><p>Qo‘shimcha o‘zbekcha video ma’ruzalarni YouTube orqali qidiring.</p><a target="_blank" rel="noopener noreferrer" href="'+esc(youtubeSearch(program.name+' videodars maʼruza o‘zbek'))+'">Ko‘proq darslarni qidirish ↗</a></article>':'');
 }
 function renderAllVideos(){
- const el=document.getElementById('qv-all-videos');
- if(el)el.innerHTML=VIDEOS.map(cardVideo).join('')+COURSES.map(cardCourse).join('');
+ const el=document.getElementById('qv-all-videos');if(!el)return;
+ allVideoObserver?.disconnect();
+ allVideoObserver=null;
+ el.replaceChildren();
+ let index=0;
+ const sentinel=document.createElement('div');
+ sentinel.className='qv-video-sentinel';
+ sentinel.setAttribute('aria-hidden','true');
+ const loadMore=document.createElement('button');
+ loadMore.type='button';
+ loadMore.className='qv-load-more';
+ loadMore.textContent='Yana 12 ta videodarsni ko‘rsatish';
+ const more=()=>{
+   allVideoObserver?.unobserve(sentinel);
+   sentinel.remove();
+   loadMore.remove();
+   const next=UZBEK_LESSONS.slice(index,index+12);
+   index+=next.length;
+   if(next.length)el.insertAdjacentHTML('beforeend',next.map(cardVideo).join(''));
+   if(index<UZBEK_LESSONS.length){
+      el.appendChild(sentinel);
+      if(allVideoObserver)allVideoObserver.observe(sentinel);
+      else{el.appendChild(loadMore);loadMore.onclick=more;}
+   }
+ };
+ if('IntersectionObserver' in window){
+   allVideoObserver=new IntersectionObserver(entries=>{
+     if(entries.some(entry=>entry.isIntersecting)&&document.getElementById('videos')?.classList.contains('active'))more();
+   },{rootMargin:'340px 0px'});
+ }
+ more();
 }
 function matchingPrograms(){
  return PROGRAMS.filter(p=>(!searchText || norm(p.name+' '+p.code+' '+GROUPS[p.group].label).includes(searchText)));
