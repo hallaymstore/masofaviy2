@@ -88,6 +88,10 @@ const GROUPS = {
 // Faqat manbasi tekshirilgan aniq YouTube video IDlari.
 // Bu akademik tasdiqlangan universitet kurslari degani emas.
 const VIDEOS = [
+ {id:'PtNoZphQSYw',title:'Petroleum Refining — Course Introduction',source:'Chemical Engineering Guy',language:'Inglizcha',groups:['neftgaz','kimyo'],tags:['60720600','60720500','60710100']},
+ {id:'IPPMPN9AkR8',title:'Fundamentals of Agronomy — Lecture 1',source:'Agri Examhub',language:'Inglizcha / hindcha',groups:['agro'],tags:['60810400','60811700']},
+ {id:'9dAcEBXAFoo',title:'Introduction to Ecology',source:'Professor Dave Explains',language:'Inglizcha',groups:['ekologiya'],tags:['60520200','60711800']},
+ {id:'GlnFylwdYH4',title:'Introduction to Ecology — Ecosystems',source:"Teacher's Pet",language:'Inglizcha',groups:['ekologiya'],tags:['60520200','60711800']},
  {id:'NLrfm2p2RtA',title:'Qurilish konstruksiyalarini hisoblash va loyihalash — 1-ma’ruza',source:'TUACE',language:'O‘zbekcha',groups:['qurilish'],tags:['60730300','60730100']},
  {id:'TSeigxPwkiA',title:'Gidrotexnika inshootlari osti konstruksiyasi',source:'Buxoro tabiiy resurslarni boshqarish instituti',language:'O‘zbekcha',groups:['suv'],tags:['60811300','60730600']},
  {id:'RZ4STGNrmVw',title:'Materialshunoslik faniga kirish — 1-ma’ruza',source:'Fidoyiy ustozlar',language:'O‘zbekcha',groups:['sanoat'],tags:['60720300','60711200']},
