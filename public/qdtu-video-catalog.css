@@ -62,3 +62,33 @@
 /* Ommaviy katalog bosqichma-bosqich yuklanadigan grid marker */
 #videos .qv-video-sentinel{grid-column:1 / -1;height:2px;pointer-events:none}
 #videos #qv-all-videos>.qv-load-more{grid-column:1 / -1}
+
+/* Dedicated QDTU watch page: no translucent dialog or black modal overlay. */
+html.hx #shell>main #qdtuVideoWatch{width:100%;max-width:100%;padding-bottom:36px;color:var(--hx-ink,#172d37);background:transparent}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:6px 0 20px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-back{display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;min-height:43px;padding:8px 17px;border-radius:6px;border:1px solid rgba(13,119,107,.35);background:var(--hx-surface,#fff);color:var(--hx-ink,#183039)}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-kicker{color:var(--hx-muted,#66757a);font-size:13px;font-weight:650}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(265px,320px);gap:20px;align-items:start}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-main{min-width:0;padding:20px;background:var(--hx-surface,#fff);border:1px solid var(--hx-line,rgba(100,130,135,.22));border-radius:10px}
+html.hx #shell>main #qdtuVideoWatch h1{font-size:clamp(23px,2.5vw,30px);line-height:1.25;margin:0 0 8px;overflow-wrap:anywhere;letter-spacing:-.02em;color:var(--hx-ink,#183039)}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-meta{font-size:13px;margin:0 0 17px;color:var(--hx-muted,#60777b);line-height:1.5}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-stage{position:relative;width:100%;aspect-ratio:16/9;min-height:170px;overflow:hidden;background:linear-gradient(150deg,#093439,#081c29);border-radius:8px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-poster{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;padding:25px;z-index:1;background:linear-gradient(145deg,#0a3e43,#071723);color:#fff;text-align:center;font-size:14px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-poster[hidden]{display:none}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-loading{display:grid;place-items:center;width:65px;height:65px;border-radius:50%;background:#edf9f7;color:#066e64;font-size:27px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-frame{position:absolute;inset:0;z-index:2}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-frame iframe{display:block;width:100%;height:100%;border:0;background:transparent}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-youtube{display:inline-flex;align-items:center;justify-content:center;min-height:43px;padding:10px 16px;border-radius:6px;color:#fff!important;background:#0c776d!important;font-size:14px;font-weight:700;text-decoration:none}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-actions span{font-size:12px;line-height:1.5;color:var(--hx-muted,#60777b);flex:1}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-description{font-size:13px;line-height:1.6;margin:14px 0 0;color:var(--hx-muted,#60777b)}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-side{min-width:0;padding:16px;border-radius:10px;background:var(--hx-surface,#fff);border:1px solid var(--hx-line,rgba(100,130,135,.22));max-height:85vh;overflow-y:auto}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-side h2{font-size:18px;margin:0 0 4px;color:var(--hx-ink,#183039)}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-side>p{font-size:12px;color:var(--hx-muted,#66757a);margin:0 0 12px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-related{width:100%;display:flex;align-items:flex-start;gap:10px;padding:10px 0;background:transparent;border:0;border-bottom:1px solid var(--hx-line,rgba(100,130,135,.22));color:var(--hx-ink,#183039);cursor:pointer;text-align:left;border-radius:0}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-related img{display:block;width:112px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:5px;flex:none}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-related span{display:flex;flex-direction:column;gap:4px;min-width:0}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-related b{font-size:13px;line-height:1.4;color:var(--hx-ink,#183039);overflow-wrap:anywhere}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-related small{font-size:11px;color:var(--hx-muted,#6a7778)}
+@media(max-width:1100px){html.hx #shell>main #qdtuVideoWatch .qv-watch-layout{grid-template-columns:1fr}html.hx #shell>main #qdtuVideoWatch .qv-watch-side{max-height:none}}
+@media(max-width:600px){html.hx #shell>main #qdtuVideoWatch .qv-watch-main{padding:12px}html.hx #shell>main #qdtuVideoWatch .qv-watch-side{padding:12px}html.hx #shell>main #qdtuVideoWatch h1{font-size:21px}html.hx #shell>main #qdtuVideoWatch .qv-watch-related img{width:105px}}
