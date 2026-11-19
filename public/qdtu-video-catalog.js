@@ -122,15 +122,81 @@ function mount() {
   '<div class="qv-heading qv-heading-all"><div><h3>Barcha QDTU yo‘nalishlari</h3><p>Har biri uchun alohida tavsiyalar va YouTube qidiruvi</p></div><span id="qv-visible-count"></span></div><div id="qv-majors" class="qv-major-grid"></div><div id="qv-sentinel" class="qv-sentinel" aria-hidden="true"></div><button type="button" id="qv-load-more" class="qv-load-more">Yana 12 ta yo‘nalishni ko‘rsatish</button>'+
   '<p class="qv-disclaimer">Manba: QDTU 2026/2027 kunduzgi qabul yo‘nalishlari. O‘zbekcha videodarslar boshqa ta’lim muassasalari va mualliflarga tegishli bo‘lishi mumkin. Tor ixtisosliklarda tayanch fanlar ma’ruzalaridan foydalanilgan; qo‘shimcha mavzular uchun YouTube qidiruv havolasi bor. Ochiq materiallar rasmiy davomat, baho yoki majburiy video-progressga qo‘shilmaydi.</p>';
  page.querySelector('.video-toolbar')?.after(panel);
- const modal=document.createElement('dialog'); modal.id='qv-player-modal'; modal.className='qv-player-dialog'; modal.innerHTML='<div class="qv-player-head"><h2 id="qv-player-title">Videodars</h2><button type="button" data-qv-close aria-label="Videoni yopish">✕</button></div><div id="qv-player-frame"></div><div class="qv-player-foot"><span>YouTube rasmiy pleyeri</span><a id="qv-player-link" target="_blank" rel="noopener noreferrer">YouTube’da ochish ↗</a></div>';
- document.body.appendChild(modal);
- const stop=()=>{document.getElementById('qv-player-frame').replaceChildren();lastTrigger?.focus();};
- modal.addEventListener('close',stop);
- modal.addEventListener('click',event=>{if(event.target===modal)modal.close();});
- modal.querySelector('[data-qv-close]').addEventListener('click',()=>modal.close());
+
+ // Open lectures on their own full-size in-app lesson page instead of a modal overlay.
+ const watch=document.createElement('section');
+ watch.id='qdtuVideoWatch';
+ watch.className='page qv-watch-page';
+ watch.setAttribute('aria-label','O‘zbekcha videodarsni ko‘rish');
+ watch.innerHTML='<div class="qv-watch-header"><button type="button" class="secondary qv-watch-back" data-qv-back>← Barcha videodarslar</button><span class="qv-watch-kicker">QDTU · O‘zbekcha video kutubxona</span></div>'+
+ '<div class="qv-watch-layout"><div class="qv-watch-main"><h1 id="qv-watch-title">Videodars</h1><p id="qv-watch-meta" class="qv-watch-meta"></p><div id="qv-watch-stage" class="qv-watch-stage"><div id="qv-watch-poster" class="qv-watch-poster"><span class="qv-watch-loading" aria-hidden="true">▶</span><b>Video yuklanmoqda…</b></div><div id="qv-watch-frame" class="qv-watch-frame"></div></div><div class="qv-watch-actions"><a id="qv-watch-youtube" class="qv-watch-youtube" target="_blank" rel="noopener noreferrer">▶ YouTube’da ko‘rish ↗</a><span>Videoni ko‘ra olmasangiz, YouTube havolasidan foydalaning.</span></div><p class="qv-watch-description">Bu video ochiq YouTube manbasidan uzatiladi. Ayrim mualliflar tashqi saytlarda ijro etishga ruxsat bermasligi mumkin; bunday holatda yuqoridagi tugma videoni YouTube’da ochadi.</p></div><aside class="qv-watch-side"><h2>Keyingi tavsiya etilgan darslar</h2><p>Yo‘nalishingiz bo‘yicha boshqa o‘zbekcha videolar</p><div id="qv-watch-related"></div></aside></div>';
+ page.after(watch);
+ const frameBox=watch.querySelector('#qv-watch-frame');
+ const clearVideo=()=>{
+   frameBox.replaceChildren();
+   const poster=watch.querySelector('#qv-watch-poster');
+   if(poster)poster.hidden=false;
+ };
+ const backToCatalog=(pushHistory=false)=>{
+   clearVideo();
+   watch.classList.remove('active');
+   if(!document.querySelector('.page.active'))page.classList.add('active');
+   if(page.classList.contains('active'))document.documentElement.dataset.page='videos';
+   if(pushHistory&&location.hash.startsWith('#qdtu-video='))history.pushState({},'',location.pathname+location.search);
+   if(page.classList.contains('active'))window.scrollTo(0,0);
+ };
+ const openVideoPage=(video,saveHistory=true)=>{
+   if(!video)return;
+   clearVideo();
+   lastTrigger=document.activeElement;
+   watch.querySelector('#qv-watch-title').textContent=video.title;
+   const major=PROGRAMS.find(p=>p.code===selected);
+   watch.querySelector('#qv-watch-meta').textContent=[major?.name,video.source,video.language].filter(Boolean).join(' · ');
+   watch.querySelector('#qv-watch-youtube').href='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);
+   const related=major?lessonsForProgram(major,8):UZBEK_LESSONS.filter(v=>v.groups.some(g=>video.groups.includes(g))).slice(0,9);
+   watch.querySelector('#qv-watch-related').innerHTML=related.filter(v=>v.id!==video.id).slice(0,7).map(v=>'<button class="qv-watch-related" data-qv-play="'+esc(v.id)+'" type="button"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(v.id)+'/mqdefault.jpg" loading="lazy" alt=""><span><b>'+esc(v.title)+'</b><small>'+esc(v.source)+'</small></span></button>').join('')||'<p>Hozircha boshqa videodars mavjud emas.</p>';
+   allVideoObserver?.disconnect();
+   loadObserver?.disconnect();
+   document.querySelectorAll('.page.active').forEach(el=>el.classList.remove('active'));
+   watch.classList.add('active');
+   document.documentElement.dataset.page='qdtuVideoWatch';
+   if(saveHistory && location.hash!=='#qdtu-video='+encodeURIComponent(video.id))history.pushState({qdtuVideoId:video.id},'',location.pathname+location.search+'#qdtu-video='+encodeURIComponent(video.id));
+   window.scrollTo(0,0);
+   const iframe=document.createElement('iframe');
+   iframe.title=video.title;
+   iframe.src='https://www.youtube.com/embed/'+encodeURIComponent(video.id)+'?autoplay=1&rel=0&playsinline=1';
+   iframe.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+   iframe.referrerPolicy='strict-origin-when-cross-origin';
+   iframe.allowFullscreen=true;
+   iframe.loading='eager';
+   iframe.addEventListener('load',()=>{if(frameBox.contains(iframe))watch.querySelector('#qv-watch-poster').hidden=true;});
+   iframe.addEventListener('error',()=>{if(frameBox.contains(iframe)){const p=watch.querySelector('#qv-watch-poster');p.hidden=false;p.querySelector('b').textContent='Video ichki pleyerda ochilmadi. YouTube’da ko‘ring.';}});
+   frameBox.appendChild(iframe);
+ };
+ watch.addEventListener('click',event=>{
+   const item=event.target.closest('[data-qv-play]');
+   if(item){const video=UZBEK_LESSONS.find(v=>v.id===item.dataset.qvPlay);openVideoPage(video);return;}
+   if(event.target.closest('[data-qv-back]')){
+      if(location.hash.startsWith('#qdtu-video='))history.back();
+      else backToCatalog();
+   }
+ });
+ window.addEventListener('popstate',()=>{
+   const id=location.hash.startsWith('#qdtu-video=')?decodeURIComponent(location.hash.slice(12)):'';
+   const video=UZBEK_LESSONS.find(v=>v.id===id);
+   if(video)openVideoPage(video,false);
+   else if(watch.classList.contains('active'))backToCatalog();
+ });
+ document.addEventListener('hx:navigate',event=>{
+   if(event.detail?.page!=='qdtuVideoWatch'&&watch.classList.contains('active'))clearVideo();
+   if(event.detail?.page==='videos'){
+     if(allVideoObserver)allVideoObserver.observe(panel.querySelector('#qv-video-sentinel')||document.getElementById('qv-all-videos')?.querySelector('.qv-video-sentinel')||panel.querySelector('#qv-sentinel'));
+     if(loadObserver)loadObserver.observe(panel.querySelector('#qv-sentinel'));
+   }
+ });
  panel.addEventListener('click',event=>{
    const play=event.target.closest('[data-qv-play]');
-   if(play){const video=UZBEK_LESSONS.find(v=>v.id===play.dataset.qvPlay);if(!video)return;lastTrigger=play;modal.querySelector('#qv-player-title').textContent=video.title;modal.querySelector('#qv-player-link').href='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(video.id)+'?autoplay=1&rel=0';iframe.title=video.title;iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share';iframe.referrerPolicy='strict-origin-when-cross-origin';iframe.allowFullscreen=true;modal.querySelector('#qv-player-frame').replaceChildren(iframe);modal.showModal();return;}
+   if(play){const video=UZBEK_LESSONS.find(v=>v.id===play.dataset.qvPlay);openVideoPage(video);return;}
    const select=event.target.closest('[data-qv-select]');if(select){selected=select.dataset.qvSelect;panel.querySelector('#qv-direction').value=selected;renderRecommendations();panel.querySelector('#qv-recommend-title').scrollIntoView({behavior:'smooth',block:'start'});}
  });
  panel.querySelector('#qv-direction').addEventListener('change',event=>{selected=event.target.value;renderRecommendations();renderMajors();});
