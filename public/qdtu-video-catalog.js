@@ -158,6 +158,9 @@ function mount() {
    const major=PROGRAMS.find(p=>p.code===selected);
    watch.querySelector('#qv-watch-meta').textContent=[major?.name,video.source,video.language].filter(Boolean).join(' · ');
    watch.querySelector('#qv-watch-youtube').href='https://www.youtube.com/watch?v='+encodeURIComponent(video.id);
+   const poster=watch.querySelector('#qv-watch-poster');
+   poster.style.backgroundImage='linear-gradient(0deg,rgba(7,24,36,.84),rgba(7,24,36,.27)),url(https://i.ytimg.com/vi/'+encodeURIComponent(video.id)+'/hqdefault.jpg)';
+   poster.querySelector('b').textContent='Videodars yuklanmoqda…';
    const related=major?lessonsForProgram(major,8):UZBEK_LESSONS.filter(v=>v.groups.some(g=>video.groups.includes(g))).slice(0,9);
    watch.querySelector('#qv-watch-related').innerHTML=related.filter(v=>v.id!==video.id).slice(0,7).map(v=>'<button class="qv-watch-related" data-qv-play="'+esc(v.id)+'" type="button"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(v.id)+'/mqdefault.jpg" loading="lazy" alt=""><span><b>'+esc(v.title)+'</b><small>'+esc(v.source)+'</small></span></button>').join('')||'<p>Hozircha boshqa videodars mavjud emas.</p>';
    allVideoObserver?.disconnect();
