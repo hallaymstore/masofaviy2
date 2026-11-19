@@ -45,9 +45,18 @@ test('Ommaviy kutubxonadagi videolar takrorlanmaydi va soha bo‘yicha qidirilad
  assert.match(catalog,/UZBEK_LESSONS\.slice\(index,index\+12\)/);
  assert.match(catalog,/new IntersectionObserver/);
  assert.match(catalog,/loading="lazy"/);
- assert.match(catalog,/youtube-nocookie\.com\/embed/);
+ assert.match(catalog,/www\.youtube\.com\/embed/);
 });
 
+test('Videodars modal emas, mustaqil page bo‘lib ochiladi va chiqish tugmasi mavjud',()=>{
+ assert.match(catalog,/watch\.id='qdtuVideoWatch'/);
+ assert.match(catalog,/watch\.className='page qv-watch-page'/);
+ assert.match(catalog,/watch\.classList\.add\('active'\)/);
+ assert.match(catalog,/youtube\.com\/embed/);
+ assert.match(catalog,/data-qv-back/);
+ assert.match(catalog,/YouTube.da ko‘rish/);
+ assert.doesNotMatch(catalog,/showModal\(/);
+});
 test('Mavjud LMS videodarslari va tavsiyalar moduli saqlanadi',()=>{
  assert.match(index,/qdtu-video-catalog\.js\?v=/);
  assert.match(index,/qdtu-video-catalog\.css\?v=/);
