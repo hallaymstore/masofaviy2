@@ -73,7 +73,7 @@ html.hx #shell>main #qdtuVideoWatch .qv-watch-main{min-width:0;padding:20px;back
 html.hx #shell>main #qdtuVideoWatch h1{font-size:clamp(23px,2.5vw,30px);line-height:1.25;margin:0 0 8px;overflow-wrap:anywhere;letter-spacing:-.02em;color:var(--hx-ink,#183039)}
 html.hx #shell>main #qdtuVideoWatch .qv-watch-meta{font-size:13px;margin:0 0 17px;color:var(--hx-muted,#60777b);line-height:1.5}
 html.hx #shell>main #qdtuVideoWatch .qv-watch-stage{position:relative;width:100%;aspect-ratio:16/9;min-height:170px;overflow:hidden;background:linear-gradient(150deg,#093439,#081c29);border-radius:8px}
-html.hx #shell>main #qdtuVideoWatch .qv-watch-poster{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;padding:25px;z-index:1;background:linear-gradient(145deg,#0a3e43,#071723);color:#fff;text-align:center;font-size:14px}
+html.hx #shell>main #qdtuVideoWatch .qv-watch-poster{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;padding:25px;z-index:3;background:linear-gradient(145deg,#0a3e43,#071723);background-position:center;background-size:cover;color:#fff;text-align:center;font-size:14px;pointer-events:none}
 html.hx #shell>main #qdtuVideoWatch .qv-watch-poster[hidden]{display:none}
 html.hx #shell>main #qdtuVideoWatch .qv-watch-loading{display:grid;place-items:center;width:65px;height:65px;border-radius:50%;background:#edf9f7;color:#066e64;font-size:27px}
 html.hx #shell>main #qdtuVideoWatch .qv-watch-frame{position:absolute;inset:0;z-index:2}
