@@ -1867,17 +1867,63 @@ function renderVideoLearningPaths(rows){
     return '<section class="video-course-path"><div class="video-course-path-head"><div><small>'+esc(course.code||'Kurs')+'</small><h2>'+esc(course.title)+'</h2></div><span>'+esc([...course.modules.values()].reduce((n,x)=>n+x.length,0))+' videomavzu</span></div>'+modules+'</section>';
   }).join('');
 }
+
+let videoListObserver=null,videoListRequestSerial=0;
 async function loadVideoLessons(){
+  const requestId=++videoListRequestSerial;
+  videoListObserver?.disconnect();
+  videoListObserver=null;
   try{
     videoLessonsCache=await api('/videos');
+    if(requestId!==videoListRequestSerial)return;
     const q=String($('#videoSearch')?.value||'').toLowerCase().trim(),course=Number($('#videoCourseFilter')?.value||0),direction=String($('#videoDirectionFilter')?.value||'').toLowerCase().trim();
     const rows=videoLessonsCache.filter(v=>(!q||[v.title,v.subject,v.description,...(v.tags||[])].join(' ').toLowerCase().includes(q))&&(!course||(v.courseYears||[]).includes(course))&&(!direction||String(v.direction||'').toLowerCase().includes(direction)));
     const rec=rows.filter(v=>v.recommendationScore>0).slice(0,10);
     $('#recommendedVideos').innerHTML=(rec.length?rec:rows.slice(0,10)).map(v=>videoCard(v,true)).join('')||'<div class="empty"><b>Tavsiya topilmadi</b><p>Kurs yoki yo‘nalish filtrlari bilan qidiring.</p></div>';
-    $('#videoLessons').innerHTML=renderVideoLearningPaths(rows);
-    bindVideoActions();all('[data-video-checkpoint]').forEach(b=>b.onclick=()=>{if(b.disabled)return;startCourseQuiz(b.dataset.videoCheckpoint,b.dataset.proctor==='1',b.dataset.videoId||'')});hydrateIcons($('#videos'));
-  }catch(e){$('#videoLessons').innerHTML='<div class="empty"><b>Videodarslarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
+    const list=$('#videoLessons');
+    list.replaceChildren();
+    let displayed=0;
+    const sentinel=document.createElement('div');
+    sentinel.className='video-catalog-sentinel';
+    sentinel.style.cssText='height:1px;width:100%';
+    const more=document.createElement('button');
+    more.type='button';
+    more.className='secondary';
+    more.textContent='Yana videodarslarni ko‘rsatish';
+    more.style.cssText='width:100%;min-height:44px;margin:10px 0';
+    const addNext=()=>{
+      if(requestId!==videoListRequestSerial)return;
+      videoListObserver?.unobserve(sentinel);
+      sentinel.remove();
+      more.remove();
+      if(!rows.length){
+        list.innerHTML=renderVideoLearningPaths(rows);
+        return;
+      }
+      // Render only visible chunks: keep API-authorized course progression intact.
+      const chunk=rows.slice(displayed,displayed+24);
+      displayed+=chunk.length;
+      list.insertAdjacentHTML('beforeend',renderVideoLearningPaths(chunk));
+      bindVideoActions(list);
+      list.querySelectorAll('[data-video-checkpoint]').forEach(b=>b.onclick=()=>{if(!b.disabled)startCourseQuiz(b.dataset.videoCheckpoint,b.dataset.proctor==='1',b.dataset.videoId||'')});
+      hydrateIcons(list);
+      if(displayed<rows.length){
+        list.append(sentinel);
+        if(videoListObserver)videoListObserver.observe(sentinel);
+        else{list.append(more);more.onclick=addNext}
+      }
+    };
+    if('IntersectionObserver' in window){
+      videoListObserver=new IntersectionObserver(entries=>{
+        if(entries.some(entry=>entry.isIntersecting)&&$('#videos')?.classList.contains('active'))addNext();
+      },{rootMargin:'400px 0px'});
+    }
+    addNext();
+    bindVideoActions($('#recommendedVideos'));
+    hydrateIcons($('#recommendedVideos'));
+  }catch(e){if(requestId===videoListRequestSerial)$('#videoLessons').innerHTML='<div class="empty"><b>Videodarslarni yuklab bo‘lmadi</b><p>'+esc(e.message)+'</p></div>'}
 }
+
 function bindVideoActions(root=document){
   root.querySelectorAll?.('[data-video-play]').forEach(b=>{
     const v=videoLessonsCache.find(x=>String(x._id)===String(b.dataset.videoPlay));
